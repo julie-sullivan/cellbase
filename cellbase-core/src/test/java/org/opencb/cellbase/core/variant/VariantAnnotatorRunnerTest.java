@@ -16,7 +16,7 @@
 
 package org.opencb.cellbase.core.variant;
 
-public class VariantAnnotatorRunnerTest {
+public class    VariantAnnotatorRunnerTest {
 
 //    @Test
 //    public void testReadInputFile() throws URISyntaxException {
