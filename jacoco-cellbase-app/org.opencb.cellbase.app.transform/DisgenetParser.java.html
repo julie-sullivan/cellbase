@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DisgenetParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">DisgenetParser.java</span></div><h1>DisgenetParser.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform;
+
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.opencb.biodata.models.core.Disease;
+import org.opencb.cellbase.core.common.genedisease.Disgenet;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.*;
+import java.nio.file.Path;
+import java.util.*;
+
+/**
+ * Class for parsing Disgenet files as the one that can be downloaded from
+ * http://www.disgenet.org/ds/DisGeNET/results/all_gene_disease_associations.tar.gz.
+ *
+ * @author Javi Lopez fjlopez@ebi.ac.uk
+ */
+@Deprecated
+public class DisgenetParser extends CellBaseParser {
+
+    private Path disgenetFilePath;
+
+    public DisgenetParser(Path disgenetFilePath, CellBaseSerializer serializer) {
+<span class="nc" id="L26">        super(serializer);</span>
+<span class="nc" id="L27">        this.disgenetFilePath = disgenetFilePath;</span>
+<span class="nc" id="L28">    }</span>
+
+    /**
+     * Parses a Disgenet file ad the one that can be downloaded from
+     * http://www.disgenet.org/ds/DisGeNET/results/all_gene_disease_associations.tar.gz and writes corresponding json
+     * objects.
+     */
+    public void parse() {
+<span class="nc" id="L36">        Map&lt;String, Disgenet&gt; disgenetMap = new HashMap&lt;&gt;();</span>
+
+        BufferedReader reader;
+        try {
+            // Disgenet file is usually downloaded as a .tar.gz file
+<span class="nc bnc" id="L41" title="All 2 branches missed.">            if (disgenetFilePath.toFile().getName().endsWith(&quot;tar.gz&quot;)) {</span>
+<span class="nc" id="L42">                TarArchiveInputStream tarInput = new TarArchiveInputStream(</span>
+<span class="nc" id="L43">                        new GzipCompressorInputStream(new FileInputStream(disgenetFilePath.toFile())));</span>
+//                TarArchiveEntry currentEntry = tarInput.getNextTarEntry();
+//                BufferedReader br = null;
+<span class="nc" id="L46">                reader = new BufferedReader(new InputStreamReader(tarInput)); // Read directly from tarInput</span>
+<span class="nc" id="L47">            } else {</span>
+<span class="nc" id="L48">                reader = FileUtils.newBufferedReader(disgenetFilePath);</span>
+            }
+//            if (disgenetFilePath.toFile().getName().endsWith(&quot;txt.gz&quot;)) {
+//                reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(disgenetFilePath.toFile()))));
+//            } else {
+//                reader = Files.newBufferedReader(disgenetFilePath, Charset.defaultCharset());
+//            }
+
+<span class="nc" id="L56">            logger.info(&quot;Parsing Disgenet file &quot; + disgenetFilePath + &quot; ...&quot;);</span>
+            // first line is the header -&gt; ignore it
+<span class="nc" id="L58">            reader.readLine();</span>
+<span class="nc" id="L59">            long processedDisgenetLines = fillDisgenetMap(disgenetMap, reader);</span>
+
+<span class="nc" id="L61">            logger.info(&quot;Serializing parsed variants ...&quot;);</span>
+<span class="nc" id="L62">            Collection&lt;Disgenet&gt; allDisgenetRecords = disgenetMap.values();</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            for (Disgenet disGeNetRecord : allDisgenetRecords) {</span>
+<span class="nc" id="L64">                serializer.serialize(disGeNetRecord);</span>
+<span class="nc" id="L65">            }</span>
+<span class="nc" id="L66">            logger.info(&quot;Done&quot;);</span>
+<span class="nc" id="L67">            this.printSummary(processedDisgenetLines, allDisgenetRecords.size());</span>
+
+<span class="nc" id="L69">        } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L70">            logger.error(&quot;Disgenet file &quot; + disgenetFilePath + &quot; not found&quot;);</span>
+<span class="nc" id="L71">        } catch (IOException e) {</span>
+<span class="nc" id="L72">            logger.error(&quot;Error reading Disgenet file &quot; + disgenetFilePath + &quot;: &quot; + e.getMessage());</span>
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">    }</span>
+
+    private void printSummary(long processedDisgenetLines, long serializedGenes) {
+<span class="nc" id="L77">        logger.info(&quot;&quot;);</span>
+<span class="nc" id="L78">        logger.info(&quot;Summary&quot;);</span>
+<span class="nc" id="L79">        logger.info(&quot;=======&quot;);</span>
+<span class="nc" id="L80">        logger.info(&quot;Processed &quot; + processedDisgenetLines + &quot; disGeNet file lines&quot;);</span>
+<span class="nc" id="L81">        logger.info(&quot;Serialized &quot; + serializedGenes + &quot; genes&quot;);</span>
+<span class="nc" id="L82">    }</span>
+
+    /**
+     * Loads a map {geneId -&gt; Disgenet info} from the Disgenet file.
+     *
+     * @param disGeNetMap: Map where keys are Disgenet gene ids and values are Disgenet objects. Will be filled within
+     *                     this method.
+     * @param reader:      BufferedReader pointing to the first line containing actual Disgenet info (header assumed to be
+     *                     skipped).
+     * @throws IOException in case any problem occurs reading the file.
+     */
+    private long fillDisgenetMap(Map&lt;String, Disgenet&gt; disGeNetMap, BufferedReader reader) throws IOException {
+<span class="nc" id="L94">        long linesProcessed = 0;</span>
+
+        String line;
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L98">            String[] fields = line.split(&quot;\t&quot;);</span>
+
+<span class="nc" id="L100">            String geneId = fields[0];</span>
+<span class="nc" id="L101">            String geneSymbol = fields[1];</span>
+<span class="nc" id="L102">            String geneName = fields[2];</span>
+<span class="nc" id="L103">            String diseaseId = fields[3];</span>
+<span class="nc" id="L104">            String diseaseName = fields[4];</span>
+<span class="nc" id="L105">            Float score = Float.parseFloat(fields[5]);</span>
+<span class="nc" id="L106">            Integer numberOfPubmeds = Integer.parseInt(fields[6]);</span>
+<span class="nc" id="L107">            String associationType = fields[7];</span>
+<span class="nc" id="L108">            Set&lt;String&gt; sources = new HashSet&lt;&gt;(Arrays.asList(fields[8].split(&quot;, &quot;)));</span>
+
+<span class="nc bnc" id="L110" title="All 4 branches missed.">            if (geneId != null &amp;&amp; !geneId.equals(&quot;&quot;)) {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                if (disGeNetMap.get(geneId) != null) {</span>
+<span class="nc" id="L112">                    updateElementDisgenetMap(disGeNetMap, geneId, diseaseId, diseaseName, score, numberOfPubmeds, associationType, sources);</span>
+                } else {
+<span class="nc" id="L114">                    insertNewElementToDisgenetMap(disGeNetMap, geneId, geneSymbol, geneName, diseaseId, diseaseName,</span>
+                            score, numberOfPubmeds, associationType, sources);
+                }
+            }
+
+<span class="nc" id="L119">            linesProcessed++;</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if ((linesProcessed % 10000) == 0) {</span>
+<span class="nc" id="L121">                logger.info(&quot;{} lines processed&quot;, linesProcessed);</span>
+            }
+<span class="nc" id="L123">        }</span>
+
+<span class="nc" id="L125">        return linesProcessed;</span>
+    }
+
+    private void insertNewElementToDisgenetMap(Map&lt;String, Disgenet&gt; disGeNetMap, String geneId, String geneSymbol,
+                                               String geneName, String diseaseId, String diseaseName, Float score,
+                                               Integer numberOfPubmeds, String associationType, Set&lt;String&gt; sources) {
+<span class="nc" id="L131">        Disease diseaseToAddToNewGene =</span>
+                new Disease(diseaseId, diseaseName, &quot;&quot;, score, numberOfPubmeds, associationType, sources, &quot;disgenet&quot;);
+<span class="nc" id="L133">        List&lt;Disease&gt; diseases = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L134">        diseases.add(diseaseToAddToNewGene);</span>
+<span class="nc" id="L135">        Disgenet disGeNet = new Disgenet(geneName, geneSymbol, diseases);</span>
+<span class="nc" id="L136">        disGeNetMap.put(geneId, disGeNet);</span>
+<span class="nc" id="L137">    }</span>
+
+    private void updateElementDisgenetMap(Map&lt;String, Disgenet&gt; disGeNetMap, String geneId, String diseaseId, String diseaseName,
+                                          Float score, Integer numberOfPubmeds, String associationType, Set&lt;String&gt; sources) {
+<span class="nc" id="L141">        Disgenet disGeNetRecord = disGeNetMap.get(geneId);</span>
+<span class="nc" id="L142">        boolean diseaseFound = false;</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        for (int i = 0; i &lt; disGeNetRecord.getDiseases().size(); i++) {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (disGeNetRecord.getDiseases().get(i).getId().equals(diseaseId)) {</span>
+<span class="nc" id="L145">                disGeNetRecord.getDiseases().get(i).getAssociationTypes().add(associationType);</span>
+<span class="nc" id="L146">                disGeNetRecord.getDiseases().get(i).getSources().addAll(sources);</span>
+<span class="nc" id="L147">                diseaseFound = true;</span>
+            }
+        }
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (!diseaseFound) {</span>
+<span class="nc" id="L151">            Disease diseaseToAddToExitsGene =</span>
+                    new Disease(diseaseId, diseaseName, &quot;&quot;, score, numberOfPubmeds, associationType, sources, &quot;disgenet&quot;);
+<span class="nc" id="L153">            disGeNetRecord.getDiseases().add(diseaseToAddToExitsGene);</span>
+        }
+<span class="nc" id="L155">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

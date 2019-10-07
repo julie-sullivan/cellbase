@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConservationParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">ConservationParser.java</span></div><h1>ConservationParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.models.core.GenomicScoreRegion;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.serializer.CellBaseFileSerializer;
+import org.opencb.commons.utils.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+public class ConservationParser extends CellBaseParser {
+
+    private static final int CHUNK_SIZE = 2000;
+
+    private Logger logger;
+    private Path conservedRegionPath;
+    private int chunkSize;
+
+    private CellBaseFileSerializer fileSerializer;
+    private Map&lt;String, String&gt; outputFileNames;
+    // Download data:
+    // for i in `seq 1 22`;
+    // do wget ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/phastCons46way/primates/chr$i.phastCons46way.primates.wigFix.gz;
+    // done
+    // ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/phyloP46way/primates/
+
+    public ConservationParser(Path conservedRegionPath, CellBaseFileSerializer serializer) {
+<span class="nc" id="L52">        this(conservedRegionPath, CHUNK_SIZE, serializer);</span>
+<span class="nc" id="L53">    }</span>
+
+    public ConservationParser(Path conservedRegionPath, int chunkSize, CellBaseFileSerializer serializer) {
+<span class="nc" id="L56">        super(serializer);</span>
+<span class="nc" id="L57">        fileSerializer = serializer;</span>
+<span class="nc" id="L58">        this.conservedRegionPath = conservedRegionPath;</span>
+<span class="nc" id="L59">        this.chunkSize = chunkSize;</span>
+<span class="nc" id="L60">        logger = LoggerFactory.getLogger(ConservationParser.class);</span>
+<span class="nc" id="L61">        outputFileNames = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L62">    }</span>
+
+    @Override
+    public void parse() throws IOException, InterruptedException {
+<span class="nc" id="L66">        System.out.println(&quot;conservedRegionPath = &quot; + conservedRegionPath.toString());</span>
+<span class="nc bnc" id="L67" title="All 6 branches missed.">        if (conservedRegionPath == null || !Files.exists(conservedRegionPath) || !Files.isDirectory(conservedRegionPath)) {</span>
+<span class="nc" id="L68">            throw new IOException(&quot;Conservation directory whether does not exist, is not a directory or cannot be read&quot;);</span>
+        }
+
+        /*
+         * GERP is stored in a particular format
+         */
+<span class="nc" id="L74">        Path gerpFolderPath = conservedRegionPath.resolve(EtlCommons.GERP_SUBDIRECTORY);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (gerpFolderPath.toFile().exists()) {</span>
+<span class="nc" id="L76">            logger.debug(&quot;Parsing GERP data ...&quot;);</span>
+<span class="nc" id="L77">            gerpParser(gerpFolderPath);</span>
+        }
+
+
+        /*
+         * UCSC phastCons and phylop are stored in the same format. They are processed together.
+         */
+<span class="nc" id="L84">        Map&lt;String, Path&gt; files = new HashMap&lt;&gt;();</span>
+        String chromosome;
+<span class="nc" id="L86">        Set&lt;String&gt; chromosomes = new HashSet&lt;&gt;();</span>
+
+        // Reading all files in phastCons folder
+<span class="nc" id="L89">        DirectoryStream&lt;Path&gt; directoryStream = Files.newDirectoryStream(conservedRegionPath.resolve(&quot;phastCons&quot;), &quot;*.wigFix.gz&quot;);</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        for (Path path : directoryStream) {</span>
+<span class="nc" id="L91">            chromosome = path.getFileName().toString().split(&quot;\\.&quot;)[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L92">            chromosomes.add(chromosome);</span>
+<span class="nc" id="L93">            files.put(chromosome + &quot;phastCons&quot;, path);</span>
+<span class="nc" id="L94">        }</span>
+
+        // Reading all files in phylop folder
+<span class="nc" id="L97">        directoryStream = Files.newDirectoryStream(conservedRegionPath.resolve(&quot;phylop&quot;), &quot;*.wigFix.gz&quot;);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        for (Path path : directoryStream) {</span>
+<span class="nc" id="L99">            chromosome = path.getFileName().toString().split(&quot;\\.&quot;)[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L100">            chromosomes.add(chromosome);</span>
+<span class="nc" id="L101">            files.put(chromosome + &quot;phylop&quot;, path);</span>
+<span class="nc" id="L102">        }</span>
+
+        /*
+         * Now we can iterate over all the chromosomes found and process the files
+         */
+<span class="nc" id="L107">        logger.debug(&quot;Chromosomes found '{}'&quot;, chromosomes.toString());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        for (String chr : chromosomes) {</span>
+<span class="nc" id="L109">            logger.debug(&quot;Processing chromosome '{}', file '{}'&quot;, chr, files.get(chr + &quot;phastCons&quot;));</span>
+<span class="nc" id="L110">            processWigFixFile(files.get(chr + &quot;phastCons&quot;), &quot;phastCons&quot;);</span>
+
+<span class="nc" id="L112">            logger.debug(&quot;Processing chromosome '{}', file '{}'&quot;, chr, files.get(chr + &quot;phylop&quot;));</span>
+<span class="nc" id="L113">            processWigFixFile(files.get(chr + &quot;phylop&quot;), &quot;phylop&quot;);</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">    }</span>
+
+
+    private void gerpParser(Path gerpFolderPath) throws IOException, InterruptedException {
+<span class="nc" id="L119">        logger.info(&quot;Uncompressing {}&quot;, gerpFolderPath.resolve(EtlCommons.GERP_FILE));</span>
+<span class="nc" id="L120">        List&lt;String&gt; tarArgs = Arrays.asList(&quot;-xvzf&quot;, gerpFolderPath.resolve(EtlCommons.GERP_FILE).toString(),</span>
+<span class="nc" id="L121">                &quot;--overwrite&quot;, &quot;-C&quot;, gerpFolderPath.toString());</span>
+<span class="nc" id="L122">        EtlCommons.runCommandLineProcess(null, &quot;tar&quot;, tarArgs, null);</span>
+
+<span class="nc" id="L124">        DirectoryStream&lt;Path&gt; pathDirectoryStream = Files.newDirectoryStream(gerpFolderPath, &quot;*.rates&quot;);</span>
+<span class="nc" id="L125">        boolean filesFound = false;</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        for (Path path : pathDirectoryStream) {</span>
+<span class="nc" id="L127">            filesFound = true;</span>
+<span class="nc" id="L128">            logger.info(&quot;Processing file '{}'&quot;, path.getFileName().toString());</span>
+<span class="nc" id="L129">            String[] chromosome = path.getFileName().toString().replaceFirst(&quot;chr&quot;, &quot;&quot;).split(&quot;\\.&quot;);</span>
+<span class="nc" id="L130">            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(String.valueOf(path))));</span>
+            String line;
+<span class="nc" id="L132">            int start = 1;</span>
+<span class="nc" id="L133">            int end = 1999;</span>
+<span class="nc" id="L134">            int counter = 1;</span>
+            String[] fields;
+<span class="nc" id="L136">            List&lt;Float&gt; val = new ArrayList&lt;&gt;(chunkSize);</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            while ((line = bufferedReader.readLine()) != null) {</span>
+<span class="nc" id="L138">                fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L139">                val.add(Float.valueOf(fields[1]));</span>
+<span class="nc" id="L140">                counter++;</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                if (counter == chunkSize) {</span>
+//                    ConservationScoreRegion conservationScoreRegion = new ConservationScoreRegion(chromosome[0], start, end, &quot;gerp&quot;, val);
+<span class="nc" id="L143">                    GenomicScoreRegion&lt;Float&gt; conservationScoreRegion =</span>
+                            new GenomicScoreRegion&lt;&gt;(chromosome[0], start, end, &quot;gerp&quot;, val);
+<span class="nc" id="L145">                    fileSerializer.serialize(conservationScoreRegion, getOutputFileName(chromosome[0]));</span>
+
+<span class="nc" id="L147">                    start = end + 1;</span>
+<span class="nc" id="L148">                    end += chunkSize;</span>
+
+<span class="nc" id="L150">                    counter = 0;</span>
+<span class="nc" id="L151">                    val.clear();</span>
+<span class="nc" id="L152">                }</span>
+            }
+
+            // we need to serialize the last chunk that might be incomplete
+//            ConservationScoreRegion conservationScoreRegion =
+//                    new ConservationScoreRegion(chromosome[0], start, start + val.size() - 1, &quot;gerp&quot;, val);
+<span class="nc" id="L158">            GenomicScoreRegion&lt;Float&gt; conservationScoreRegion =</span>
+<span class="nc" id="L159">                    new GenomicScoreRegion&lt;&gt;(chromosome[0], start, start + val.size() - 1, &quot;gerp&quot;, val);</span>
+<span class="nc" id="L160">            fileSerializer.serialize(conservationScoreRegion, getOutputFileName(chromosome[0]));</span>
+
+<span class="nc" id="L162">            bufferedReader.close();</span>
+<span class="nc" id="L163">        }</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (!filesFound) {</span>
+<span class="nc" id="L166">            logger.warn(&quot;No GERP++ files were found. Please check that the original file {} is there, that it was&quot;</span>
+                    + &quot; properly decompressed and that the *.rates files are present&quot;,
+<span class="nc" id="L168">                    gerpFolderPath.resolve(EtlCommons.GERP_FILE));</span>
+        }
+<span class="nc" id="L170">    }</span>
+
+    private void processWigFixFile(Path inGzPath, String conservationSource) throws IOException {
+<span class="nc" id="L173">        BufferedReader bufferedReader = FileUtils.newBufferedReader(inGzPath);</span>
+
+        String line;
+<span class="nc" id="L176">        String chromosome = &quot;&quot;;</span>
+//        int start = 0, end = 0;
+<span class="nc" id="L178">        int start = 0;</span>
+        float value;
+<span class="nc" id="L180">        Map&lt;String, String&gt; attributes = new HashMap&lt;&gt;();</span>
+//        ConservedRegion conservedRegion =  null;
+<span class="nc" id="L182">        List&lt;Float&gt; values = new ArrayList&lt;&gt;();</span>
+//        ConservationScoreRegion conservedRegion = null;
+<span class="nc" id="L184">        GenomicScoreRegion&lt;Float&gt; conservedRegion = null;</span>
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        while ((line = bufferedReader.readLine()) != null) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (line.startsWith(&quot;fixedStep&quot;)) {</span>
+                //new group, save last
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                if (conservedRegion != null) {</span>
+//                    conservedRegion.setEnd(end);
+//                    conservedRegion = new ConservationScoreRegion(chromosome, start, end, conservationSource, values);
+<span class="nc" id="L192">                    conservedRegion = new GenomicScoreRegion&lt;&gt;(chromosome, start, start + values.size() - 1,</span>
+                            conservationSource, values);
+<span class="nc" id="L194">                    fileSerializer.serialize(conservedRegion, getOutputFileName(chromosome));</span>
+                }
+
+//                offset = 0;
+<span class="nc" id="L198">                attributes.clear();</span>
+<span class="nc" id="L199">                String[] attrFields = line.split(&quot; &quot;);</span>
+                String[] attrKeyValue;
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                for (String attrField : attrFields) {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                    if (!attrField.equalsIgnoreCase(&quot;fixedStep&quot;)) {</span>
+<span class="nc" id="L203">                        attrKeyValue = attrField.split(&quot;=&quot;);</span>
+<span class="nc" id="L204">                        attributes.put(attrKeyValue[0].toLowerCase(), attrKeyValue[1]);</span>
+                    }
+                }
+<span class="nc" id="L207">                chromosome = attributes.get(&quot;chrom&quot;).replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L208">                start = Integer.parseInt(attributes.get(&quot;start&quot;));</span>
+//                end = Integer.parseInt(attributes.get(&quot;start&quot;));
+
+<span class="nc" id="L211">                values = new ArrayList&lt;&gt;(2000);</span>
+<span class="nc" id="L212">            } else {</span>
+<span class="nc" id="L213">                int startChunk = start / CHUNK_SIZE;</span>
+//                end++;
+<span class="nc" id="L215">                int endChunk = (start + values.size()) / CHUNK_SIZE; // This is the endChunk if current read score is</span>
+                                                                     // appended to the array (otherwise it would be
+                                                                     // start + values.size() - 1). If this endChunk is
+                                                                     // different from the startChunk means that current
+                                                                     // conserved region must be dumped and current
+                                                                     // score must be associated to next chunk. Main
+                                                                     // difference to what there was before is that if
+                                                                     // the fixedStep starts on the last position of a
+                                                                     // chunk e.g. 1999, the chunk must be created with
+                                                                     // just that score - the chunk was left empty with
+                                                                     // the old code
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                if (startChunk != endChunk) {</span>
+//                    conservedRegion = new ConservationScoreRegion(chromosome, start, end - 1, conservationSource, values);
+<span class="nc" id="L228">                    conservedRegion = new GenomicScoreRegion&lt;&gt;(chromosome, start, start + values.size() - 1,</span>
+                            conservationSource, values);
+<span class="nc" id="L230">                    fileSerializer.serialize(conservedRegion, getOutputFileName(chromosome));</span>
+<span class="nc" id="L231">                    start = start + values.size();</span>
+<span class="nc" id="L232">                    values.clear();</span>
+                }
+
+<span class="nc" id="L235">                value = Float.parseFloat(line.trim());</span>
+<span class="nc" id="L236">                values.add(value);</span>
+<span class="nc" id="L237">            }</span>
+        }
+        //write last
+//        conservedRegion = new ConservationScoreRegion(chromosome, start, end, conservationSource, values);
+<span class="nc" id="L241">        conservedRegion = new GenomicScoreRegion&lt;&gt;(chromosome, start, start + values.size() - 1, conservationSource,</span>
+                values);
+<span class="nc" id="L243">        fileSerializer.serialize(conservedRegion, getOutputFileName(chromosome));</span>
+<span class="nc" id="L244">        bufferedReader.close();</span>
+<span class="nc" id="L245">    }</span>
+
+    private String getOutputFileName(String chromosome) {
+<span class="nc" id="L248">        String outputFileName = outputFileNames.get(chromosome);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (outputFileName == null) {</span>
+<span class="nc" id="L250">            outputFileName = &quot;conservation_&quot; + chromosome;</span>
+<span class="nc" id="L251">            outputFileNames.put(chromosome, outputFileName);</span>
+        }
+<span class="nc" id="L253">        return outputFileName;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

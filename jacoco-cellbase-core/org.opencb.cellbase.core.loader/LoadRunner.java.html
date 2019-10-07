@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadRunner.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.loader</a> &gt; <span class="el_source">LoadRunner.java</span></div><h1>LoadRunner.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.loader;
+
+import org.opencb.cellbase.core.config.CellBaseConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.zip.GZIPInputStream;
+
+/**
+ * Created by parce on 18/02/15.
+ */
+public class LoadRunner {
+
+    private static final String PROTEIN_FUNCTIONAL_PREDICTION = &quot;protein_functional_prediction&quot;;
+    private String database;
+    private String loader;
+
+    private final int numThreads;
+    private CellBaseConfiguration cellBaseConfiguration;
+
+    protected BlockingQueue&lt;List&lt;String&gt;&gt; blockingQueue;
+
+    private final Logger logger;
+
+    private static final int QUEUE_CAPACITY = 10;
+    private int batchSize;
+<span class="nc" id="L53">    public static final List&lt;String&gt; POISON_PILL = new ArrayList&lt;&gt;();</span>
+
+
+<span class="nc" id="L56">    public LoadRunner(String loader, String database, int numThreads, CellBaseConfiguration cellBaseConfiguration) {</span>
+<span class="nc" id="L57">        this.loader = loader;</span>
+<span class="nc" id="L58">        this.database = database;</span>
+<span class="nc" id="L59">        this.numThreads = numThreads;</span>
+<span class="nc" id="L60">        this.cellBaseConfiguration = cellBaseConfiguration;</span>
+
+<span class="nc" id="L62">        this.blockingQueue = new ArrayBlockingQueue&lt;&gt;(QUEUE_CAPACITY);</span>
+
+<span class="nc" id="L64">        logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="nc" id="L65">    }</span>
+
+    public void load(Path filePath, String data) throws ClassNotFoundException, NoSuchMethodException, InstantiationException,
+            IllegalAccessException, InvocationTargetException, ExecutionException, InterruptedException, IOException {
+<span class="nc" id="L69">        load(filePath, data, null, null);</span>
+<span class="nc" id="L70">    }</span>
+
+    public void load(Path filePath, String data, String field, String[] innerFields) throws ClassNotFoundException,
+            NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException,
+            ExecutionException, InterruptedException, IOException {
+        try {
+
+<span class="nc bnc" id="L77" title="All 6 branches missed.">            if (filePath == null || !Files.exists(filePath) || Files.isDirectory(filePath)) {</span>
+<span class="nc" id="L78">                throw new IOException(&quot;File '&quot; + filePath + &quot;' does not exist or is a directory&quot;);</span>
+            }
+
+            // protein_functional_prediction documents are extremely big. Increasing the batch size will probably
+            // lead to an OutOfMemory error for this collection. Batch size can be much higher for the rest of
+            // collections though
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            if (data.equals(PROTEIN_FUNCTIONAL_PREDICTION)) {</span>
+<span class="nc" id="L85">                batchSize = 50;</span>
+            } else {
+<span class="nc" id="L87">                batchSize = 1000;</span>
+            }
+
+            // One CellBaseLoader is created for each thread in 'numThreads' variable
+<span class="nc" id="L91">            List&lt;CellBaseLoader&gt; cellBaseLoaders = new ArrayList&lt;&gt;(numThreads);</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (int i = 0; i &lt; numThreads; i++) {</span>
+                // Java reflection is used to create the CellBase data loaders for a specific database engine.
+<span class="nc" id="L94">                cellBaseLoaders.add((CellBaseLoader) Class.forName(loader)</span>
+<span class="nc" id="L95">                        .getConstructor(BlockingQueue.class, String.class, String.class, String.class, String[].class,</span>
+                                CellBaseConfiguration.class)
+<span class="nc" id="L97">                        .newInstance(blockingQueue, data, database, field, innerFields, cellBaseConfiguration));</span>
+<span class="nc" id="L98">                logger.debug(&quot;CellBase loader thread '{}' created&quot;, i);</span>
+            }
+
+            /*
+             * ExecutorServices and Futures are created, all CellBaseLoaders are initialized and submitted to them.
+             * After this the different loaders are blocked waiting for the blockingQueue to be populated.
+             */
+<span class="nc" id="L105">            ExecutorService executorService = Executors.newFixedThreadPool(numThreads);</span>
+<span class="nc" id="L106">            List&lt;Future&lt;Integer&gt;&gt; futures = new ArrayList&lt;&gt;(numThreads);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            for (int i = 0; i &lt; numThreads; i++) {</span>
+<span class="nc" id="L108">                cellBaseLoaders.get(i).init();</span>
+<span class="nc" id="L109">                futures.add(executorService.submit(cellBaseLoaders.get(i)));</span>
+<span class="nc" id="L110">                logger.debug(&quot;CellBaseLoader '{}' initialized and submitted to the ExecutorService&quot;, i);</span>
+            }
+
+            /*
+             * Execution starts by reading the file and loading batches to the blockingQueue. This makes the loaders
+             * to start fetching and loading batches into the database. The number of records processed is returned.
+             */
+<span class="nc" id="L117">            int processedRecords = readInputJsonFile(filePath);</span>
+            // Check if all the records have been loaded
+<span class="nc" id="L119">            int loadedRecords = 0;</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            for (Future&lt;Integer&gt; future : futures) {</span>
+<span class="nc" id="L121">                loadedRecords += future.get();</span>
+<span class="nc" id="L122">            }</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (processedRecords == loadedRecords) {</span>
+<span class="nc" id="L124">                logger.info(&quot;All the '{}' records have been loaded into the database&quot;, processedRecords);</span>
+            } else {
+<span class="nc" id="L126">                logger.warn(&quot;Only '{}' out of '{}' have been loaded into the database&quot;, loadedRecords, processedRecords);</span>
+            }
+
+            /*
+             * For sanity database connection and other resources must be released. This close() call must be
+             * implemented in the specific data loader.
+             */
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            for (int i = 0; i &lt; numThreads; i++) {</span>
+<span class="nc" id="L134">                cellBaseLoaders.get(i).close();</span>
+<span class="nc" id="L135">                logger.debug(&quot;CellBaseLoader '{}' being closed&quot;, i);</span>
+            }
+
+<span class="nc" id="L138">            executorService.shutdown();</span>
+<span class="nc" id="L139">        } catch (LoaderException e) {</span>
+<span class="nc" id="L140">            logger.error(&quot;Error executing CellBase Load: &quot; + e.getMessage());</span>
+<span class="nc" id="L141">        }</span>
+
+<span class="nc" id="L143">    }</span>
+
+    private int readInputJsonFile(Path inputFile) {
+<span class="nc" id="L146">        int inputFileRecords = 0;</span>
+        try {
+            BufferedReader br;
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (inputFile.toString().endsWith(&quot;.gz&quot;)) {</span>
+<span class="nc" id="L150">                br = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(inputFile.toFile()))));</span>
+            } else {
+<span class="nc" id="L152">                br = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile.toFile())));</span>
+            }
+
+<span class="nc" id="L155">            List&lt;String&gt; batch = new ArrayList&lt;&gt;(batchSize);</span>
+            String jsonLine;
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            while ((jsonLine = br.readLine()) != null) {</span>
+<span class="nc" id="L158">                batch.add(jsonLine);</span>
+<span class="nc" id="L159">                inputFileRecords++;</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                if (inputFileRecords % batchSize == 0) {</span>
+<span class="nc" id="L161">                    blockingQueue.put(batch);</span>
+<span class="nc" id="L162">                    batch = new ArrayList&lt;&gt;(batchSize);</span>
+                }
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if (inputFileRecords % 1000 == 0) {</span>
+<span class="nc" id="L165">                    logger.info(&quot;{} records read from {}&quot;, inputFileRecords, inputFile.toString());</span>
+                }
+            }
+            // Last batch
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (!batch.isEmpty()) {</span>
+<span class="nc" id="L170">                blockingQueue.put(batch);</span>
+            }
+
+<span class="nc" id="L173">            logger.info(&quot;{} records read from '{}'&quot;, inputFileRecords, inputFile.toString());</span>
+
+            // Poison Pill to consumers so they know that there are no more batches to consume
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            for (int i = 0; i &lt; numThreads; i++) {</span>
+<span class="nc" id="L177">                blockingQueue.put(POISON_PILL);</span>
+            }
+<span class="nc" id="L179">        } catch (Exception e) {</span>
+<span class="nc" id="L180">            logger.error(e.getMessage());</span>
+<span class="nc" id="L181">        }</span>
+<span class="nc" id="L182">        return inputFileRecords;</span>
+    }
+
+    public void index(String data) throws ClassNotFoundException, NoSuchMethodException,
+            IllegalAccessException, InvocationTargetException, InstantiationException, LoaderException {
+<span class="nc" id="L187">        CellBaseLoader cellBaseLoader = (CellBaseLoader) Class.forName(loader)</span>
+<span class="nc" id="L188">                .getConstructor(BlockingQueue.class, String.class, String.class, String.class,</span>
+                        String[].class, CellBaseConfiguration.class)
+<span class="nc" id="L190">                .newInstance(blockingQueue, data, database, &quot;&quot;, new String[]{&quot;&quot;}, cellBaseConfiguration);</span>
+<span class="nc" id="L191">        cellBaseLoader.createIndex(data);</span>
+<span class="nc" id="L192">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConservationMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">ConservationMongoDBAdaptor.java</span></div><h1>ConservationMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.BasicDBList;
+import com.mongodb.QueryBuilder;
+import com.mongodb.client.model.Filters;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.variant.avro.Score;
+import org.opencb.cellbase.core.api.ConservationDBAdaptor;
+import org.opencb.biodata.models.core.GenomicScoreRegion;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+/**
+ * Created by swaathi on 26/11/15.
+ */
+@Deprecated
+public class ConservationMongoDBAdaptor extends MongoDBAdaptor implements ConservationDBAdaptor {
+
+    public ConservationMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L44">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L45">        mongoDBCollection = mongoDataStore.getCollection(&quot;conservation&quot;);</span>
+
+<span class="fc" id="L47">        logger.debug(&quot;ConservationMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L52">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L57">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L58">        return mongoDBCollection.count(bson);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L63">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L64">        return mongoDBCollection.distinct(field, bson);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L69">        return null;</span>
+    }
+
+    @Override
+    public QueryResult get(Query query, QueryOptions options) {
+<span class="nc" id="L74">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="nc" id="L79">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L80">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator iterator(Query query, QueryOptions options) {
+<span class="nc" id="L85">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L90">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L91">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L96">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L101">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List fields, QueryOptions options) {
+<span class="nc" id="L106">        return null;</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer action, QueryOptions options) {
+
+<span class="nc" id="L112">    }</span>
+
+    private Bson parseQuery(Query query) {
+<span class="nc" id="L115">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L117">        createRegionQuery(query, ConservationDBAdaptor.QueryParams.REGION.key(), andBsonList);</span>
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="nc" id="L120">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L122">            return new Document();</span>
+        }
+    }
+
+//    @Override
+    public List&lt;QueryResult&gt; getAllByRegionList(List regionList, QueryOptions options) {
+        //TODO not finished yet
+<span class="nc" id="L129">        List&lt;Document&gt; queries = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L130">        List&lt;String&gt; ids = new ArrayList&lt;&gt;(regionList.size());</span>
+        List&lt;String&gt; integerChunkIds;
+
+<span class="nc" id="L133">        List&lt;Region&gt; regions = regionList;</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        for (Region region : regions) {</span>
+<span class="nc" id="L135">            integerChunkIds = new ArrayList&lt;&gt;();</span>
+            // positions below 1 are not allowed
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            if (region.getStart() &lt; 1) {</span>
+<span class="nc" id="L138">                region.setStart(1);</span>
+            }
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if (region.getEnd() &lt; 1) {</span>
+<span class="nc" id="L141">                region.setEnd(1);</span>
+            }
+
+            // Max region size is 10000bp
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            if (region.getEnd() - region.getStart() &gt; 10000) {</span>
+<span class="nc" id="L146">                region.setEnd(region.getStart() + 10000);</span>
+            }
+
+            QueryBuilder builder;
+<span class="nc" id="L150">            int regionChunkStart = getChunkId(region.getStart(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="nc" id="L151">            int regionChunkEnd = getChunkId(region.getEnd(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (regionChunkStart == regionChunkEnd) {</span>
+<span class="nc" id="L153">                builder = QueryBuilder.start(&quot;_chunkIds&quot;)</span>
+<span class="nc" id="L154">                        .is(getChunkIdPrefix(region.getChromosome(), region.getStart(),</span>
+                                MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE));
+            } else {
+//                for (int chunkId = regionChunkStart; chunkId &lt;= regionChunkEnd; chunkId++) {
+////                    integerChunkIds.add(chunkId);
+//                    integerChunkIds.add(region.getChromosomeInfo() + &quot;_&quot; + chunkId + &quot;_&quot; + this.chunkSize/1000 + &quot;k&quot;);
+//                }
+//                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(integerChunkIds);
+<span class="nc" id="L162">                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosome()).and(&quot;end&quot;)</span>
+<span class="nc" id="L163">                        .greaterThanEquals(region.getStart()).and(&quot;start&quot;).lessThanEquals(region.getEnd());</span>
+            }
+//            QueryBuilder builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(hunkIds);
+            /****/
+
+<span class="nc" id="L168">            queries.add(new Document(builder.get().toMap()));</span>
+<span class="nc" id="L169">            ids.add(region.toString());</span>
+
+
+//            logger.debug(builder.get().toString());
+<span class="nc" id="L173">        }</span>
+
+<span class="nc" id="L175">        List&lt;QueryResult&gt; queryResults = executeQueryList2(ids, queries, options);</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        for (int i = 0; i &lt; regions.size(); i++) {</span>
+<span class="nc" id="L177">            Region region = regions.get(i);</span>
+<span class="nc" id="L178">            QueryResult queryResult = queryResults.get(i);</span>
+//            BasicDBList list = (BasicDBList) queryResult.getResult();
+<span class="nc" id="L180">            List list = queryResult.getResult();</span>
+
+<span class="nc" id="L182">            Map&lt;String, List&lt;Float&gt;&gt; typeMap = new HashMap&lt;&gt;();</span>
+
+
+//            int start = region.getStart();
+
+
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            for (int j = 0; j &lt; list.size(); j++) {</span>
+<span class="nc" id="L189">                Document chunk = (Document) list.get(j);</span>
+<span class="nc" id="L190">                String source = chunk.getString(&quot;source&quot;);</span>
+                List&lt;Float&gt; valuesList;
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                if (!typeMap.containsKey(source)) {</span>
+<span class="nc" id="L193">                    valuesList = new ArrayList&lt;&gt;(region.getEnd() - region.getStart() + 1);</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                    for (int val = 0; val &lt; region.getEnd() - region.getStart() + 1; val++) {</span>
+<span class="nc" id="L195">                        valuesList.add(null);</span>
+                    }
+<span class="nc" id="L197">                    typeMap.put(source, valuesList);</span>
+                } else {
+<span class="nc" id="L199">                    valuesList = typeMap.get(source);</span>
+                }
+
+//                BasicDBList valuesChunk = (BasicDBList) chunk.get(&quot;values&quot;);
+<span class="nc" id="L203">                ArrayList valuesChunk = chunk.get(&quot;values&quot;, ArrayList.class);</span>
+
+<span class="nc" id="L205">                int pos = 0;</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                if (region.getStart() &gt; chunk.getInteger(&quot;start&quot;)) {</span>
+<span class="nc" id="L207">                    pos = region.getStart() - chunk.getInteger(&quot;start&quot;);</span>
+                }
+
+
+<span class="nc bnc" id="L211" title="All 4 branches missed.">                for (; pos &lt; valuesChunk.size() &amp;&amp; (pos + chunk.getInteger(&quot;start&quot;) &lt;= region.getEnd()); pos++) {</span>
+//                    System.out.println(&quot;valuesList SIZE = &quot; + valuesList.size());
+//                    System.out.println(&quot;pos = &quot; + pos);
+//                    System.out.println(&quot;DIV &quot; + (chunk.getInt(&quot;start&quot;) - region.getStart()));
+//                    System.out.println(&quot;valuesChunk = &quot; + valuesChunk.get(pos));
+//                    System.out.println(&quot;indexFinal = &quot; + (pos + chunk.getInt(&quot;start&quot;) - region.getStart()));
+<span class="nc" id="L217">                    valuesList.set(pos + chunk.getInteger(&quot;start&quot;) - region.getStart(), new Float((Double) valuesChunk.get(pos)));</span>
+                }
+            }
+//
+<span class="nc" id="L221">            BasicDBList resultList = new BasicDBList();</span>
+//            ConservationScoreRegion conservedRegionChunk;
+            GenomicScoreRegion&lt;Float&gt; conservedRegionChunk;
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            for (Map.Entry&lt;String, List&lt;Float&gt;&gt; elem : typeMap.entrySet()) {</span>
+//                conservedRegionChunk = new ConservationScoreRegion(region.getChromosome(), region.getStart(),
+//                        region.getEnd(), elem.getKey(), elem.getValue());
+<span class="nc" id="L227">                conservedRegionChunk = new GenomicScoreRegion&lt;&gt;(region.getChromosome(), region.getStart(),</span>
+<span class="nc" id="L228">                        region.getEnd(), elem.getKey(), elem.getValue());</span>
+<span class="nc" id="L229">                resultList.add(conservedRegionChunk);</span>
+<span class="nc" id="L230">            }</span>
+<span class="nc" id="L231">            queryResult.setResult(resultList);</span>
+        }
+
+<span class="nc" id="L234">        return queryResults;</span>
+    }
+
+    @Override
+    @Deprecated
+    public List&lt;QueryResult&gt; getAllScoresByRegionList(List regionList, QueryOptions options) {
+        //TODO not finished yet
+<span class="fc" id="L241">        List&lt;Document&gt; queries = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L242">        List&lt;String&gt; ids = new ArrayList&lt;&gt;(regionList.size());</span>
+        List&lt;Integer&gt; integerChunkIds;
+
+<span class="fc" id="L245">        List&lt;Region&gt; regions = regionList;</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        for (Region region : regions) {</span>
+<span class="fc" id="L247">            integerChunkIds = new ArrayList&lt;&gt;();</span>
+            // positions below 1 are not allowed
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">            if (region.getStart() &lt; 1) {</span>
+<span class="nc" id="L250">                region.setStart(1);</span>
+            }
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">            if (region.getEnd() &lt; 1) {</span>
+<span class="nc" id="L253">                region.setEnd(1);</span>
+            }
+
+            /****/
+            QueryBuilder builder;
+<span class="fc" id="L258">            int regionChunkStart = getChunkId(region.getStart(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="fc" id="L259">            int regionChunkEnd = getChunkId(region.getEnd(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">            if (regionChunkStart == regionChunkEnd) {</span>
+<span class="fc" id="L261">                builder = QueryBuilder.start(&quot;_chunkIds&quot;)</span>
+<span class="fc" id="L262">                        .is(getChunkIdPrefix(region.getChromosome(), region.getStart(),</span>
+                                MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE));
+            } else {
+//                for (int chunkId = regionChunkStart; chunkId &lt;= regionChunkEnd; chunkId++) {
+//                    integerChunkIds.add(chunkId);
+//                }
+//    //            QueryBuilder builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(hunkIds);
+//                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(integerChunkIds);
+<span class="nc" id="L270">                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosome()).and(&quot;end&quot;)</span>
+<span class="nc" id="L271">                        .greaterThanEquals(region.getStart()).and(&quot;start&quot;).lessThanEquals(region.getEnd());</span>
+            }
+            /****/
+
+
+<span class="fc" id="L276">            queries.add(new Document(builder.get().toMap()));</span>
+<span class="fc" id="L277">            ids.add(region.toString());</span>
+
+//            logger.debug(builder.get().toString());
+
+<span class="fc" id="L281">        }</span>
+<span class="fc" id="L282">        List&lt;QueryResult&gt; queryResults = executeQueryList2(ids, queries, options);</span>
+//        List&lt;QueryResult&gt; queryResults = executeQueryList(ids, queries, options);
+
+
+<span class="fc bfc" id="L286" title="All 2 branches covered.">        for (int i = 0; i &lt; regions.size(); i++) {</span>
+<span class="fc" id="L287">            Region region = regions.get(i);</span>
+<span class="fc" id="L288">            QueryResult queryResult = queryResults.get(i);</span>
+<span class="fc" id="L289">            List&lt;Document&gt; list = (List&lt;Document&gt;) queryResult.getResult();</span>
+
+<span class="fc" id="L291">            Map&lt;String, List&lt;Float&gt;&gt; typeMap = new HashMap();</span>
+
+
+//            int start = region.getStart();
+
+
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">            for (int j = 0; j &lt; list.size(); j++) {</span>
+<span class="nc" id="L298">                Document chunk = list.get(j);</span>
+
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                if (!chunk.isEmpty()) {</span>
+//                    BasicDBList valuesChunk = (BasicDBList) chunk.get(&quot;values&quot;);
+<span class="nc" id="L302">                    ArrayList valuesChunk = chunk.get(&quot;values&quot;, ArrayList.class);</span>
+
+<span class="nc bnc" id="L304" title="All 2 branches missed.">                    if (valuesChunk != null) {  // TODO: temporary patch to skip empty chunks - remove as soon as conservation is reloaded</span>
+<span class="nc" id="L305">                        String source = chunk.getString(&quot;source&quot;);</span>
+                        List&lt;Float&gt; valuesList;
+<span class="nc bnc" id="L307" title="All 2 branches missed.">                        if (!typeMap.containsKey(source)) {</span>
+<span class="nc" id="L308">                            valuesList = new ArrayList&lt;&gt;(region.getEnd() - region.getStart() + 1);</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                            for (int val = 0; val &lt; region.getEnd() - region.getStart() + 1; val++) {</span>
+<span class="nc" id="L310">                                valuesList.add(null);</span>
+                            }
+<span class="nc" id="L312">                            typeMap.put(source, valuesList);</span>
+                        } else {
+<span class="nc" id="L314">                            valuesList = typeMap.get(source);</span>
+                        }
+
+//                        valuesChunk = (BasicDBList) chunk.get(&quot;values&quot;);
+<span class="nc" id="L318">                        valuesChunk = chunk.get(&quot;values&quot;, ArrayList.class);</span>
+<span class="nc" id="L319">                        int pos = 0;</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                        if (region.getStart() &gt; chunk.getInteger(&quot;start&quot;)) {</span>
+<span class="nc" id="L321">                            pos = region.getStart() - chunk.getInteger(&quot;start&quot;);</span>
+                        }
+
+<span class="nc bnc" id="L324" title="All 4 branches missed.">                        for (; pos &lt; valuesChunk.size() &amp;&amp; (pos + chunk.getInteger(&quot;start&quot;) &lt;= region.getEnd()); pos++) {</span>
+<span class="nc" id="L325">                            valuesList.set(pos + chunk.getInteger(&quot;start&quot;) - region.getStart(), new Float((Double) valuesChunk.get(pos)));</span>
+                        }
+<span class="nc" id="L327">                    } else {</span>
+<span class="nc" id="L328">                        logger.error(&quot;values field not present in conservation chunk document. This &quot;</span>
+                                + &quot;should not be happening - every conservation chunk must have a list of values.&quot;
+<span class="nc" id="L330">                                + &quot; Please check. Chunk id: &quot; + chunk.get(&quot;_chunkIds&quot;));</span>
+<span class="nc" id="L331">                        continue;</span>
+                    }
+
+                }
+
+<span class="nc" id="L336">                BasicDBList resultList = new BasicDBList();</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                for (Map.Entry&lt;String, List&lt;Float&gt;&gt; elem : typeMap.entrySet()) {</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">                    for (Float value : elem.getValue()) {</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">                        if (value != null) {</span>
+<span class="nc" id="L340">                            resultList.add(new Score(new Double(value), elem.getKey(), null));</span>
+                        }
+<span class="nc" id="L342">                    }</span>
+<span class="nc" id="L343">                }</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">                if (!resultList.isEmpty()) {</span>
+<span class="nc" id="L345">                    queryResult.setResult(resultList);</span>
+                } else {
+<span class="nc" id="L347">                    queryResult.setResult(null);</span>
+                }
+            }
+
+        }
+<span class="fc" id="L352">        return queryResults;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

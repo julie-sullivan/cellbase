@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PopulationFrequenciesAnnotator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">PopulationFrequenciesAnnotator.java</span></div><h1>PopulationFrequenciesAnnotator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.PopulationFrequency;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.core.variant.PopulationFrequencyPhasedQueryManager;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+
+/**
+ * Created by fjlopez on 18/07/16.
+ */
+public class PopulationFrequenciesAnnotator implements VariantAnnotator {
+
+    private String fileName;
+    private RocksDB dbIndex;
+    private RandomAccessFile reader;
+    private final QueryOptions queryOptions;
+
+
+<span class="fc" id="L36">    private static ObjectMapper mapper = new ObjectMapper();</span>
+    private static ObjectWriter jsonObjectWriter;
+<span class="fc" id="L38">    private static PopulationFrequencyPhasedQueryManager phasedQueryManager</span>
+            = new PopulationFrequencyPhasedQueryManager();
+
+    static {
+<span class="fc" id="L42">        mapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="fc" id="L43">        jsonObjectWriter = mapper.writer();</span>
+<span class="fc" id="L44">    }</span>
+
+<span class="fc" id="L46">    public PopulationFrequenciesAnnotator(String fileName, RocksDB dbIndex, QueryOptions queryOptions) {</span>
+<span class="fc" id="L47">        this.fileName = fileName;</span>
+<span class="fc" id="L48">        this.dbIndex = dbIndex;</span>
+<span class="fc" id="L49">        this.queryOptions = queryOptions;</span>
+<span class="fc" id="L50">    }</span>
+
+    public boolean open() {
+        try {
+<span class="fc" id="L54">            reader = new RandomAccessFile(fileName, &quot;r&quot;);</span>
+<span class="nc" id="L55">        } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L56">            return false;</span>
+<span class="fc" id="L57">        }</span>
+<span class="fc" id="L58">        return true;</span>
+    }
+
+    /**
+     * Updates VariantAnnotation objects in variantAnnotationList.
+     *
+     * @param variantList List of Variant objects. variantList and variantAnnotationList must contain variants in the
+     *                    SAME order: variantAnnotation at position i must correspond to variant i
+     */
+    public void run(List&lt;Variant&gt; variantList) {
+
+<span class="fc" id="L69">        List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResult = new ArrayList&lt;&gt;(variantList.size());</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        for (Variant variant: variantList) {</span>
+<span class="fc" id="L71">            variantQueryResult.add(getPopulationFrequencies(variant));</span>
+<span class="fc" id="L72">        }</span>
+
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">        if (queryOptions.get(IGNORE_PHASE) != null &amp;&amp; !queryOptions.getBoolean(IGNORE_PHASE)) {</span>
+<span class="fc" id="L75">            variantQueryResult = phasedQueryManager.run(variantList, variantQueryResult);</span>
+        }
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        for (int i = 0; i &lt; variantList.size(); i++) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            if (!variantQueryResult.get(i).getResult().isEmpty()) {</span>
+                // Assuming if it gets to this point the variant has VariantAnnotation
+                // Only one variant  can be returned per query to RocksDB
+<span class="fc" id="L82">                List&lt;PopulationFrequency&gt; populationFrequencies</span>
+<span class="fc" id="L83">                        = variantQueryResult.get(i).getResult().get(0).getAnnotation().getPopulationFrequencies();</span>
+                // Update only if there are annotations for this variant
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">                if (populationFrequencies != null &amp;&amp; populationFrequencies.size() &gt; 0) {</span>
+<span class="fc" id="L86">                    VariantAnnotation variantAnnotation = variantList.get(i).getAnnotation();</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                    if (variantAnnotation != null) {</span>
+                        // variantList and populationFrequencyList must contain variants in the SAME order: population
+                        // frequencies at position i must correspond to variant i
+<span class="fc" id="L90">                        variantAnnotation.setPopulationFrequencies(populationFrequencies);</span>
+                    } else {
+<span class="nc" id="L92">                        variantAnnotation = new VariantAnnotation();</span>
+<span class="nc" id="L93">                        variantAnnotation.setPopulationFrequencies(populationFrequencies);</span>
+<span class="nc" id="L94">                        variantList.get(i).setAnnotation(variantAnnotation);</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L99">    }</span>
+
+    private QueryResult&lt;Variant&gt; getPopulationFrequencies(Variant variant) {
+<span class="fc" id="L102">        QueryResult&lt;Variant&gt; populationFrequencyQueryResult = new QueryResult&lt;&gt;();</span>
+<span class="fc" id="L103">        populationFrequencyQueryResult.setId(variant.toString());</span>
+<span class="fc" id="L104">        long start = System.currentTimeMillis();</span>
+        try {
+<span class="fc" id="L106">            byte[] variantKey = variant.toString().getBytes();</span>
+<span class="fc" id="L107">            byte[] dbContent = dbIndex.get(variantKey);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            if (dbContent != null) {</span>
+<span class="fc" id="L109">                Variant variant1 = mapper.readValue(dbContent, Variant.class);</span>
+<span class="fc" id="L110">                flagVisitedVariant(variantKey, variant1);</span>
+
+<span class="fc" id="L112">                populationFrequencyQueryResult.setResult(Collections.singletonList(variant1));</span>
+<span class="fc" id="L113">                populationFrequencyQueryResult.setNumTotalResults(1);</span>
+<span class="fc" id="L114">                populationFrequencyQueryResult.setNumResults(1);</span>
+            }
+<span class="nc" id="L116">        } catch (RocksDBException | IOException e) {</span>
+<span class="nc" id="L117">            e.printStackTrace();</span>
+<span class="fc" id="L118">        }</span>
+
+<span class="fc" id="L120">        long end = System.currentTimeMillis();</span>
+<span class="fc" id="L121">        populationFrequencyQueryResult.setDbTime((int) (end - start));</span>
+
+<span class="fc" id="L123">        return populationFrequencyQueryResult;</span>
+    }
+
+    private void flagVisitedVariant(byte[] key, Variant variant) {
+        // The annotation.additionalAttributes field is initialized with an empty map to flag this variant as
+        // already visited
+<span class="fc" id="L129">        variant.getAnnotation().setAdditionalAttributes(Collections.emptyMap());</span>
+        try {
+<span class="fc" id="L131">            dbIndex.put(key, jsonObjectWriter.writeValueAsBytes(variant));</span>
+<span class="nc" id="L132">        } catch (RocksDBException e) {</span>
+<span class="nc" id="L133">            e.printStackTrace();</span>
+<span class="nc" id="L134">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L135">            e.printStackTrace();</span>
+<span class="pc" id="L136">        }</span>
+<span class="fc" id="L137">    }</span>
+
+    public boolean close() {
+        try {
+<span class="fc" id="L141">            reader.close();</span>
+<span class="nc" id="L142">        } catch (IOException e) {</span>
+<span class="nc" id="L143">            return false;</span>
+<span class="fc" id="L144">        }</span>
+<span class="fc" id="L145">        return true;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

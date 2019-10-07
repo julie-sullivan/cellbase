@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PostLoadCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">PostLoadCommandExecutor.java</span></div><h1>PostLoadCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.beust.jcommander.ParameterException;
+import org.opencb.biodata.formats.variant.annotation.io.VepFormatReader;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+/**
+ * Created by fjlopez on 14/04/15.
+ */
+public class PostLoadCommandExecutor extends CommandExecutor {
+
+    private CliOptionsParser.PostLoadCommandOptions postLoadCommandOptions;
+
+<span class="nc" id="L32">    private Path clinicalAnnotationFilename = null;</span>
+<span class="nc" id="L33">    private String assembly = null;</span>
+    private static final int CLINICAL_ANNOTATION_BATCH_SIZE = 1000;
+//    private static final int CLINICAL_ANNOTATION_BATCH_SIZE=1000;
+
+    // TODO: remove constructor, just for debugging purposes
+<span class="nc" id="L38">    public PostLoadCommandExecutor() {</span>
+<span class="nc" id="L39">    }</span>
+
+    public PostLoadCommandExecutor(CliOptionsParser.PostLoadCommandOptions postLoadCommandOptions) {
+<span class="nc" id="L42">        super(postLoadCommandOptions.commonOptions.logLevel, postLoadCommandOptions.commonOptions.verbose,</span>
+                postLoadCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L45">        this.postLoadCommandOptions = postLoadCommandOptions;</span>
+<span class="nc" id="L46">    }</span>
+
+    @Override
+    public void execute() {
+<span class="nc" id="L50">        checkParameters();</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (clinicalAnnotationFilename != null) {</span>
+<span class="nc" id="L52">            loadClinicalAnnotation();</span>
+        } else {
+<span class="nc" id="L54">            throw new ParameterException(&quot;Only post-load of clinical annotations is available right now.&quot;);</span>
+        }
+<span class="nc" id="L56">    }</span>
+
+    private void checkParameters() {
+        // input file
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (postLoadCommandOptions.clinicalAnnotationFilename != null) {</span>
+<span class="nc" id="L61">            clinicalAnnotationFilename = Paths.get(postLoadCommandOptions.clinicalAnnotationFilename);</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            if (!clinicalAnnotationFilename.toFile().exists()) {</span>
+<span class="nc" id="L63">                throw new ParameterException(&quot;Input file &quot; + clinicalAnnotationFilename + &quot; doesn't exist&quot;);</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            } else if (clinicalAnnotationFilename.toFile().isDirectory()) {</span>
+<span class="nc" id="L65">                throw new ParameterException(&quot;Input file cannot be a directory: &quot; + clinicalAnnotationFilename);</span>
+            }
+
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            if (postLoadCommandOptions.assembly != null) {</span>
+<span class="nc" id="L69">                assembly = postLoadCommandOptions.assembly;</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">                if (!assembly.equals(&quot;GRCh37&quot;) &amp;&amp; !assembly.equals(&quot;GRCh38&quot;)) {</span>
+<span class="nc" id="L71">                    throw new ParameterException(&quot;Please, provide a valid human assembly. Available assemblies: GRCh37, GRCh38&quot;);</span>
+                }
+            } else {
+<span class="nc" id="L74">                throw new ParameterException(&quot;Providing human assembly is mandatory if loading clinical annotations. &quot;</span>
+                        + &quot;Available assemblies: GRCh37, GRCh38&quot;);
+            }
+
+        } else {
+<span class="nc" id="L79">            throw new ParameterException(&quot;Please check command line syntax. Provide a valid input file name.&quot;);</span>
+        }
+<span class="nc" id="L81">    }</span>
+
+    // TODO: change to private - just for debugging purposes
+    public void loadClinicalAnnotation() {
+
+        /**
+         * Initialize VEP reader
+         */
+<span class="nc" id="L89">        logger.info(&quot;Initializing VEP reader...&quot;);</span>
+<span class="nc" id="L90">        VepFormatReader vepFormatReader = new VepFormatReader(clinicalAnnotationFilename.toString());</span>
+<span class="nc" id="L91">        vepFormatReader.open();</span>
+<span class="nc" id="L92">        vepFormatReader.pre();</span>
+
+        /**
+         * Prepare clinical adaptor
+         */
+<span class="nc" id="L97">        logger.info(&quot;Initializing adaptor, connecting to the database...&quot;);</span>
+<span class="nc" id="L98">        logger.error(&quot;Implementation of this functionality  is outdated and must be re-written if needed&quot;);</span>
+
+        // TODO: this shall be done in a different way - old Java API was deprecated and removed
+
+//        System.out.println(&quot;cellBaseConfiguration = &quot; + configuration.getDatabase().getUser());
+//        System.out.println(&quot;cellBaseConfiguration = &quot; + configuration.getDatabase().getHost());
+//        System.out.println(&quot;cellBaseConfiguration = &quot; + configuration.getDatabase().getPassword());
+//        DBAdaptorFactory dbAdaptorFactory = new MongoDBAdaptorFactory(configuration);
+//        ClinicalDBAdaptor clinicalDBAdaptor = dbAdaptorFactory.getClinicalLegacyDBAdaptor(&quot;hsapiens&quot;, assembly);
+//
+//        /**
+//         * Load annotations
+//         */
+//        logger.info(&quot;Reading/Loading variant annotations...&quot;);
+//        int nVepAnnotatedVariants = 0;
+//        List&lt;VariantAnnotation&gt; variantAnnotationList = vepFormatReader.read(CLINICAL_ANNOTATION_BATCH_SIZE);
+//        while (!variantAnnotationList.isEmpty()) {
+//            nVepAnnotatedVariants += variantAnnotationList.size();
+//            clinicalDBAdaptor.updateAnnotations(variantAnnotationList, new QueryOptions());
+//            logger.info(Integer.valueOf(nVepAnnotatedVariants) + &quot; read variants with vep annotations&quot;);
+//            variantAnnotationList = vepFormatReader.read(CLINICAL_ANNOTATION_BATCH_SIZE);
+//        }
+
+//
+//        vepFormatReader.post();
+//        vepFormatReader.close();
+//        logger.info(nVepAnnotatedVariants + &quot; VEP annotated variants were read from &quot; + clinicalAnnotationFilename.toString());
+//        logger.info(&quot;Finished&quot;);
+<span class="nc" id="L126">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

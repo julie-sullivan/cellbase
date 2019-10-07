@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Xref.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.core</a> &gt; <span class="el_source">Xref.java</span></div><h1>Xref.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.core;
+
+public class Xref {
+
+    private String id;
+    private String dbName;
+    private String dbDisplayName;
+    private String description;
+
+<span class="nc" id="L26">    public Xref() {</span>
+
+<span class="nc" id="L28">    }</span>
+
+    public Xref(String id, String dbName, String dbDisplayName) {
+<span class="nc" id="L31">        this(id, dbName, dbDisplayName, &quot;&quot;);</span>
+<span class="nc" id="L32">    }</span>
+
+<span class="nc" id="L34">    public Xref(String id, String dbName, String dbDisplayName, String description) {</span>
+<span class="nc" id="L35">        this.id = id;</span>
+<span class="nc" id="L36">        this.dbName = dbName;</span>
+<span class="nc" id="L37">        this.dbDisplayName = dbDisplayName;</span>
+<span class="nc" id="L38">        this.description = description;</span>
+<span class="nc" id="L39">    }</span>
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc" id="L43">        Xref xrefObj = (Xref) obj;</span>
+<span class="nc bnc" id="L44" title="All 4 branches missed.">        return id.equals(xrefObj.id) &amp;&amp; dbName.equals(xrefObj.dbName);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L49">        return (id + dbName).hashCode();</span>
+    }
+
+
+    public String getId() {
+<span class="nc" id="L54">        return id;</span>
+    }
+
+    public void setId(String id) {
+<span class="nc" id="L58">        this.id = id;</span>
+<span class="nc" id="L59">    }</span>
+
+
+    public String getDbName() {
+<span class="nc" id="L63">        return dbName;</span>
+    }
+
+    public void setDbName(String dbName) {
+<span class="nc" id="L67">        this.dbName = dbName;</span>
+<span class="nc" id="L68">    }</span>
+
+
+    public String getDbDisplayName() {
+<span class="nc" id="L72">        return dbDisplayName;</span>
+    }
+
+    public void setDbDisplayName(String dbDisplayName) {
+<span class="nc" id="L76">        this.dbDisplayName = dbDisplayName;</span>
+<span class="nc" id="L77">    }</span>
+
+
+    public String getDescription() {
+<span class="nc" id="L81">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L85">        this.description = description;</span>
+<span class="nc" id="L86">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

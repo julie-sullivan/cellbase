@@ -1,0 +1,587 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">VariantMongoDBAdaptor.java</span></div><h1>VariantMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.BulkWriteException;
+import com.mongodb.MongoClient;
+import com.mongodb.QueryBuilder;
+import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.Score;
+import org.opencb.biodata.models.variant.avro.StructuralVariantType;
+import org.opencb.biodata.models.variant.avro.VariantType;
+import org.opencb.cellbase.core.api.VariantDBAdaptor;
+import org.opencb.cellbase.core.variant.PopulationFrequencyPhasedQueryManager;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.cellbase.lib.VariantMongoIterator;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+/**
+ * Created by imedina on 26/11/15.
+ */
+public class VariantMongoDBAdaptor extends MongoDBAdaptor implements VariantDBAdaptor&lt;Variant&gt; {
+
+    private static final String POP_FREQUENCIES_FIELD = &quot;annotation.populationFrequencies&quot;;
+    private static final String ANNOTATION_FIELD = &quot;annotation&quot;;
+    private static final float DECIMAL_RESOLUTION = 100f;
+    private static final String ENSEMBL_GENE_ID_PATTERN = &quot;ENSG00&quot;;
+    private static final String ENSEMBL_TRANSCRIPT_ID_PATTERN = &quot;ENST00&quot;;
+<span class="fc" id="L59">    private static PopulationFrequencyPhasedQueryManager populationFrequencyPhasedQueryManager</span>
+            = new PopulationFrequencyPhasedQueryManager();
+
+
+    private MongoDBCollection caddDBCollection;
+
+    public VariantMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L66">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L67">        mongoDBCollection = mongoDataStore.getCollection(&quot;variation&quot;);</span>
+<span class="fc" id="L68">        caddDBCollection = mongoDataStore.getCollection(&quot;variation_functional_score&quot;);</span>
+
+<span class="fc" id="L70">        logger.debug(&quot;VariationMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    public QueryResult startsWith(String id, QueryOptions options) {
+<span class="nc" id="L75">        Bson regex = Filters.regex(&quot;ids&quot;, Pattern.compile(&quot;^&quot; + id));</span>
+<span class="nc" id="L76">        Bson include = Projections.include(&quot;ids&quot;, &quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;);</span>
+<span class="nc" id="L77">        return mongoDBCollection.find(regex, include, options);</span>
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getConsequenceTypes(Query query) {
+        // TODO we need to check if Query is empty!
+<span class="nc" id="L83">        List&lt;String&gt; consequenceTypes = VariantAnnotationUtils.SO_SEVERITY.keySet().stream()</span>
+<span class="nc" id="L84">                .sorted()</span>
+<span class="nc" id="L85">                .collect(Collectors.toList());</span>
+<span class="nc" id="L86">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;&gt;(&quot;consequence_types&quot;);</span>
+<span class="nc" id="L87">        queryResult.setNumResults(consequenceTypes.size());</span>
+<span class="nc" id="L88">        queryResult.setResult(consequenceTypes);</span>
+<span class="nc" id="L89">        return queryResult;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Variant&gt; next(Query query, QueryOptions options) {
+<span class="nc" id="L94">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L99">        return null;</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (query.getString(QueryParams.REGION.key()) != null) {</span>
+<span class="nc" id="L105">            Region region = Region.parseRegion(query.getString(QueryParams.REGION.key()));</span>
+<span class="nc" id="L106">            Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L107">            return getIntervalFrequencies(bsonDocument, region, intervalSize, options);</span>
+        }
+<span class="nc" id="L109">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L114">        QueryResult&lt;Long&gt; nLoadedObjects = null;</span>
+<span class="nc bnc" id="L115" title="All 10 branches missed.">        switch (field) {</span>
+            case POP_FREQUENCIES_FIELD:
+<span class="nc" id="L117">                nLoadedObjects = updatePopulationFrequencies((List&lt;Document&gt;) objectList);</span>
+<span class="nc" id="L118">                break;</span>
+            case ANNOTATION_FIELD:
+<span class="nc" id="L120">                nLoadedObjects = updateAnnotation((List&lt;Document&gt;) objectList, innerFields);</span>
+<span class="nc" id="L121">                break;</span>
+            default:
+<span class="nc" id="L123">                logger.error(&quot;Invalid field {}: no action implemented for updating this field.&quot;, field);</span>
+                break;
+        }
+<span class="nc" id="L126">        return nLoadedObjects;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L131">        Bson document = parseQuery(query);</span>
+<span class="nc" id="L132">        return mongoDBCollection.count(document);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L137">        Bson document = parseQuery(query);</span>
+<span class="nc" id="L138">        return mongoDBCollection.distinct(field, document);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L143">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Variant&gt; get(Query query, QueryOptions inputOptions) {
+<span class="fc" id="L148">        Bson bson = parseQuery(query);</span>
+//        options.put(MongoDBCollection.SKIP_COUNT, true);
+
+        // FIXME: patch to exclude annotation.additionalAttributes from the results - restore the call to the common
+        // FIXME: addPrivateExcludeOptions as soon as the variation collection is updated with the new form of the
+        // FIXME: additionalAttributes field
+<span class="fc" id="L154">        QueryOptions options = addVariantPrivateExcludeOptions(new QueryOptions(inputOptions));</span>
+//        options = addPrivateExcludeOptions(options);
+
+<span class="fc" id="L157">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L158">        return mongoDBCollection.find(bson, null, Variant.class, options);</span>
+    }
+
+    // FIXME: patch to exclude annotation.additionalAttributes from the results - to remove as soon as the variation
+    // FIXME: collection is updated with the new form of the additionalAttributes field
+    protected QueryOptions addVariantPrivateExcludeOptions(QueryOptions options) {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (options != null) {</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            if (options.get(&quot;exclude&quot;) == null) {</span>
+<span class="fc" id="L166">                options.put(&quot;exclude&quot;, &quot;_id,_chunkIds,annotation.additionalAttributes&quot;);</span>
+            } else {
+<span class="nc" id="L168">                String exclude = options.getString(&quot;exclude&quot;);</span>
+<span class="nc" id="L169">                options.put(&quot;exclude&quot;, exclude + &quot;,_id,_chunkIds,annotation.additionalAttributes&quot;);</span>
+<span class="nc" id="L170">            }</span>
+        } else {
+<span class="nc" id="L172">            options = new QueryOptions(&quot;exclude&quot;, &quot;_id,_chunkIds,annotation.additionalAttributes&quot;);</span>
+        }
+<span class="fc" id="L174">        return options;</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="fc" id="L179">        Bson bson = parseQuery(query);</span>
+//        options.put(MongoDBCollection.SKIP_COUNT, true);
+<span class="fc" id="L181">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L182">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator&lt;Variant&gt; iterator(Query query, QueryOptions inputOptions) {
+<span class="nc" id="L187">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L188">        QueryOptions options = addPrivateExcludeOptions(new QueryOptions(inputOptions));</span>
+<span class="nc" id="L189">        return new VariantMongoIterator(mongoDBCollection.nativeQuery().find(bson, options).iterator());</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L194">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L195">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+<span class="nc" id="L200">        Objects.requireNonNull(action);</span>
+<span class="nc" id="L201">        Iterator iterator = nativeIterator(query, options);</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L203">            action.accept(iterator.next());</span>
+        }
+<span class="nc" id="L205">    }</span>
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L209">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L214">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L215">        return groupBy(bsonQuery, field, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+<span class="nc" id="L220">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L221">        return groupBy(bsonQuery, fields, &quot;name&quot;, options);</span>
+    }
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L225">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L227">        createOrQuery(query, QueryParams.CHROMOSOME.key(), &quot;chromosome&quot;, andBsonList);</span>
+<span class="fc" id="L228">        createOrQuery(query, QueryParams.START.key(), &quot;start&quot;, andBsonList, QueryValueType.INTEGER);</span>
+<span class="fc" id="L229">        createOrQuery(query, QueryParams.END.key(), &quot;end&quot;, andBsonList, QueryValueType.INTEGER);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (query.containsKey(QueryParams.REFERENCE.key())) {</span>
+<span class="fc" id="L231">            createOrQuery(query.getAsStringList(QueryParams.REFERENCE.key()), &quot;reference&quot;, andBsonList);</span>
+        }
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (query.containsKey(QueryParams.ALTERNATE.key())) {</span>
+<span class="fc" id="L234">            createOrQuery(query.getAsStringList(QueryParams.ALTERNATE.key()), &quot;alternate&quot;, andBsonList);</span>
+        }
+<span class="fc" id="L236">        createRegionQuery(query, VariantMongoDBAdaptor.QueryParams.REGION.key(),</span>
+                MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE, andBsonList);
+<span class="fc" id="L238">        createOrQuery(query, VariantMongoDBAdaptor.QueryParams.ID.key(), &quot;id&quot;, andBsonList);</span>
+
+<span class="fc" id="L240">        createImprecisePositionQuery(query, QueryParams.CI_START_LEFT.key(), QueryParams.CI_START_RIGHT.key(),</span>
+                &quot;sv.ciStartLeft&quot;, &quot;sv.ciStartRight&quot;, andBsonList);
+<span class="fc" id="L242">        createImprecisePositionQuery(query, QueryParams.CI_END_LEFT.key(), QueryParams.CI_END_RIGHT.key(),</span>
+                &quot;sv.ciEndLeft&quot;, &quot;sv.ciEndRight&quot;, andBsonList);
+
+<span class="fc" id="L245">        createTypeQuery(query, QueryParams.TYPE.key(), QueryParams.SV_TYPE.key(), &quot;type&quot;,</span>
+                &quot;sv.type&quot;, andBsonList);
+
+<span class="fc" id="L248">        createOrQuery(query, VariantMongoDBAdaptor.QueryParams.CONSEQUENCE_TYPE.key(),</span>
+                &quot;annotation.consequenceTypes.sequenceOntologyTerms.name&quot;, andBsonList);
+<span class="fc" id="L250">        createGeneOrQuery(query, VariantMongoDBAdaptor.QueryParams.GENE.key(), andBsonList);</span>
+
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L253">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L255">            return new Document();</span>
+        }
+    }
+
+    private void createTypeQuery(Query query, String typeQueryParam, String svTypeQueryParam, String typeMongoField,
+                                 String svTypeMongoField, List&lt;Bson&gt; andBsonList) {
+
+
+<span class="pc bpc" id="L263" title="1 of 4 branches missed.">        if (query != null &amp;&amp; StringUtils.isNotBlank(query.getString(typeQueryParam))) {</span>
+<span class="fc" id="L264">            List&lt;Bson&gt; orBsonList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L265">            String variantTypeString = query.getString(typeQueryParam);</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            if (variantTypeString.equals(VariantType.DELETION.toString())</span>
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">                    || (StructuralVariantType.COPY_NUMBER_LOSS.toString().equals(query.getString(svTypeQueryParam)))) {</span>
+<span class="fc" id="L268">                orBsonList.add(Filters.eq(typeMongoField, VariantType.DELETION.toString()));</span>
+<span class="fc" id="L269">                orBsonList.add(Filters.eq(svTypeMongoField, StructuralVariantType.COPY_NUMBER_LOSS.toString()));</span>
+<span class="fc" id="L270">                andBsonList.add(Filters.or(orBsonList));</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">            } else if (variantTypeString.equals(VariantType.INSERTION.toString())</span>
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">                    || variantTypeString.equals(VariantType.DUPLICATION.toString())</span>
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">                    || StructuralVariantType.COPY_NUMBER_GAIN.toString().equals(query.getString(svTypeQueryParam))) {</span>
+<span class="fc" id="L274">                orBsonList.add(Filters.eq(typeMongoField, VariantType.INSERTION.toString()));</span>
+<span class="fc" id="L275">                orBsonList.add(Filters.eq(typeMongoField, VariantType.DUPLICATION.toString()));</span>
+<span class="fc" id="L276">                orBsonList.add(Filters.eq(svTypeMongoField, StructuralVariantType.COPY_NUMBER_GAIN.toString()));</span>
+<span class="fc" id="L277">                andBsonList.add(Filters.or(orBsonList));</span>
+            // Inversion or just CNV (without subtype)
+            } else {
+<span class="nc" id="L280">                andBsonList.add(Filters.eq(typeMongoField, variantTypeString.toString()));</span>
+            }
+        }
+<span class="fc" id="L283">    }</span>
+
+    private void createImprecisePositionQuery(Query query, String leftQueryParam, String rightQueryParam,
+                                              String leftLimitMongoField, String righLimitMongoField,
+                                              List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L288" title="2 of 6 branches missed.">        if (query != null &amp;&amp; query.getString(leftQueryParam) != null &amp;&amp; !query.getString(leftQueryParam).isEmpty()</span>
+<span class="pc bpc" id="L289" title="2 of 4 branches missed.">                &amp;&amp; query.getString(rightQueryParam) != null &amp;&amp; !query.getString(rightQueryParam).isEmpty()) {</span>
+<span class="fc" id="L290">            int leftQueryValue = query.getInt(leftQueryParam);</span>
+<span class="fc" id="L291">            int rightQueryValue = query.getInt(rightQueryParam);</span>
+<span class="fc" id="L292">            andBsonList.add(Filters.lte(leftLimitMongoField, rightQueryValue));</span>
+<span class="fc" id="L293">            andBsonList.add(Filters.gte(righLimitMongoField, leftQueryValue));</span>
+        }
+<span class="fc" id="L295">    }</span>
+
+//    private Bson getPositionWithinIntervalQuery(int value, String leftLimitMongoField,
+//                                                String righLimitMongoField) {
+//        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;(2);
+//        andBsonList.add(Filters.lte(leftLimitMongoField, value));
+//        andBsonList.add(Filters.gte(righLimitMongoField, value));
+//
+//        return Filters.and(andBsonList);
+//    }
+    private void createGeneOrQuery(Query query, String queryParam, List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L306" title="1 of 2 branches missed.">        if (query != null) {</span>
+<span class="fc" id="L307">            List&lt;String&gt; geneList = query.getAsStringList(queryParam);</span>
+<span class="pc bpc" id="L308" title="1 of 4 branches missed.">            if (geneList != null &amp;&amp; !geneList.isEmpty()) {</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">                if (geneList.size() == 1) {</span>
+<span class="fc" id="L310">                    andBsonList.add(getGeneQuery(geneList.get(0)));</span>
+                } else {
+<span class="nc" id="L312">                    List&lt;Bson&gt; orBsonList = new ArrayList&lt;&gt;(geneList.size());</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                    for (String geneId : geneList) {</span>
+<span class="nc" id="L314">                        orBsonList.add(getGeneQuery(geneId));</span>
+<span class="nc" id="L315">                    }</span>
+<span class="nc" id="L316">                    andBsonList.add(Filters.or(orBsonList));</span>
+                }
+            }
+        }
+<span class="fc" id="L320">    }</span>
+
+    private Bson getGeneQuery(String geneId) {
+//        List&lt;Bson&gt; orBsonList = new ArrayList&lt;&gt;(3);
+//        orBsonList.add(Filters.eq(&quot;annotation.consequenceTypes.geneName&quot;, geneId));
+//        orBsonList.add(Filters.eq(&quot;annotation.consequenceTypes.ensemblGeneId&quot;, geneId));
+//        orBsonList.add(Filters.eq(&quot;annotation.consequenceTypes.ensemblTranscriptId&quot;, geneId));
+
+        // For some reason Mongo does not deal properly with OR queries and indexes. It is extremely slow to perform
+        // the commented query above. On the contrary this query below provides instant results
+<span class="fc bfc" id="L330" title="All 2 branches covered.">        if (geneId.startsWith(ENSEMBL_GENE_ID_PATTERN)) {</span>
+<span class="fc" id="L331">            return Filters.eq(&quot;annotation.consequenceTypes.ensemblGeneId&quot;, geneId);</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">        } else if (geneId.startsWith(ENSEMBL_TRANSCRIPT_ID_PATTERN)) {</span>
+<span class="fc" id="L333">            return Filters.eq(&quot;annotation.consequenceTypes.ensemblTranscriptId&quot;, geneId);</span>
+        } else {
+<span class="fc" id="L335">            return Filters.eq(&quot;annotation.consequenceTypes.geneName&quot;, geneId);</span>
+        }
+    }
+
+    private QueryResult&lt;Long&gt; updateAnnotation(List&lt;Document&gt; variantDocumentList, String[] innerFields) {
+<span class="nc" id="L340">        List&lt;Bson&gt; queries = new ArrayList&lt;&gt;(variantDocumentList.size());</span>
+<span class="nc" id="L341">        List&lt;Bson&gt; updates = new ArrayList&lt;&gt;(variantDocumentList.size());</span>
+
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        for (Document variantDBObject : variantDocumentList) {</span>
+<span class="nc" id="L344">            Document annotationDBObject = (Document) variantDBObject.get(ANNOTATION_FIELD);</span>
+<span class="nc" id="L345">            Document toOverwrite = new Document();</span>
+<span class="nc bnc" id="L346" title="All 6 branches missed.">            if (innerFields != null &amp; innerFields.length &gt; 0) {</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                for (String field : innerFields) {</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">                    if (annotationDBObject.get(field) != null) {</span>
+<span class="nc" id="L349">                        toOverwrite.put(ANNOTATION_FIELD + &quot;.&quot; + field, annotationDBObject.get(field));</span>
+                    }
+                }
+            } else {
+<span class="nc" id="L353">                toOverwrite.put(ANNOTATION_FIELD, annotationDBObject);</span>
+            }
+
+<span class="nc" id="L356">            Document update = new Document().append(&quot;$set&quot;, toOverwrite);</span>
+<span class="nc" id="L357">            updates.add(update);</span>
+
+<span class="nc" id="L359">            String chunkId = getChunkIdPrefix((String) variantDBObject.get(&quot;chromosome&quot;),</span>
+<span class="nc" id="L360">                    (int) variantDBObject.get(&quot;start&quot;), MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE);</span>
+<span class="nc" id="L361">            queries.add(new Document(&quot;_chunkIds&quot;, chunkId)</span>
+<span class="nc" id="L362">                    .append(&quot;chromosome&quot;, variantDBObject.get(&quot;chromosome&quot;))</span>
+<span class="nc" id="L363">                    .append(&quot;start&quot;, variantDBObject.get(&quot;start&quot;))</span>
+//                    .append(&quot;end&quot;, variantDBObject.get(&quot;end&quot;))
+<span class="nc" id="L365">                    .append(&quot;reference&quot;, variantDBObject.get(&quot;reference&quot;))</span>
+<span class="nc" id="L366">                    .append(&quot;alternate&quot;, variantDBObject.get(&quot;alternate&quot;)));</span>
+<span class="nc" id="L367">        }</span>
+
+        QueryResult&lt;BulkWriteResult&gt; bulkWriteResult;
+<span class="nc bnc" id="L370" title="All 2 branches missed.">        if (!queries.isEmpty()) {</span>
+<span class="nc" id="L371">            logger.info(&quot;updating object&quot;);</span>
+<span class="nc" id="L372">            QueryOptions options = new QueryOptions(&quot;upsert&quot;, false);</span>
+<span class="nc" id="L373">            options.put(&quot;multi&quot;, false);</span>
+            try {
+<span class="nc" id="L375">                bulkWriteResult = mongoDBCollection.update(queries, updates, options);</span>
+<span class="nc" id="L376">            } catch (BulkWriteException e) {</span>
+<span class="nc" id="L377">                throw e;</span>
+<span class="nc" id="L378">            }</span>
+<span class="nc" id="L379">            logger.info(&quot;{} object updated&quot;, bulkWriteResult.first().getModifiedCount());</span>
+
+<span class="nc" id="L381">            QueryResult&lt;Long&gt; longQueryResult = new QueryResult&lt;&gt;(bulkWriteResult.getId(), bulkWriteResult.getDbTime(), bulkWriteResult</span>
+<span class="nc" id="L382">                    .getNumResults(),</span>
+<span class="nc" id="L383">                    bulkWriteResult.getNumTotalResults(), bulkWriteResult.getWarningMsg(), bulkWriteResult.getErrorMsg(),</span>
+<span class="nc" id="L384">                    Collections.singletonList((long) (bulkWriteResult.first().getUpserts().size()</span>
+<span class="nc" id="L385">                            + bulkWriteResult.first().getModifiedCount())));</span>
+<span class="nc" id="L386">            return longQueryResult;</span>
+        }
+<span class="nc" id="L388">        logger.info(&quot;no object updated&quot;);</span>
+<span class="nc" id="L389">        return null;</span>
+
+    }
+
+    private QueryResult&lt;Long&gt; updatePopulationFrequencies(List&lt;Document&gt; variantDocumentList) {
+
+<span class="nc" id="L395">        List&lt;Bson&gt; queries = new ArrayList&lt;&gt;(variantDocumentList.size());</span>
+<span class="nc" id="L396">        List&lt;Bson&gt; updates = new ArrayList&lt;&gt;(variantDocumentList.size());</span>
+//        QueryResult&lt;Long&gt; longQueryResult = null;
+
+<span class="nc bnc" id="L399" title="All 2 branches missed.">        for (Document variantDBObject : variantDocumentList) {</span>
+<span class="nc" id="L400">            Document annotationDBObject = (Document) variantDBObject.get(ANNOTATION_FIELD);</span>
+<span class="nc" id="L401">            Document push = new Document(POP_FREQUENCIES_FIELD, annotationDBObject.get(&quot;populationFrequencies&quot;));</span>
+
+            // Remove annotation object from the DBObject so that push and setOnInsert do not update the same fields:
+            // i.e. annotation.populationFrequencies and annotation
+<span class="nc" id="L405">            variantDBObject.remove(ANNOTATION_FIELD);</span>
+<span class="nc" id="L406">            addChunkId(variantDBObject);</span>
+
+<span class="nc" id="L408">            Document update = new Document()</span>
+<span class="nc" id="L409">                    .append(&quot;$pushAll&quot;, push)</span>
+<span class="nc" id="L410">                    .append(&quot;$setOnInsert&quot;, variantDBObject);</span>
+
+<span class="nc" id="L412">            updates.add(update);</span>
+
+//            String chunkId = getChunkIdPrefix((String) variantDBObject.get(&quot;chromosome&quot;),
+//                    (int) variantDBObject.get(&quot;start&quot;), MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE);
+//            queries.add(new Document(&quot;_chunkIds&quot;, chunkId)
+//                    .append(&quot;chromosome&quot;, variantDBObject.get(&quot;chromosome&quot;))
+<span class="nc" id="L418">            queries.add(new Document(&quot;chromosome&quot;, variantDBObject.get(&quot;chromosome&quot;))</span>
+<span class="nc" id="L419">                    .append(&quot;start&quot;, variantDBObject.get(&quot;start&quot;))</span>
+//                    .append(&quot;end&quot;, variantDBObject.get(&quot;end&quot;))
+<span class="nc" id="L421">                    .append(&quot;reference&quot;, variantDBObject.get(&quot;reference&quot;))</span>
+<span class="nc" id="L422">                    .append(&quot;alternate&quot;, variantDBObject.get(&quot;alternate&quot;)));</span>
+<span class="nc" id="L423">        }</span>
+
+        QueryResult&lt;BulkWriteResult&gt; bulkWriteResult;
+<span class="nc bnc" id="L426" title="All 2 branches missed.">        if (!queries.isEmpty()) {</span>
+<span class="nc" id="L427">            logger.info(&quot;updating object&quot;);</span>
+<span class="nc" id="L428">            QueryOptions options = new QueryOptions(&quot;upsert&quot;, true);</span>
+<span class="nc" id="L429">            options.put(&quot;multi&quot;, false);</span>
+            try {
+<span class="nc" id="L431">                bulkWriteResult = mongoDBCollection.update(queries, updates, options);</span>
+<span class="nc" id="L432">            } catch (BulkWriteException e) {</span>
+<span class="nc" id="L433">                throw e;</span>
+<span class="nc" id="L434">            }</span>
+<span class="nc" id="L435">            logger.info(&quot;{} object updated&quot;, bulkWriteResult.first().getUpserts().size() + bulkWriteResult.first().getModifiedCount());</span>
+
+<span class="nc" id="L437">            QueryResult&lt;Long&gt; longQueryResult = new QueryResult&lt;&gt;(bulkWriteResult.getId(), bulkWriteResult.getDbTime(), bulkWriteResult</span>
+<span class="nc" id="L438">                    .getNumResults(),</span>
+<span class="nc" id="L439">                    bulkWriteResult.getNumTotalResults(), bulkWriteResult.getWarningMsg(), bulkWriteResult.getErrorMsg(),</span>
+<span class="nc" id="L440">                    Collections.singletonList((long) (bulkWriteResult.first().getUpserts().size()</span>
+<span class="nc" id="L441">                            + bulkWriteResult.first().getModifiedCount())));</span>
+
+//            return bulkWriteResult.first().getUpserts().size() + bulkWriteResult.first().getModifiedCount();
+<span class="nc" id="L444">            return longQueryResult;</span>
+        }
+<span class="nc" id="L446">        logger.info(&quot;no object updated&quot;);</span>
+<span class="nc" id="L447">        return null;</span>
+    }
+
+    // Method copied from MongoDBCellbaseLoader. In a near future only this one will stay. Insert work currently done
+    // by MongoDBCellbaseLoader must be replaced by an appropriate method in this adaptor
+    private void addChunkId(Document dbObject) {
+<span class="nc" id="L453">        List&lt;String&gt; chunkIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L454">        int chunkStart = (Integer) dbObject.get(&quot;start&quot;) / MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE;</span>
+<span class="nc" id="L455">        int chunkEnd = (Integer) dbObject.get(&quot;end&quot;) / MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE;</span>
+<span class="nc" id="L456">        String chunkIdSuffix = MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE / 1000 + &quot;k&quot;;</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">        for (int i = chunkStart; i &lt;= chunkEnd; i++) {</span>
+<span class="nc bnc" id="L458" title="All 2 branches missed.">            if (dbObject.containsKey(&quot;chromosome&quot;)) {</span>
+<span class="nc" id="L459">                chunkIds.add(dbObject.get(&quot;chromosome&quot;) + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+            } else {
+<span class="nc" id="L461">                chunkIds.add(dbObject.get(&quot;sequenceName&quot;) + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+            }
+        }
+<span class="nc" id="L464">        dbObject.put(&quot;_chunkIds&quot;, chunkIds);</span>
+<span class="nc" id="L465">    }</span>
+
+    @Override
+    public QueryResult&lt;Score&gt; getFunctionalScoreVariant(Variant variant, QueryOptions queryOptions) {
+<span class="fc" id="L469">        String chromosome = variant.getChromosome();</span>
+<span class="fc" id="L470">        int position = variant.getStart();</span>
+<span class="fc" id="L471">        String reference = variant.getReference();</span>
+<span class="fc" id="L472">        String alternate = variant.getAlternate();</span>
+
+<span class="fc" id="L474">        String chunkId = getChunkIdPrefix(chromosome, position, MongoDBCollectionConfiguration.VARIATION_FUNCTIONAL_SCORE_CHUNK_SIZE);</span>
+<span class="fc" id="L475">        QueryBuilder builder = QueryBuilder.start(&quot;_chunkIds&quot;).is(chunkId);</span>
+//                .and(&quot;chromosome&quot;).is(chromosome)
+//                .and(&quot;start&quot;).is(position);
+//        System.out.println(chunkId);
+<span class="fc" id="L479">        QueryResult result = executeQuery(chromosome + &quot;_&quot; + position + &quot;_&quot; + reference + &quot;_&quot; + alternate,</span>
+<span class="fc" id="L480">                new Document(builder.get().toMap()), queryOptions, caddDBCollection);</span>
+
+//        System.out.println(&quot;result = &quot; + result);
+
+<span class="fc" id="L484">        List&lt;Score&gt; scores = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">        for (Object object : result.getResult()) {</span>
+//            System.out.println(&quot;object = &quot; + object);
+<span class="nc" id="L487">            Document dbObject = (Document) object;</span>
+<span class="nc" id="L488">            int chunkStart = dbObject.getInteger(&quot;start&quot;);</span>
+<span class="nc" id="L489">            int chunkEnd = dbObject.getInteger(&quot;end&quot;);</span>
+            // CADD positions are not continuous through the whole chromosome. Several documents may be associated with
+            // the same chunk id: we have to be sure that current document contains queried position. Only two documents
+            // will contain queried position - one for raw and one for scaled values
+<span class="nc bnc" id="L493" title="All 4 branches missed.">            if (position &gt;= chunkStart &amp;&amp; position &lt;= chunkEnd) {</span>
+<span class="nc" id="L494">                int offset = (position - chunkStart);</span>
+<span class="nc" id="L495">                ArrayList basicDBList = dbObject.get(&quot;values&quot;, ArrayList.class);</span>
+
+//                long l1 = 0L; // TODO: delete
+//                try { // TODO: delete
+<span class="nc" id="L499">                long l1 = Long.parseLong(basicDBList.get(offset).toString());</span>
+//                                 l1 = (Long) basicDBList.get(offset);
+//                } catch (Exception e) {  // TODO: delete
+//                    logger.error(&quot;problematic variant: {}&quot;, variant.toString());
+//                    throw e;
+//                }
+
+<span class="nc bnc" id="L506" title="All 2 branches missed.">                if (dbObject.getString(&quot;source&quot;).equalsIgnoreCase(&quot;cadd_raw&quot;)) {</span>
+<span class="nc" id="L507">                    float value = 0f;</span>
+<span class="nc bnc" id="L508" title="All 18 branches missed.">                    switch (alternate.toLowerCase()) {</span>
+                        case &quot;a&quot;:
+//                            value = ((short) (l1 &gt;&gt; 48) - 10000) / DECIMAL_RESOLUTION;
+<span class="nc" id="L511">                            value = (((short) (l1 &gt;&gt; 48)) / DECIMAL_RESOLUTION) - 10;</span>
+<span class="nc" id="L512">                            break;</span>
+                        case &quot;c&quot;:
+<span class="nc" id="L514">                            value = (((short) (l1 &gt;&gt; 32)) / DECIMAL_RESOLUTION) - 10;</span>
+<span class="nc" id="L515">                            break;</span>
+                        case &quot;g&quot;:
+<span class="nc" id="L517">                            value = (((short) (l1 &gt;&gt; 16)) / DECIMAL_RESOLUTION) - 10;</span>
+<span class="nc" id="L518">                            break;</span>
+                        case &quot;t&quot;:
+<span class="nc" id="L520">                            value = (((short) (l1 &gt;&gt; 0)) / DECIMAL_RESOLUTION) - 10;</span>
+<span class="nc" id="L521">                            break;</span>
+                        default:
+                            break;
+                    }
+<span class="nc" id="L525">                    scores.add(Score.newBuilder()</span>
+<span class="nc" id="L526">                            .setScore(value)</span>
+<span class="nc" id="L527">                            .setSource(dbObject.getString(&quot;source&quot;))</span>
+<span class="nc" id="L528">                            .setDescription(null)</span>
+                            //                        .setDescription(&quot;&quot;)
+<span class="nc" id="L530">                            .build());</span>
+                }
+
+<span class="nc bnc" id="L533" title="All 2 branches missed.">                if (dbObject.getString(&quot;source&quot;).equalsIgnoreCase(&quot;cadd_scaled&quot;)) {</span>
+<span class="nc" id="L534">                    float value = 0f;</span>
+<span class="nc bnc" id="L535" title="All 18 branches missed.">                    switch (alternate.toLowerCase()) {</span>
+                        case &quot;a&quot;:
+<span class="nc" id="L537">                            value = ((short) (l1 &gt;&gt; 48)) / DECIMAL_RESOLUTION;</span>
+<span class="nc" id="L538">                            break;</span>
+                        case &quot;c&quot;:
+<span class="nc" id="L540">                            value = ((short) (l1 &gt;&gt; 32)) / DECIMAL_RESOLUTION;</span>
+<span class="nc" id="L541">                            break;</span>
+                        case &quot;g&quot;:
+<span class="nc" id="L543">                            value = ((short) (l1 &gt;&gt; 16)) / DECIMAL_RESOLUTION;</span>
+<span class="nc" id="L544">                            break;</span>
+                        case &quot;t&quot;:
+<span class="nc" id="L546">                            value = ((short) (l1 &gt;&gt; 0)) / DECIMAL_RESOLUTION;</span>
+<span class="nc" id="L547">                            break;</span>
+                        default:
+                            break;
+                    }
+<span class="nc" id="L551">                    scores.add(Score.newBuilder()</span>
+<span class="nc" id="L552">                            .setScore(value)</span>
+<span class="nc" id="L553">                            .setSource(dbObject.getString(&quot;source&quot;))</span>
+<span class="nc" id="L554">                            .setDescription(null)</span>
+                            //                        .setDescription(&quot;&quot;)
+<span class="nc" id="L556">                            .build());</span>
+                }
+            }
+<span class="nc" id="L559">        }</span>
+
+<span class="fc" id="L561">        result.setResult(scores);</span>
+<span class="fc" id="L562">        return result;</span>
+    }
+
+    /**
+     * Created an specific method for pop freqs here since in this case phase is managed at the Pop. freq level.
+     * @param variants list of Variant objects to query
+     * @param queryOptions query options, e.g. phased={true, false}
+     * @return list of QueryResult&lt;Variant&gt; objects, each of which contains the query result of each variant in the
+     * input list (&quot;variants&quot;). Positions within the list of QueryResult must always correspond to the position Variant
+     * objects occupy in the &quot;variants&quot; query list.
+     */
+    public List&lt;QueryResult&lt;Variant&gt;&gt; getPopulationFrequencyByVariant(List&lt;Variant&gt; variants, QueryOptions queryOptions) {
+<span class="fc" id="L574">        List&lt;QueryResult&lt;Variant&gt;&gt; results = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="fc bfc" id="L575" title="All 2 branches covered.">        for (Variant variant: variants) {</span>
+<span class="fc" id="L576">            results.add(getByVariant(variant, queryOptions));</span>
+<span class="fc" id="L577">        }</span>
+
+<span class="pc bpc" id="L579" title="1 of 4 branches missed.">        if (queryOptions.get(QueryParams.PHASE.key()) != null &amp;&amp; queryOptions.getBoolean(QueryParams.PHASE.key())) {</span>
+<span class="fc" id="L580">            results = populationFrequencyPhasedQueryManager.run(variants, results);</span>
+
+        }
+<span class="fc" id="L583">        return results;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

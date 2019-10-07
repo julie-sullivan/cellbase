@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BiopaxPathway.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.pathway</a> &gt; <span class="el_source">BiopaxPathway.java</span></div><h1>BiopaxPathway.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.pathway;
+
+import java.util.*;
+
+
+public class BiopaxPathway {
+
+    private String id, name, dbName, dbSource, dbVersion, parentPathway;
+<span class="nc" id="L25">    private List&lt;Object&gt; species = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L26">    private List&lt;String&gt; displayName = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L27">    private List&lt;Object&gt; xref = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L29">    private List&lt;PhysicalEntity&gt; physicalEntities = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L30">    private List&lt;SubPathway&gt; subPathways = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L31">    private List&lt;Interaction&gt; interactions = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L33">    private List&lt;Map&lt;String, Object&gt;&gt; allInteractionsIDs = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L34">    private List&lt;Map&lt;String, Object&gt;&gt; allEntitiesIDs = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L36">    private Set&lt;String&gt; addedEntities = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L37">    private Set&lt;String&gt; addedInteractions = new HashSet&lt;&gt;();</span>
+
+    public BiopaxPathway(String name, String dbName, String dbSource, String dbVersion, List&lt;Object&gt; species,
+<span class="nc" id="L40">                         List&lt;String&gt; displayName, List&lt;Object&gt; xref) {</span>
+<span class="nc" id="L41">        this.name = name;</span>
+<span class="nc" id="L42">        this.dbName = dbName;</span>
+<span class="nc" id="L43">        this.dbSource = dbSource;</span>
+<span class="nc" id="L44">        this.dbVersion = dbVersion;</span>
+<span class="nc" id="L45">        this.species = species;</span>
+<span class="nc" id="L46">        this.displayName = displayName;</span>
+<span class="nc" id="L47">        this.xref = xref;</span>
+
+<span class="nc" id="L49">        this.id = this.dbSource + &quot;_&quot; + this.dbVersion + &quot;_&quot; + this.name;</span>
+<span class="nc" id="L50">    }</span>
+
+    public String getName() {
+<span class="nc" id="L53">        return name;</span>
+    }
+
+    public List&lt;SubPathway&gt; getSubPathways() {
+<span class="nc" id="L57">        return subPathways;</span>
+    }
+
+    public List&lt;Interaction&gt; getInteractions() {
+<span class="nc" id="L61">        return interactions;</span>
+    }
+
+    public List&lt;PhysicalEntity&gt; getphysicalEntities() {
+<span class="nc" id="L65">        return physicalEntities;</span>
+    }
+
+    public List&lt;Map&lt;String, Object&gt;&gt; getAllInteractionsIDs() {
+<span class="nc" id="L69">        return allInteractionsIDs;</span>
+    }
+
+    public List&lt;Map&lt;String, Object&gt;&gt; getAllEntitiesIDs() {
+<span class="nc" id="L73">        return allEntitiesIDs;</span>
+    }
+
+    public void setParentPathway(String parent) {
+<span class="nc" id="L77">        this.parentPathway = parent;</span>
+<span class="nc" id="L78">    }</span>
+
+    public void addInteraction(Interaction interaction) {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (!addedInteractions.contains(interaction.getName())) {</span>
+<span class="nc" id="L82">            addedInteractions.add(interaction.getName());</span>
+<span class="nc" id="L83">            interactions.add(interaction);</span>
+        }
+<span class="nc" id="L85">    }</span>
+
+    public void addPhysicalEntity(PhysicalEntity entity) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (!addedEntities.contains(entity.getName())) {</span>
+<span class="nc" id="L89">            addedEntities.add(entity.getName());</span>
+<span class="nc" id="L90">            physicalEntities.add(entity);</span>
+        }
+<span class="nc" id="L92">    }</span>
+
+    public void addInteractionId(Map&lt;String, Object&gt; interactionObj) {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (!allInteractionsIDs.contains(interactionObj)) {</span>
+<span class="nc" id="L96">            allInteractionsIDs.add(interactionObj);</span>
+        }
+<span class="nc" id="L98">    }</span>
+
+    public void addEntityId(Map&lt;String, Object&gt; entityObj) {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (!allEntitiesIDs.contains(entityObj)) {</span>
+<span class="nc" id="L102">            allEntitiesIDs.add(entityObj);</span>
+        }
+<span class="nc" id="L104">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

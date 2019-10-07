@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Gwas.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.clinical.gwas</a> &gt; <span class="el_source">Gwas.java</span></div><h1>Gwas.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.clinical.gwas;
+
+/**
+ * Created by lcruz on 26/05/14.
+ */
+
+import org.opencb.cellbase.core.common.clinical.ClinicalVariant;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author Luis Miguel Cruz
+ * @version 1.2.3
+ * @since October 08, 2014
+ */
+public class Gwas extends ClinicalVariant {
+
+    private String region;
+    private String reportedGenes;
+    private String mappedGene;
+    private String upstreamGeneId;
+    private String downstreamGeneId;
+    private String snpGeneIds;
+    private String upstreamGeneDistance;
+    private String downstreamGeneDistance;
+    private String strongestSNPRiskAllele;
+    private String snpId;
+    private String merged;
+    private String snpIdCurrent;
+    private String context;
+    private String intergenic;
+    private Float riskAlleleFrequency;
+    private String cnv;
+    private List&lt;GwasStudy&gt; studies;
+
+    public Gwas(String chromosome, Integer start, Integer end, String reference, String alternate, String region,
+                String reportedGenes, String mappedGene, String upstreamGeneId, String downstreamGeneId, String snpGeneIds,
+                String upstreamGeneDistance, String downstreamGeneDistance, String strongestSNPRiskAllele, String snpId,
+                String merged, String snpIdCurrent, String context, String intergenic, Float riskAlleleFrequency, String cnv) {
+<span class="nc" id="L57">        super(chromosome, start, end, reference, alternate, &quot;gwas&quot;);</span>
+<span class="nc" id="L58">        this.region = region;</span>
+<span class="nc" id="L59">        this.reportedGenes = reportedGenes;</span>
+<span class="nc" id="L60">        this.mappedGene = mappedGene;</span>
+<span class="nc" id="L61">        this.upstreamGeneId = upstreamGeneId;</span>
+<span class="nc" id="L62">        this.downstreamGeneId = downstreamGeneId;</span>
+<span class="nc" id="L63">        this.snpGeneIds = snpGeneIds;</span>
+<span class="nc" id="L64">        this.upstreamGeneDistance = upstreamGeneDistance;</span>
+<span class="nc" id="L65">        this.downstreamGeneDistance = downstreamGeneDistance;</span>
+<span class="nc" id="L66">        this.strongestSNPRiskAllele = strongestSNPRiskAllele;</span>
+<span class="nc" id="L67">        this.snpId = snpId;</span>
+<span class="nc" id="L68">        this.merged = merged;</span>
+<span class="nc" id="L69">        this.snpIdCurrent = snpIdCurrent;</span>
+<span class="nc" id="L70">        this.context = context;</span>
+<span class="nc" id="L71">        this.intergenic = intergenic;</span>
+<span class="nc" id="L72">        this.riskAlleleFrequency = riskAlleleFrequency;</span>
+<span class="nc" id="L73">        this.cnv = cnv;</span>
+<span class="nc" id="L74">        this.studies = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L75">    }</span>
+
+    public Gwas(Gwas other) {
+<span class="nc" id="L78">        super(other.getChromosome(), other.getStart(), other.getEnd(), other.getReference(), other.getAlternate(), &quot;gwas&quot;);</span>
+<span class="nc" id="L79">        this.region = other.region;</span>
+<span class="nc" id="L80">        this.reportedGenes = other.reportedGenes;</span>
+<span class="nc" id="L81">        this.mappedGene = other.mappedGene;</span>
+<span class="nc" id="L82">        this.upstreamGeneId = other.upstreamGeneId;</span>
+<span class="nc" id="L83">        this.downstreamGeneId = other.downstreamGeneId;</span>
+<span class="nc" id="L84">        this.snpGeneIds = other.snpGeneIds;</span>
+<span class="nc" id="L85">        this.upstreamGeneDistance = other.upstreamGeneDistance;</span>
+<span class="nc" id="L86">        this.downstreamGeneDistance = other.downstreamGeneDistance;</span>
+<span class="nc" id="L87">        this.strongestSNPRiskAllele = other.strongestSNPRiskAllele;</span>
+<span class="nc" id="L88">        this.snpId = other.snpId;</span>
+<span class="nc" id="L89">        this.merged = other.merged;</span>
+<span class="nc" id="L90">        this.snpIdCurrent = other.snpIdCurrent;</span>
+<span class="nc" id="L91">        this.context = other.context;</span>
+<span class="nc" id="L92">        this.intergenic = other.intergenic;</span>
+<span class="nc" id="L93">        this.riskAlleleFrequency = other.riskAlleleFrequency;</span>
+<span class="nc" id="L94">        this.cnv = other.cnv;</span>
+<span class="nc" id="L95">        this.studies = other.studies;</span>
+<span class="nc" id="L96">    }</span>
+
+    // ---------------------------------- GETTERS / SETTERS ------------------------------
+
+    public String getRegion() {
+<span class="nc" id="L101">        return region;</span>
+    }
+
+    public void setRegion(String region) {
+<span class="nc" id="L105">        this.region = region;</span>
+<span class="nc" id="L106">    }</span>
+
+    public String getReportedGenes() {
+<span class="nc" id="L109">        return reportedGenes;</span>
+    }
+
+    public void setReportedGenes(String reportedGenes) {
+<span class="nc" id="L113">        this.reportedGenes = reportedGenes;</span>
+<span class="nc" id="L114">    }</span>
+
+    public String getMappedGene() {
+<span class="nc" id="L117">        return mappedGene;</span>
+    }
+
+    public void setMappedGene(String mappedGene) {
+<span class="nc" id="L121">        this.mappedGene = mappedGene;</span>
+<span class="nc" id="L122">    }</span>
+
+    public String getUpstreamGeneId() {
+<span class="nc" id="L125">        return upstreamGeneId;</span>
+    }
+
+    public void setUpstreamGeneId(String upstreamGeneId) {
+<span class="nc" id="L129">        this.upstreamGeneId = upstreamGeneId;</span>
+<span class="nc" id="L130">    }</span>
+
+    public String getDownstreamGeneId() {
+<span class="nc" id="L133">        return downstreamGeneId;</span>
+    }
+
+    public void setDownstreamGeneId(String downstreamGeneId) {
+<span class="nc" id="L137">        this.downstreamGeneId = downstreamGeneId;</span>
+<span class="nc" id="L138">    }</span>
+
+    public String getSnpGeneIds() {
+<span class="nc" id="L141">        return snpGeneIds;</span>
+    }
+
+    public void setSnpGeneIds(String snpGeneIds) {
+<span class="nc" id="L145">        this.snpGeneIds = snpGeneIds;</span>
+<span class="nc" id="L146">    }</span>
+
+    public String getUpstreamGeneDistance() {
+<span class="nc" id="L149">        return upstreamGeneDistance;</span>
+    }
+
+    public void setUpstreamGeneDistance(String upstreamGeneDistance) {
+<span class="nc" id="L153">        this.upstreamGeneDistance = upstreamGeneDistance;</span>
+<span class="nc" id="L154">    }</span>
+
+    public String getDownstreamGeneDistance() {
+<span class="nc" id="L157">        return downstreamGeneDistance;</span>
+    }
+
+    public void setDownstreamGeneDistance(String downstreamGeneDistance) {
+<span class="nc" id="L161">        this.downstreamGeneDistance = downstreamGeneDistance;</span>
+<span class="nc" id="L162">    }</span>
+
+    public String getStrongestSNPRiskAllele() {
+<span class="nc" id="L165">        return strongestSNPRiskAllele;</span>
+    }
+
+    public void setStrongestSNPRiskAllele(String strongestSNPRiskAllele) {
+<span class="nc" id="L169">        this.strongestSNPRiskAllele = strongestSNPRiskAllele;</span>
+<span class="nc" id="L170">    }</span>
+
+    public String getSnpId() {
+<span class="nc" id="L173">        return snpId;</span>
+    }
+
+    public void setSnpId(String snpId) {
+<span class="nc" id="L177">        this.snpId = snpId;</span>
+<span class="nc" id="L178">    }</span>
+
+    public String getMerged() {
+<span class="nc" id="L181">        return merged;</span>
+    }
+
+    public void setMerged(String merged) {
+<span class="nc" id="L185">        this.merged = merged;</span>
+<span class="nc" id="L186">    }</span>
+
+    public String getSnpIdCurrent() {
+<span class="nc" id="L189">        return snpIdCurrent;</span>
+    }
+
+    public void setSnpIdCurrent(String snpIdCurrent) {
+<span class="nc" id="L193">        this.snpIdCurrent = snpIdCurrent;</span>
+<span class="nc" id="L194">    }</span>
+
+    public String getContext() {
+<span class="nc" id="L197">        return context;</span>
+    }
+
+    public void setContext(String context) {
+<span class="nc" id="L201">        this.context = context;</span>
+<span class="nc" id="L202">    }</span>
+
+    public String getIntergenic() {
+<span class="nc" id="L205">        return intergenic;</span>
+    }
+
+    public void setIntergenic(String intergenic) {
+<span class="nc" id="L209">        this.intergenic = intergenic;</span>
+<span class="nc" id="L210">    }</span>
+
+    public Float getRiskAlleleFrequency() {
+<span class="nc" id="L213">        return riskAlleleFrequency;</span>
+    }
+
+    public void setRiskAlleleFrequency(Float riskAlleleFrequency) {
+<span class="nc" id="L217">        this.riskAlleleFrequency = riskAlleleFrequency;</span>
+<span class="nc" id="L218">    }</span>
+
+    public String getCnv() {
+<span class="nc" id="L221">        return cnv;</span>
+    }
+
+    public void setCnv(String cnv) {
+<span class="nc" id="L225">        this.cnv = cnv;</span>
+<span class="nc" id="L226">    }</span>
+
+    public List&lt;GwasStudy&gt; getStudies() {
+<span class="nc" id="L229">        return this.studies;</span>
+    }
+
+    public void setStudies(List&lt;GwasStudy&gt; studies) {
+<span class="nc" id="L233">        this.studies = studies;</span>
+<span class="nc" id="L234">    }</span>
+
+    public void addStudies(List&lt;GwasStudy&gt; studies) {
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        for (GwasStudy study : studies) {</span>
+<span class="nc" id="L238">            this.addStudy(study);</span>
+<span class="nc" id="L239">        }</span>
+<span class="nc" id="L240">    }</span>
+
+    public void addStudy(GwasStudy study) {
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        if (this.studies.contains(study)) {</span>
+<span class="nc" id="L244">            int studyIndex = this.studies.indexOf(study);</span>
+<span class="nc" id="L245">            this.studies.get(studyIndex).addTraits(study.getTraits());</span>
+<span class="nc" id="L246">        } else {</span>
+<span class="nc" id="L247">            this.studies.add(study);</span>
+        }
+<span class="nc" id="L249">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

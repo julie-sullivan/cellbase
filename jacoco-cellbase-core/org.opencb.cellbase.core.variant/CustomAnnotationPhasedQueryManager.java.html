@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomAnnotationPhasedQueryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant</a> &gt; <span class="el_source">CustomAnnotationPhasedQueryManager.java</span></div><h1>CustomAnnotationPhasedQueryManager.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.Collections;
+import java.util.List;
+
+<span class="nc" id="L10">public class CustomAnnotationPhasedQueryManager extends PhasedQueryManager {</span>
+
+    @Override
+    public List&lt;QueryResult&lt;Variant&gt;&gt; run(List&lt;Variant&gt; variantList, List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResultList) {
+        // Go through all input variants and their corresponding query results
+<span class="nc bnc" id="L15" title="All 2 branches missed.">        for (int j = 0; j &lt; variantQueryResultList.size(); j++) {</span>
+<span class="nc" id="L16">            QueryResult&lt;Variant&gt; variantQueryResult = variantQueryResultList.get(j);</span>
+<span class="nc bnc" id="L17" title="All 2 branches missed.">            if (!variantQueryResult.getResult().isEmpty()) {</span>
+                // Variants are normalised and data from each of the sources (COSMIC, ClinVar, DOCM, etc.) integrated
+                // during the build process. Only one variant record should be present per assembly.
+<span class="nc bnc" id="L20" title="All 2 branches missed.">                if (variantQueryResult.getResult().size() &gt; 1) {</span>
+<span class="nc" id="L21">                    throw new RuntimeException(&quot;Unexpected: more than one result found in the clinical variant &quot;</span>
+<span class="nc" id="L22">                            + &quot;collection for variant &quot; + variantQueryResult.getId() + &quot;. Please, check.&quot;);</span>
+                }
+
+<span class="nc" id="L25">                Variant matchedVariant = variantQueryResult.getResult().get(0);</span>
+<span class="nc" id="L26">                Variant queryVariant = variantList.get(j);</span>
+<span class="nc" id="L27">                List&lt;Variant&gt; databaseHaplotype = getHaplotype(matchedVariant);</span>
+                // Haplotype empty if EvidenceEntry/PopulationFrequency is not phased
+<span class="nc bnc" id="L29" title="All 2 branches missed.">                if (!databaseHaplotype.isEmpty()) {</span>
+                    // Sample   Cellbase  Match
+                    // -------------------------------
+                    // SNV      MNV       X
+                    // MNV      MNV       ✓
+                    // Missing genotypes in the input list will be considered as wildcards towards finding a
+                    // matching haplotype (MNV) in the input list, since otherwise the clinical variant would not be
+                    // returned
+<span class="nc bnc" id="L37" title="All 2 branches missed.">                    if (!sameHaplotype(queryVariant, variantList, databaseHaplotype)) {</span>
+<span class="nc" id="L38">                        reset(variantQueryResult);</span>
+                    }
+                    // Sample   Cellbase  Match
+                    // -------------------------------
+                    // SNV      SNV       ✓
+                    // MNV      SNV       ✓
+                }
+            }
+        }
+
+<span class="nc" id="L48">        return variantQueryResultList;</span>
+    }
+
+    private List&lt;Variant&gt; getHaplotype(Variant variant) {
+<span class="nc" id="L52">        String phaseSet = getSampleAttribute(variant, PHASE_SET_TAG);</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (StringUtils.isNotBlank(phaseSet)) {</span>
+<span class="nc" id="L55">            return Variant.parseVariants(phaseSet);</span>
+        }
+
+<span class="nc" id="L58">        return Collections.emptyList();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

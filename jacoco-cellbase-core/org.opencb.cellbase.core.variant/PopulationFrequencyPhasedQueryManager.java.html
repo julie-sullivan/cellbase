@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PopulationFrequencyPhasedQueryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant</a> &gt; <span class="el_source">PopulationFrequencyPhasedQueryManager.java</span></div><h1>PopulationFrequencyPhasedQueryManager.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.PopulationFrequency;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
+<span class="nc" id="L12">public class PopulationFrequencyPhasedQueryManager extends AnnotationBasedPhasedQueryManager&lt;PopulationFrequency&gt; {</span>
+    private static final char SHIFTED_POSITION_CHARACTER = '-';
+//    @Override
+//    public List&lt;QueryResult&lt;Variant&gt;&gt; run(List&lt;Variant&gt; variantList, List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResultList) {
+//        // Go through all input variants and their corresponding query results
+//        for (int j = 0; j &lt; variantQueryResultList.size(); j++) {
+//            QueryResult&lt;Variant&gt; variantQueryResult = variantQueryResultList.get(j);
+//            if (!variantQueryResult.getResult().isEmpty()) {
+//                // Only one variant record should be present per assembly.
+//                if (variantQueryResult.getResult().size() &gt; 1) {
+//                    throw new RuntimeException(&quot;Unexpected: more than one result found for variant &quot;
+//                            + &quot;collection for variant &quot; + variantQueryResult.getId() + &quot;. Please, check.&quot;);
+//                }
+//
+//                Variant matchedVariant = variantQueryResult.getResult().get(0);
+//                Variant queryVariant = variantList.get(j);
+//                // Phase is stored at the evidence entry level, e.g.: there might be two ClinVar RCVs for one
+//                // variant:
+//                //   - In the first the variant is submitted as part of an MNV and therefore it is phased
+//                //   - In the second one the variant is submitted singleton and therefore it is not phased
+//                // both RCVs will be integrated in the same Variant object after decomposition as separate EvidenceEntry
+//                // objects, each with its corresponding phase information
+//                List&lt;Variant&gt; databaseHaplotype = getHaplotype(matchedVariant);
+//                // Haplotype empty if variant is not phased
+//                if (!databaseHaplotype.isEmpty()) {
+//                    // Sample   Cellbase-Database  Match
+//                    // -------------------------------
+//                    // SNV      MNV                X
+//                    // MNV      MNV                ✓
+//                    // Missing genotypes in the input list will be considered as wildcards towards finding a
+//                    // matching haplotype (MNV) in the input list, since otherwise the clinical variant would not be
+//                    // returned
+//                    if (!sameHaplotype(queryVariant, variantList, databaseHaplotype)) {
+//                        reset(variantQueryResult);
+//                    }
+//                    // Sample   Cellbase-Database  Match
+//                    // -------------------------------
+//                    // SNV      SNV                ✓
+//                    // MNV      SNV                ✓
+//                }
+//            }M
+//        }
+//
+//        return variantQueryResultList;
+//
+//    }
+
+//    private List&lt;Variant&gt; getHaplotype(Variant variant) {
+//        String phaseSet = getSampleAttribute(variant, PHASE_SET_TAG);
+//        if (StringUtils.isNotBlank(phaseSet)) {
+//            return Variant.parseVariants(phaseSet);
+//        }
+//
+//        return Collections.emptyList();
+//    }
+
+    @Override
+    protected List&lt;Variant&gt; getHaplotype(PopulationFrequency populationFrequency, Variant variant) {
+        // Assuming only simple variants make it to this point
+        // Simple variants - there's no complex haplotype, i.e. there's no set of phased variants.
+        // Also detects whether decomposition took place for MNVs, as decomposed MNV allele strings must have at least
+        // one lowercase character or one &quot;-&quot; indicating alignment shifting
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        if ((populationFrequency.getRefAllele().length() == 1 &amp;&amp; populationFrequency.getAltAllele().length() == 1)</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                || StringUtils.isEmpty(populationFrequency.getRefAllele())</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                || StringUtils.isEmpty(populationFrequency.getAltAllele())</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                || !wasDecomposed(populationFrequency)) {</span>
+<span class="nc" id="L78">            return Collections.emptyList();</span>
+        }
+
+<span class="nc" id="L81">        return alignmentToVariantList(populationFrequency.getRefAllele(),</span>
+<span class="nc" id="L82">                populationFrequency.getAltAllele(),</span>
+                variant);
+
+    }
+
+    private boolean wasDecomposed(PopulationFrequency populationFrequency) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        for (char nucleotide : populationFrequency.getRefAllele().toCharArray()) {</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">            if (SHIFTED_POSITION_CHARACTER == nucleotide || Character.isLowerCase(nucleotide)) {</span>
+<span class="nc" id="L90">                return true;</span>
+            }
+        }
+
+<span class="nc" id="L94">        return false;</span>
+    }
+
+    private List&lt;Variant&gt; alignmentToVariantList(String refAllele, String altAllele, Variant matchedVariant) {
+
+        // Need to calculate the start coordinate of the alignment - matchedVariant might not be the first simple
+        // variant that forms the MNV
+<span class="nc" id="L101">        List&lt;VariantNormalizer.VariantKeyFields&gt; keyFieldsList</span>
+<span class="nc" id="L102">                = VariantNormalizer.decomposeAlignmentSingleVariants(refAllele.toUpperCase(),</span>
+<span class="nc" id="L103">                altAllele.toUpperCase(),</span>
+<span class="nc" id="L104">                getMNVStart(refAllele, altAllele, matchedVariant), null);</span>
+
+<span class="nc" id="L106">        return keyFieldsList.stream().map((keyFields) -&gt; (new Variant(matchedVariant.getChromosome(),</span>
+<span class="nc" id="L107">                keyFields.getStart(),</span>
+<span class="nc" id="L108">                keyFields.getEnd(),</span>
+<span class="nc" id="L109">                keyFields.getReference(),</span>
+<span class="nc" id="L110">                keyFields.getAlternate()))).collect(Collectors.toList());</span>
+
+    }
+
+    private int getMNVStart(String refAllele, String altAllele, Variant matchedVariant) {
+<span class="nc" id="L115">        int uppercasePosition = getFirstUppercase(refAllele);</span>
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (uppercasePosition != -1) {</span>
+            // Remove the relative position within the MNV
+<span class="nc" id="L119">            return matchedVariant.getStart() - uppercasePosition;</span>
+        }
+
+<span class="nc" id="L122">        uppercasePosition = getFirstUppercase(altAllele);</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (uppercasePosition != -1) {</span>
+            // Remove the relative position within the MNV
+<span class="nc" id="L126">            return matchedVariant.getStart() - uppercasePosition;</span>
+        }
+
+<span class="nc" id="L129">        throw new IllegalArgumentException(&quot;Malformed MNV alignment &quot; + refAllele + &quot;/&quot; + altAllele + &quot;. At least one&quot;</span>
+                + &quot; uppercase character is expected in any of the strings to be able to re-construct genomic &quot;
+                + &quot; coordinates of the original MNV&quot;);
+
+    }
+
+    private int getFirstUppercase(String alleleString) {
+<span class="nc" id="L136">        int i = 0;</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        for (char nucleotide : alleleString.toCharArray()) {</span>
+<span class="nc bnc" id="L138" title="All 4 branches missed.">            if (SHIFTED_POSITION_CHARACTER != nucleotide &amp;&amp; Character.isUpperCase(nucleotide)) {</span>
+<span class="nc" id="L139">                return i;</span>
+            }
+<span class="nc" id="L141">            i++;</span>
+        }
+
+<span class="nc" id="L144">        return -1;</span>
+    }
+
+    @Override
+    protected List&lt;PopulationFrequency&gt; getAnnotationObjectList(Variant variant) {
+<span class="nc" id="L149">        return variant.getAnnotation().getPopulationFrequencies();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

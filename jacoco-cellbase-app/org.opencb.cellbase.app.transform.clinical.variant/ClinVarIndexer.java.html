@@ -1,0 +1,922 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinVarIndexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">ClinVarIndexer.java</span></div><h1>ClinVarIndexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.formats.variant.clinvar.ClinvarParser;
+import org.opencb.biodata.formats.variant.clinvar.v54jaxb.*;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.commons.ProgressLogger;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import javax.xml.bind.JAXBElement;
+import javax.xml.bind.JAXBException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+//import org.opencb.biodata.formats.variant.clinvar.v24jaxb.*;
+
+/**
+ * Created by fjlopez on 28/09/16.
+ */
+public class ClinVarIndexer extends ClinicalIndexer {
+
+    private static final String CLINVAR_CONTEXT = &quot;org.opencb.biodata.formats.variant.clinvar.v54jaxb&quot;;
+
+    private static final String CLINVAR_NAME = &quot;clinvar&quot;;
+    private static final int VARIANT_SUMMARY_CHR_COLUMN = 18;
+    private static final int VARIANT_SUMMARY_START_COLUMN = 19;
+    private static final int VARIANT_SUMMARY_END_COLUMN = 20;
+    private static final int VARIANT_SUMMARY_REFERENCE_COLUMN = 21;
+    private static final int VARIANT_SUMMARY_ALTERNATE_COLUMN = 22;
+    private static final int VARIANT_SUMMARY_CLINSIG_COLUMN = 6;
+    private static final int VARIANT_SUMMARY_GENE_COLUMN = 4;
+    private static final int VARIANT_SUMMARY_REVIEW_COLUMN = 24;
+    private static final int VARIANT_SUMMARY_ORIGIN_COLUMN = 14;
+    private static final int VARIANT_SUMMARY_PHENOTYPE_COLUMN = 13;
+    private static final int VARIANT_SUMMARY_ASSEMBLY_COLUMN = 16;
+    private static final int VARIATION_ALLELE_VARIATION_COLUMN = 0;
+    private static final int VARIATION_ALLELE_TYPE_COLUMN = 1;
+    private static final int VARIATION_ALLELE_ALLELE_COLUMN = 2;
+    private static final String SOMATIC = &quot;somatic&quot;;
+    private static final String CLINICAL_SIGNIFICANCE_IN_SOURCE_FILE = &quot;ClinicalSignificance_in_source_file&quot;;
+    private static final String REVIEW_STATUS_IN_SOURCE_FILE = &quot;ReviewStatus_in_source_file&quot;;
+    private static final String TRAIT = &quot;trait&quot;;
+    private static final String MODE_OF_INHERITANCE = &quot;modeOfInheritance&quot;;
+    private static final String GENOTYPESET = &quot;GenotypeSet&quot;;
+    private static final String COMPOUND_HETEROZYGOTE = &quot;CompoundHeterozygote&quot;;
+    private static final String DIPLOTYPE = &quot;Diplotype&quot;;
+    private static final String VARIANT = &quot;Variant&quot;;
+    private final Path clinvarXMLFile;
+    private final Path clinvarSummaryFile;
+    private final Path clinvarVariationAlleleFile;
+    private final Path clinvarEFOFile;
+    private final String assembly;
+<span class="fc" id="L64">    private int numberSomaticRecords = 0;</span>
+<span class="fc" id="L65">    private int numberGermlineRecords = 0;</span>
+<span class="fc" id="L66">    private int numberNoDiseaseTrait = 0;</span>
+<span class="fc" id="L67">    private int numberMultipleInheritanceModels = 0;</span>
+<span class="fc" id="L68">    private static final Set&lt;ModeOfInheritance&gt; DOMINANT_TERM_SET</span>
+<span class="fc" id="L69">            = new HashSet&lt;&gt;(Arrays.asList(ModeOfInheritance.monoallelic,</span>
+            ModeOfInheritance.monoallelic_maternally_imprinted,
+            ModeOfInheritance.monoallelic_not_imprinted, ModeOfInheritance.monoallelic_paternally_imprinted));
+<span class="fc" id="L72">    private static final Set&lt;ModeOfInheritance&gt; RECESSIVE_TERM_SET</span>
+<span class="fc" id="L73">            = new HashSet&lt;&gt;(Arrays.asList(ModeOfInheritance.biallelic));</span>
+
+    public ClinVarIndexer(Path clinvarXMLFile, Path clinvarSummaryFile, Path clinvarVariationAlleleFile,
+                          Path clinvarEFOFile, boolean normalize, Path genomeSequenceFilePath, String assembly,
+                          RocksDB rdb) throws IOException {
+<span class="fc" id="L78">        super(genomeSequenceFilePath);</span>
+<span class="fc" id="L79">        this.rdb = rdb;</span>
+<span class="fc" id="L80">        this.clinvarXMLFile = clinvarXMLFile;</span>
+<span class="fc" id="L81">        this.clinvarSummaryFile = clinvarSummaryFile;</span>
+<span class="fc" id="L82">        this.clinvarVariationAlleleFile = clinvarVariationAlleleFile;</span>
+<span class="fc" id="L83">        this.clinvarEFOFile = clinvarEFOFile;</span>
+<span class="fc" id="L84">        this.normalize = normalize;</span>
+<span class="fc" id="L85">        this.genomeSequenceFilePath = genomeSequenceFilePath;</span>
+<span class="fc" id="L86">        this.assembly = assembly;</span>
+<span class="fc" id="L87">    }</span>
+
+    public void index() throws RocksDBException {
+        try {
+<span class="fc" id="L91">            Map&lt;String, EFO&gt; traitsToEfoTermsMap = loadEFOTerms();</span>
+<span class="fc" id="L92">            Map&lt;String, List&lt;AlleleLocationData&gt;&gt; rcvToAlleleLocationData = parseVariantSummary(traitsToEfoTermsMap);</span>
+
+<span class="fc" id="L94">            logger.info(&quot;Unmarshalling clinvar file &quot; + clinvarXMLFile + &quot; ...&quot;);</span>
+<span class="fc" id="L95">            JAXBElement&lt;ReleaseType&gt; clinvarRelease = unmarshalXML(clinvarXMLFile);</span>
+<span class="fc" id="L96">            logger.info(&quot;Done&quot;);</span>
+
+<span class="fc" id="L98">            logger.info(&quot;Serializing clinvar records that have Sequence Location for Assembly &quot; + assembly + &quot; ...&quot;);</span>
+<span class="fc" id="L99">            ProgressLogger progressLogger = new ProgressLogger(&quot;Parsed XML records:&quot;, clinvarRelease.getValue().getClinVarSet().size(),</span>
+<span class="fc" id="L100">                    200).setBatchSize(10000);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            for (PublicSetType publicSet : clinvarRelease.getValue().getClinVarSet()) {</span>
+<span class="fc" id="L102">                List&lt;AlleleLocationData&gt; alleleLocationDataList =</span>
+<span class="fc" id="L103">                        rcvToAlleleLocationData.get(publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc());</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                if (alleleLocationDataList != null) {</span>
+<span class="fc" id="L105">                    boolean success = false;</span>
+                    // Actually this list is currently not allowed to be &gt; 2
+<span class="fc bfc" id="L107" title="All 2 branches covered.">                    for (int i = 0; i &lt; alleleLocationDataList.size(); i++) {</span>
+<span class="fc" id="L108">                        String mateVariantString = getMateVariantStringByAlleleLocationData(i, alleleLocationDataList);</span>
+                        // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L110" title="3 of 4 branches missed.">                        success = updateRocksDB(alleleLocationDataList.get(i), publicSet, mateVariantString,</span>
+                                traitsToEfoTermsMap) || success;
+                    }
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">                    if (success) {</span>
+<span class="fc" id="L114">                        numberIndexedRecords++;</span>
+                    }
+                }
+<span class="fc" id="L117">                progressLogger.increment(1);</span>
+<span class="fc" id="L118">                totalNumberRecords++;</span>
+<span class="fc" id="L119">            }</span>
+<span class="fc" id="L120">            logger.info(&quot;Done&quot;);</span>
+<span class="fc" id="L121">            printSummary();</span>
+<span class="nc" id="L122">        } catch (RocksDBException e) {</span>
+<span class="nc" id="L123">            logger.error(&quot;Error reading/writing from/to the RocksDB index while indexing ClinVar&quot;);</span>
+<span class="nc" id="L124">            throw e;</span>
+<span class="nc" id="L125">        } catch (JAXBException e) {</span>
+<span class="nc" id="L126">            logger.error(&quot;Error unmarshalling clinvar Xml file &quot; + clinvarXMLFile + &quot;: &quot; + e.getMessage());</span>
+<span class="nc" id="L127">        } catch (IOException e) {</span>
+<span class="nc" id="L128">            logger.error(&quot;Error indexing clinvar Xml file: &quot; + e.getMessage());</span>
+<span class="pc" id="L129">        }</span>
+<span class="fc" id="L130">    }</span>
+
+    private String getMateVariantStringByAlleleLocationData(int i, List&lt;AlleleLocationData&gt; alleleLocationDataList) {
+<span class="fc" id="L133">        StringBuilder mateVariantString = new StringBuilder();</span>
+        // Generate a string with comma separated list of variant strings including all other variants but the one
+        // in position i
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        for (int j = 0; j &lt; alleleLocationDataList.size(); j++) {</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">            if (j != i) {</span>
+<span class="fc" id="L138">                SequenceLocation sequenceLocation = alleleLocationDataList.get(j).getSequenceLocation();</span>
+                // Decomposition is forced now in all cases: more than one Variant object can be returned by the
+                // normalisation process
+<span class="fc" id="L141">                List&lt;String&gt; variantStringList = getNormalisedVariantString(sequenceLocation.getChromosome(),</span>
+<span class="fc" id="L142">                        sequenceLocation.getStart(), sequenceLocation.getReference(),</span>
+<span class="fc" id="L143">                        sequenceLocation.getAlternate());</span>
+                // May be null if normalisation fails
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">                if (variantStringList != null) {</span>
+                    // Decomposition is forced now in all cases: more than one simple Variant object can be returned by
+                    // the normalisation process; this should not represent a problem though since all simple variants
+                    // obtained from the decomposition step are also mates of the original variant
+<span class="fc bfc" id="L149" title="All 2 branches covered.">                    for (String variantString : variantStringList) {</span>
+                        // First variant string must avoid including the separator
+<span class="fc bfc" id="L151" title="All 2 branches covered.">                        if (mateVariantString.length() &gt; 0) {</span>
+<span class="fc" id="L152">                            mateVariantString.append(&quot;,&quot;);</span>
+                        }
+<span class="fc" id="L154">                        mateVariantString.append(variantString);</span>
+<span class="fc" id="L155">                    }</span>
+                }
+            }
+        }
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        return mateVariantString.length() == 0 ? null : mateVariantString.toString();</span>
+    }
+
+    private void printSummary() {
+<span class="fc" id="L163">        logger.info(&quot;Total number of parsed ClinVar records: {}&quot;, totalNumberRecords);</span>
+<span class="fc" id="L164">        logger.info(&quot;Number of indexed Clinvar records: {}&quot;, numberIndexedRecords);</span>
+<span class="fc" id="L165">        logger.info(&quot;Number of new variants in ClinVar not previously indexed in RocksDB: {}&quot;, numberNewVariants);</span>
+<span class="fc" id="L166">        logger.info(&quot;Number of updated variants during ClinVar indexing: {}&quot;, numberVariantUpdates);</span>
+<span class="fc" id="L167">        logger.info(&quot;Number of ClinVar germline variants: {}&quot;, numberGermlineRecords);</span>
+<span class="fc" id="L168">        logger.info(&quot;Number of ClinVar somatic variants: {}&quot;, numberSomaticRecords);</span>
+<span class="fc" id="L169">        logger.info(&quot;Number of ClinVar records without a \&quot;disease\&quot; trait: {}&quot;, numberNoDiseaseTrait);</span>
+<span class="fc" id="L170">        logger.info(&quot;Number of ClinVar records with multiple inheritance models: {}&quot;, numberMultipleInheritanceModels);</span>
+<span class="fc" id="L171">    }</span>
+
+    private boolean updateRocksDB(SequenceLocation sequenceLocation, String variationId, String[] lineFields,
+                               String mateVariantString, Map&lt;String, EFO&gt; traitsToEfoTermsMap)
+            throws RocksDBException, IOException {
+        // More than one variant being returned from the normalisation process would mean it's and MNV which has been
+        // decomposed
+<span class="fc" id="L178">        List&lt;String&gt; normalisedVariantStringList = getNormalisedVariantString(sequenceLocation.getChromosome(),</span>
+<span class="fc" id="L179">                sequenceLocation.getStart(), sequenceLocation.getReference(),</span>
+<span class="fc" id="L180">                sequenceLocation.getAlternate());</span>
+
+        // May be null if normalisation process failed
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (normalisedVariantStringList != null) {</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">            for (String normalisedVariantString : normalisedVariantStringList) {</span>
+<span class="fc" id="L185">                VariantAnnotation variantAnnotation = getVariantAnnotation(normalisedVariantString.getBytes());</span>
+                //        List&lt;EvidenceEntry&gt; evidenceEntryList = getEvidenceEntryList(key);
+
+                // If more than one variant in the MNV (haplotype), create clinicalHaplotypeString
+<span class="fc" id="L189">                String clinicalHaplotypeString = null;</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">                if (normalisedVariantStringList.size() &gt; 1) {</span>
+<span class="fc" id="L191">                    clinicalHaplotypeString = StringUtils.join(normalisedVariantStringList, HAPLOTYPE_STRING_SEPARATOR);</span>
+                }
+
+<span class="fc" id="L194">                addNewEntries(variantAnnotation,</span>
+                        variationId,
+                        lineFields,
+                        mateVariantString,
+                        clinicalHaplotypeString,
+                        traitsToEfoTermsMap);
+
+<span class="fc" id="L201">                rdb.put(normalisedVariantString.getBytes(), jsonObjectWriter.writeValueAsBytes(variantAnnotation));</span>
+<span class="fc" id="L202">            }</span>
+<span class="fc" id="L203">            return true;</span>
+        }
+
+<span class="nc" id="L206">        return false;</span>
+    }
+
+    private boolean updateRocksDB(AlleleLocationData alleleLocationData, PublicSetType publicSet,
+                               String mateVariantString, Map&lt;String, EFO&gt; traitsToEfoTermsMap)
+            throws RocksDBException, IOException {
+
+        // More than one variant being returned from the normalisatio process would mean it's and MNV which has been
+        // decomposed
+<span class="fc" id="L215">        List&lt;String&gt; normalisedVariantStringList = getNormalisedVariantString(</span>
+<span class="fc" id="L216">                alleleLocationData.getSequenceLocation().getChromosome(),</span>
+<span class="fc" id="L217">                alleleLocationData.getSequenceLocation().getStart(),</span>
+<span class="fc" id="L218">                alleleLocationData.getSequenceLocation().getReference(),</span>
+<span class="fc" id="L219">                alleleLocationData.getSequenceLocation().getAlternate());</span>
+
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        if (normalisedVariantStringList != null) {</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">            for (String normalisedVariantString : normalisedVariantStringList) {</span>
+<span class="fc" id="L223">                VariantAnnotation variantAnnotation = getVariantAnnotation(normalisedVariantString.getBytes());</span>
+                //        List&lt;EvidenceEntry&gt; evidenceEntryList = getVariantAnnotation(key);
+
+                // If more than one variant in the MNV (haplotype), create clinicalHaplotypeString
+<span class="fc" id="L227">                String clinicalHaplotypeString = null;</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">                if (normalisedVariantStringList.size() &gt; 1) {</span>
+<span class="fc" id="L229">                    clinicalHaplotypeString = StringUtils.join(normalisedVariantStringList, HAPLOTYPE_STRING_SEPARATOR);</span>
+                }
+
+<span class="fc" id="L232">                addNewEntries(variantAnnotation, publicSet, alleleLocationData.getAlleleId(), mateVariantString,</span>
+                        clinicalHaplotypeString, traitsToEfoTermsMap);
+
+<span class="fc" id="L235">                rdb.put(normalisedVariantString.getBytes(), jsonObjectWriter.writeValueAsBytes(variantAnnotation));</span>
+<span class="fc" id="L236">            }</span>
+<span class="fc" id="L237">            return true;</span>
+        }
+
+<span class="nc" id="L240">        return false;</span>
+    }
+
+    private void addNewEntries(VariantAnnotation variantAnnotation, String variationId, String[] lineFields,
+                               String mateVariantString, String clinicalHaplotypeString,
+                               Map&lt;String, EFO&gt; traitsToEfoTermsMap) {
+
+<span class="fc" id="L247">        EvidenceSource evidenceSource = new EvidenceSource(EtlCommons.CLINVAR_DATA, null, null);</span>
+        // Create a set to avoid situations like germline;germline;germline
+<span class="fc" id="L249">        List&lt;AlleleOrigin&gt; alleleOrigin = null;</span>
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(lineFields[VARIANT_SUMMARY_ORIGIN_COLUMN])) {</span>
+<span class="fc" id="L251">            Set&lt;String&gt; originSet = new HashSet&lt;String&gt;(Arrays.asList(lineFields[VARIANT_SUMMARY_ORIGIN_COLUMN]</span>
+<span class="fc" id="L252">                    .toLowerCase().split(&quot;;&quot;)));</span>
+<span class="fc" id="L253">            alleleOrigin = getAlleleOriginList(new ArrayList&lt;&gt;(originSet));</span>
+        }
+
+<span class="fc" id="L256">        List&lt;HeritableTrait&gt; heritableTraitList = Collections.emptyList();</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(lineFields[VARIANT_SUMMARY_PHENOTYPE_COLUMN])) {</span>
+<span class="fc" id="L258">            Set&lt;String&gt; phenotypeSet = new HashSet&lt;String&gt;(Arrays.asList(lineFields[VARIANT_SUMMARY_PHENOTYPE_COLUMN]</span>
+<span class="fc" id="L259">                    .toLowerCase().split(&quot;;&quot;)));</span>
+<span class="fc" id="L260">            heritableTraitList = phenotypeSet.stream()</span>
+<span class="fc" id="L261">                    .map((phenotype) -&gt; new HeritableTrait(phenotype, null)).collect(Collectors.toList());</span>
+        }
+
+<span class="fc" id="L264">        List&lt;GenomicFeature&gt; genomicFeatureList = Collections.emptyList();</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(lineFields[VARIANT_SUMMARY_GENE_COLUMN])) {</span>
+<span class="fc" id="L266">            String[] geneList = lineFields[VARIANT_SUMMARY_GENE_COLUMN].split(&quot;,&quot;);</span>
+<span class="fc" id="L267">            genomicFeatureList = new ArrayList&lt;&gt;(geneList.length);</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">            for (String geneString : geneList) {</span>
+<span class="fc" id="L269">                genomicFeatureList.add(createGeneGenomicFeature(geneString));</span>
+            }
+        }
+
+<span class="fc" id="L273">        List&lt;Property&gt; additionalProperties = new ArrayList&lt;&gt;(3);</span>
+<span class="fc" id="L274">        VariantClassification variantClassification = null;</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">        if (!EtlCommons.isMissing(lineFields[VARIANT_SUMMARY_CLINSIG_COLUMN])) {</span>
+<span class="fc" id="L276">            variantClassification = getVariantClassification(Arrays.asList(lineFields[VARIANT_SUMMARY_CLINSIG_COLUMN].split(&quot;[,/;]&quot;)));</span>
+<span class="fc" id="L277">            additionalProperties.add(new Property(null, CLINICAL_SIGNIFICANCE_IN_SOURCE_FILE,</span>
+                    lineFields[VARIANT_SUMMARY_CLINSIG_COLUMN]));
+        }
+
+<span class="fc" id="L281">        ConsistencyStatus consistencyStatus = null;</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(lineFields[VARIANT_SUMMARY_REVIEW_COLUMN])) {</span>
+<span class="fc" id="L283">            consistencyStatus = getConsistencyStatus(lineFields[VARIANT_SUMMARY_REVIEW_COLUMN]);</span>
+<span class="fc" id="L284">            additionalProperties.add(new Property(null, REVIEW_STATUS_IN_SOURCE_FILE,</span>
+                    lineFields[VARIANT_SUMMARY_REVIEW_COLUMN]));
+        }
+
+        // Multiple vars within the same RCV.
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        if (mateVariantString != null) {</span>
+<span class="fc" id="L290">            additionalProperties.add(new Property(null, GENOTYPESET, mateVariantString));</span>
+        }
+
+        // This variant is part of an MNV (haplotype). Leave a flag of all variants that form the MNV
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        if (clinicalHaplotypeString != null) {</span>
+<span class="fc" id="L295">            additionalProperties.add(new Property(null, HAPLOTYPE_FIELD_NAME, clinicalHaplotypeString));</span>
+        }
+
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">        EvidenceEntry evidenceEntry = new EvidenceEntry(evidenceSource, Collections.emptyList(), null,</span>
+                &quot;https://www.ncbi.nlm.nih.gov/clinvar/variation/&quot; + variationId, variationId, null,
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">                !(alleleOrigin == null || alleleOrigin.isEmpty()) ? alleleOrigin : null, heritableTraitList, genomicFeatureList,</span>
+                variantClassification, null,
+                null, consistencyStatus, EthnicCategory.Z, null, null,
+<span class="fc" id="L303">                null, additionalProperties, Collections.emptyList());</span>
+
+<span class="fc" id="L305">        variantAnnotation.getTraitAssociation().add(evidenceEntry);</span>
+<span class="fc" id="L306">    }</span>
+
+    private ConsistencyStatus getConsistencyStatus(String lineField) {
+<span class="fc bfc" id="L309" title="All 2 branches covered.">        for (String value : lineField.split(&quot;[,/;]&quot;)) {</span>
+<span class="fc" id="L310">            value = value.toLowerCase().trim();</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            if (VariantAnnotationUtils.CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.containsKey(value)) {</span>
+<span class="fc" id="L312">                return VariantAnnotationUtils.CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.get(value);</span>
+            }
+        }
+<span class="fc" id="L315">        return null;</span>
+    }
+
+    private void addNewEntries(VariantAnnotation variantAnnotation, PublicSetType publicSet, String alleleId,
+                               String mateVariantString, String clinicalHaplotypeString,
+                               Map&lt;String, EFO&gt; traitsToEfoTermsMap) throws JsonProcessingException {
+
+<span class="fc" id="L322">        List&lt;Property&gt; additionalProperties = new ArrayList&lt;&gt;(3);</span>
+<span class="fc" id="L323">        EvidenceSource evidenceSource = new EvidenceSource(EtlCommons.CLINVAR_DATA, null, null);</span>
+<span class="fc" id="L324">        String accession = publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc();</span>
+
+<span class="fc" id="L326">        VariantClassification variantClassification = getVariantClassification(</span>
+<span class="fc" id="L327">                Arrays.asList(publicSet.getReferenceClinVarAssertion().getClinicalSignificance().getDescription().split(&quot;[,/;]&quot;)));</span>
+<span class="fc" id="L328">        additionalProperties.add(new Property(null, CLINICAL_SIGNIFICANCE_IN_SOURCE_FILE, publicSet.getReferenceClinVarAssertion()</span>
+<span class="fc" id="L329">                .getClinicalSignificance().getDescription()));</span>
+
+<span class="fc" id="L331">        ConsistencyStatus consistencyStatus = getConsistencyStatus(publicSet.getReferenceClinVarAssertion()</span>
+<span class="fc" id="L332">                .getClinicalSignificance().getReviewStatus().name());</span>
+<span class="fc" id="L333">        additionalProperties.add(new Property(null, REVIEW_STATUS_IN_SOURCE_FILE, publicSet.getReferenceClinVarAssertion()</span>
+<span class="fc" id="L334">                .getClinicalSignificance().getReviewStatus().name()));</span>
+
+        // Multiple vars within the same RCV. Maximum of two vars permitted so far
+<span class="fc bfc" id="L337" title="All 2 branches covered.">        if (mateVariantString != null) {</span>
+<span class="fc" id="L338">            additionalProperties.add(new Property(null, GENOTYPESET, mateVariantString));</span>
+        }
+
+        // This variant is part of an MNV (haplotype). Leave a flag of all variants that form the MNV
+<span class="fc bfc" id="L342" title="All 2 branches covered.">        if (clinicalHaplotypeString != null) {</span>
+<span class="fc" id="L343">            additionalProperties.add(new Property(null, HAPLOTYPE_FIELD_NAME, clinicalHaplotypeString));</span>
+        }
+
+        // Compose heterozygous, for example, may provide more than one allele for a single RCV
+<span class="fc" id="L347">        List&lt;GenomicFeature&gt; genomicFeatureList = getGenomicFeature(publicSet, alleleId);</span>
+<span class="fc" id="L348">        List&lt;EvidenceSubmission&gt; submissions = getSubmissionList(publicSet);</span>
+
+<span class="fc" id="L350">        List&lt;String&gt; bibliography = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L351">        Set&lt;String&gt; originSet = new HashSet&lt;&gt;(publicSet.getReferenceClinVarAssertion().getObservedIn().size());</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">        for (ObservationSet observationSet : publicSet.getReferenceClinVarAssertion().getObservedIn()) {</span>
+            // Origin for a number of the variants may not be clear, values found in the database for this field are:
+            // {&quot;germline&quot;,  &quot;unknown&quot;,  &quot;inherited&quot;,  &quot;maternal&quot;,  &quot;de novo&quot;,  &quot;paternal&quot;,  &quot;not provided&quot;,  &quot;somatic&quot;,
+            // &quot;uniparental&quot;,  &quot;biparental&quot;,  &quot;tested-inconclusive&quot;,  &quot;not applicable&quot;}
+            // For the sake of simplicity and since it's not clear what to do with the rest of tags, we'll classify
+            // as somatic only those with the &quot;somatic&quot; tag and the rest will be stored as germline
+<span class="fc" id="L358">            originSet.add(observationSet.getSample().getOrigin());</span>
+<span class="fc" id="L359">            bibliography = addBibliographyFromObservationSet(bibliography, observationSet);</span>
+<span class="fc" id="L360">        }</span>
+<span class="fc" id="L361">        List&lt;AlleleOrigin&gt; alleleOrigin = getAlleleOriginList(new ArrayList&lt;&gt;(originSet));</span>
+
+<span class="fc" id="L363">        List&lt;HeritableTrait&gt; heritableTraitList = getHeritableTrait(publicSet, traitsToEfoTermsMap, additionalProperties);</span>
+
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">        EvidenceEntry evidenceEntry = new EvidenceEntry(evidenceSource, submissions, null,</span>
+                &quot;https://www.ncbi.nlm.nih.gov/clinvar/&quot; + accession, accession, null,
+<span class="pc bpc" id="L367" title="1 of 2 branches missed.">                !(alleleOrigin == null || alleleOrigin.isEmpty()) ? alleleOrigin : null, heritableTraitList, genomicFeatureList,</span>
+                variantClassification, null,
+                null, consistencyStatus, EthnicCategory.Z, null, null,
+                null, additionalProperties, bibliography);
+
+<span class="fc" id="L372">        variantAnnotation.getTraitAssociation().add(evidenceEntry);</span>
+
+<span class="fc" id="L374">    }</span>
+
+    private List&lt;EvidenceSubmission&gt; getSubmissionList(PublicSetType publicSet) {
+<span class="fc" id="L377">        List&lt;EvidenceSubmission&gt; submissionList = new ArrayList&lt;&gt;(publicSet.getClinVarAssertion().size());</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">        for (MeasureTraitType measureTraitType : publicSet.getClinVarAssertion()) {</span>
+            String date;
+            // Try to provide the clinVarAssertion.clinicalSignificance.dateLastUpdated date. If does not exist, provide
+            // the clinVarAccession.dateUpdated one. We are assuming thate clinVarAccession and
+            // clinVarAccession.dateUpdated fields do always exist
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">            if (measureTraitType.getClinicalSignificance() != null</span>
+<span class="fc bfc" id="L384" title="All 2 branches covered.">                    &amp;&amp; measureTraitType.getClinicalSignificance().getDateLastEvaluated() != null) {</span>
+<span class="fc" id="L385">                date = String.format(&quot;%04d&quot;, measureTraitType.getClinicalSignificance().getDateLastEvaluated().getYear())</span>
+<span class="fc" id="L386">                        + String.format(&quot;%02d&quot;, measureTraitType.getClinicalSignificance().getDateLastEvaluated().getMonth())</span>
+<span class="fc" id="L387">                        + String.format(&quot;%02d&quot;, measureTraitType.getClinicalSignificance().getDateLastEvaluated().getDay());</span>
+            } else {
+<span class="fc" id="L389">                date = String.format(&quot;%04d&quot;, measureTraitType.getClinVarAccession().getDateUpdated().getYear())</span>
+<span class="fc" id="L390">                        + String.format(&quot;%02d&quot;, measureTraitType.getClinVarAccession().getDateUpdated().getMonth())</span>
+<span class="fc" id="L391">                        + String.format(&quot;%02d&quot;, measureTraitType.getClinVarAccession().getDateUpdated().getDay());</span>
+            }
+<span class="fc" id="L393">            submissionList.add(new EvidenceSubmission(measureTraitType.getClinVarSubmissionID().getSubmitter(), date,</span>
+                    null));
+<span class="fc" id="L395">        }</span>
+<span class="fc" id="L396">        return submissionList;</span>
+    }
+
+    private ModeOfInheritance getInheritanceModel(List&lt;ReferenceAssertionType.AttributeSet&gt; attributeSetList,
+                                                  Map&lt;String, String&gt; sourceInheritableTrait)
+            throws JsonProcessingException {
+<span class="fc" id="L402">        Set&lt;String&gt; inheritanceModelSet = new HashSet&lt;&gt;();</span>
+//        for (TraitType trait : publicSet.getReferenceClinVarAssertion().getTraitSet().getTrait()) {
+//        if (trait.getAttributeSet() != null) {
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">        if (attributeSetList != null) {</span>
+<span class="fc bfc" id="L406" title="All 2 branches covered.">            for (ReferenceAssertionType.AttributeSet attributeSet : attributeSetList) {</span>
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">                if (attributeSet.getAttribute().getType() != null</span>
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">                        &amp;&amp; attributeSet.getAttribute().getType().equalsIgnoreCase(&quot;modeofinheritance&quot;)) {</span>
+<span class="fc" id="L409">                    inheritanceModelSet.add(attributeSet.getAttribute().getValue().toLowerCase());</span>
+                }
+<span class="fc" id="L411">            }</span>
+        }
+//        }
+
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        if (inheritanceModelSet.size() == 0) {</span>
+<span class="fc" id="L416">            return null;</span>
+<span class="pc bpc" id="L417" title="1 of 2 branches missed.">        } else if (inheritanceModelSet.size() &gt; 1) {</span>
+<span class="nc" id="L418">            sourceInheritableTrait.put(MODE_OF_INHERITANCE,</span>
+<span class="nc" id="L419">                    jsonObjectWriter.writeValueAsString(new ArrayList&lt;&gt;(inheritanceModelSet)));</span>
+<span class="nc" id="L420">            numberMultipleInheritanceModels++;</span>
+<span class="nc" id="L421">            return solveModeOfInheritanceConflict(inheritanceModelSet);</span>
+        } else {
+<span class="fc" id="L423">            sourceInheritableTrait.put(MODE_OF_INHERITANCE, inheritanceModelSet.iterator().next());</span>
+<span class="fc" id="L424">            return getModeOfInheritance(inheritanceModelSet.iterator().next());</span>
+        }
+    }
+
+    private ModeOfInheritance solveModeOfInheritanceConflict(Set&lt;String&gt; inheritanceModelSet) {
+<span class="nc" id="L429">        logger.warn(&quot;Multiple inheritance models found for a variant: {}&quot;,</span>
+<span class="nc" id="L430">                String.join(&quot;,&quot;, new ArrayList&lt;&gt;(inheritanceModelSet)));</span>
+<span class="nc" id="L431">        Set&lt;ModeOfInheritance&gt; modeOfInheritanceSet = inheritanceModelSet.stream()</span>
+<span class="nc" id="L432">                .map(this::getModeOfInheritance)</span>
+<span class="nc" id="L433">                .collect(Collectors.toSet());</span>
+
+<span class="nc bnc" id="L435" title="All 2 branches missed.">        if (modeOfInheritanceSet.size() == 1</span>
+<span class="nc bnc" id="L436" title="All 4 branches missed.">                || (modeOfInheritanceSet.size() == 2 &amp;&amp; modeOfInheritanceSet.contains(null))) {</span>
+<span class="nc" id="L437">            modeOfInheritanceSet.remove(null);</span>
+<span class="nc bnc" id="L438" title="All 2 branches missed.">            if (modeOfInheritanceSet.isEmpty()) {</span>
+<span class="nc" id="L439">                logger.warn(&quot;No inheritance model selected&quot;);</span>
+<span class="nc" id="L440">                return null;</span>
+            } else {
+<span class="nc" id="L442">                logger.warn(&quot;Selected inheritance model: {}&quot;, modeOfInheritanceSet.iterator().next());</span>
+<span class="nc" id="L443">                return modeOfInheritanceSet.iterator().next();</span>
+            }
+        } else {
+<span class="nc" id="L446">            modeOfInheritanceSet.remove(null);</span>
+<span class="nc" id="L447">            modeOfInheritanceSet.removeAll(DOMINANT_TERM_SET);</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            if (modeOfInheritanceSet.size() &gt; 0) {</span>
+<span class="nc" id="L449">                modeOfInheritanceSet.removeAll(RECESSIVE_TERM_SET);</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">                if (modeOfInheritanceSet.size() &gt; 0) {</span>
+<span class="nc" id="L451">                    logger.warn(&quot;No inheritance model selected, conflicting inheritance models found&quot;);</span>
+<span class="nc" id="L452">                    return null;</span>
+                } else {
+<span class="nc" id="L454">                    logger.warn(&quot;Dominant and recessive models found, {} selected&quot;,</span>
+<span class="nc" id="L455">                            ModeOfInheritance.monoallelic_and_biallelic.name());</span>
+<span class="nc" id="L456">                    return ModeOfInheritance.monoallelic_and_biallelic;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L461">        return null;</span>
+    }
+
+    private ModeOfInheritance getModeOfInheritance(String modeOfInheritance) {
+<span class="pc bpc" id="L465" title="1 of 2 branches missed.">        if (VariantAnnotationUtils.MODEOFINHERITANCE_MAP.containsKey(modeOfInheritance)) {</span>
+<span class="fc" id="L466">            return VariantAnnotationUtils.MODEOFINHERITANCE_MAP.get(modeOfInheritance);</span>
+        }
+<span class="nc" id="L468">        return null;</span>
+    }
+
+    private List&lt;GenomicFeature&gt; getGenomicFeature(PublicSetType publicSet, String alleleId) {
+<span class="fc bfc" id="L472" title="All 2 branches covered.">        if (publicSet.getReferenceClinVarAssertion().getMeasureSet() != null) {</span>
+<span class="fc" id="L473">            return getGenomicFeature(publicSet.getReferenceClinVarAssertion().getMeasureSet());</span>
+        // No measureSet means there must be genotypeSet
+<span class="pc bpc" id="L475" title="1 of 2 branches missed.">        } else if (publicSet.getReferenceClinVarAssertion().getGenotypeSet() != null) {</span>
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">            for (MeasureSetType measureSet : publicSet.getReferenceClinVarAssertion().getGenotypeSet().getMeasureSet()) {</span>
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">                if (measureSet.getMeasure() != null) {</span>
+<span class="fc bfc" id="L478" title="All 2 branches covered.">                    for (MeasureType measure : measureSet.getMeasure()) {</span>
+<span class="pc bpc" id="L479" title="1 of 4 branches missed.">                        if (measure.getID() != null &amp;&amp; (new BigInteger(alleleId)).equals(measure.getID())) {</span>
+<span class="fc" id="L480">                            return getGenomicFeature(measureSet);</span>
+                        }
+<span class="fc" id="L482">                    }</span>
+                }
+<span class="fc" id="L484">            }</span>
+        }
+<span class="nc" id="L486">        throw new RuntimeException(&quot;One of either MeasureSet or GenotypeSet attributes are required within &quot;</span>
+                + &quot;publicSet.getReferenceClinVarAssertion(). Also, if GenotypeSet is present, at least one MeasureSet&quot;
+                + &quot; corresponding to each alleleId is required.Please check &quot;
+<span class="nc" id="L489">                + publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc());</span>
+    }
+
+    private List&lt;GenomicFeature&gt; getGenomicFeature(MeasureSetType measureSet) {
+<span class="fc" id="L493">        Set&lt;GenomicFeature&gt; genomicFeatureSet = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L494" title="All 2 branches covered.">        for (MeasureType measure : measureSet.getMeasure()) {</span>
+<span class="pc bpc" id="L495" title="1 of 2 branches missed.">            if (measure.getMeasureRelationship() != null) {</span>
+<span class="fc bfc" id="L496" title="All 2 branches covered.">                for (MeasureType.MeasureRelationship measureRelationship : measure.getMeasureRelationship()) {</span>
+<span class="pc bpc" id="L497" title="1 of 2 branches missed.">                    if (measureRelationship.getSymbol() != null) {</span>
+<span class="fc bfc" id="L498" title="All 2 branches covered.">                        for (SetElementSetType setElementSet : measureRelationship.getSymbol()) {</span>
+<span class="pc bpc" id="L499" title="1 of 2 branches missed.">                            if (setElementSet.getElementValue() != null) {</span>
+<span class="pc bpc" id="L500" title="1 of 2 branches missed.">                                if (setElementSet.getElementValue().getValue() != null) {</span>
+<span class="fc" id="L501">                                    genomicFeatureSet.add(createGeneGenomicFeature(setElementSet.getElementValue().getValue()));</span>
+                                }
+                            }
+<span class="fc" id="L504">                        }</span>
+                    }
+<span class="fc" id="L506">                }</span>
+            }
+<span class="fc" id="L508">        }</span>
+<span class="fc" id="L509">        return new ArrayList&lt;&gt;(genomicFeatureSet);</span>
+    }
+
+    private List&lt;HeritableTrait&gt; getHeritableTrait(PublicSetType publicSet, Map&lt;String, EFO&gt; traitsToEfoTermsMap,
+                                                   List&lt;Property&gt; propertyList) throws JsonProcessingException {
+
+<span class="fc" id="L515">        List&lt;HeritableTrait&gt; heritableTraitList</span>
+<span class="fc" id="L516">                = new ArrayList&lt;&gt;(publicSet.getReferenceClinVarAssertion().getTraitSet().getTrait().size());</span>
+        // To keep trait and inheritance modes as they appear in the source file
+<span class="fc" id="L518">        List&lt;Map&lt;String, String&gt;&gt; sourceInheritableTraitList</span>
+<span class="fc" id="L519">                = new ArrayList&lt;&gt;(publicSet.getReferenceClinVarAssertion().getTraitSet().getTrait().size());</span>
+
+<span class="fc" id="L521">        Map&lt;String, String&gt; sourceInheritableTraitMap = new HashMap&lt;&gt;();</span>
+        // WARNING: in version 53 onwards of ClinVar schema the mode of inheritance is provided at the
+        // root of the ReferenceClinvarAssertion rather than for each trait
+<span class="fc" id="L524">        ModeOfInheritance modeOfInheritance</span>
+<span class="fc" id="L525">                = getInheritanceModel(publicSet.getReferenceClinVarAssertion().getAttributeSet(),</span>
+                        sourceInheritableTraitMap);
+
+<span class="fc bfc" id="L528" title="All 2 branches covered.">        for (TraitType trait : publicSet.getReferenceClinVarAssertion().getTraitSet().getTrait()) {</span>
+            // Look for the preferred trait name
+<span class="fc" id="L530">            int i = 0;</span>
+<span class="pc bpc" id="L531" title="1 of 2 branches missed.">            while (i &lt; trait.getName().size()</span>
+<span class="pc bpc" id="L532" title="1 of 2 branches missed.">                    &amp;&amp; !trait.getName().get(i).getElementValue().getType().equalsIgnoreCase(&quot;preferred&quot;)) {</span>
+<span class="nc" id="L533">                i++;</span>
+            }
+            // WARN: assuming there will always be a preferred trait name
+            // Found preferred trait name
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">            if (i &lt; trait.getName().size()) {</span>
+<span class="fc" id="L538">                Map&lt;String, String&gt; currentSourceInheritableTraitMap = new HashMap&lt;&gt;(sourceInheritableTraitMap);</span>
+                // WARNING: overwrites previous TRAIT entry if present in order to reuse the same object in each
+                // iteration - in version 53 onwards of ClinVar schema the mode of inheritance is provided at the
+                // root of the ReferenceClinvarAssertion rather than for each trait
+<span class="fc" id="L542">                currentSourceInheritableTraitMap.put(TRAIT, trait.getName().get(i).getElementValue().getValue());</span>
+
+//                heritableTraitList.add(new HeritableTrait(trait.getName().get(i).getElementValue().getValue(),
+//                        getInheritanceModel(trait, sourceInheritableTraitMap)));
+<span class="fc" id="L546">                heritableTraitList.add(new HeritableTrait(trait.getName().get(i).getElementValue().getValue(),</span>
+                        modeOfInheritance));
+
+                // This is to double-confirm that the new ClinVar (v53) schema is properly read. It will just check
+                // that there are no inheritance modes provided within the trait
+<span class="pc bpc" id="L551" title="1 of 2 branches missed.">                if (traitInheritanceModesPresent(trait.getAttributeSet())) {</span>
+<span class="nc" id="L552">                    throw new RuntimeException(&quot;ClinVar record found providing inheritance mode withint the trait.&quot;</span>
+                            + &quot; After ClinVar schema v53 inheritance mode is expected to be provided at the root&quot;
+                            + &quot; of the ReferenceClinvarAssertion field.&quot;);
+                }
+
+<span class="fc" id="L557">                sourceInheritableTraitList.add(currentSourceInheritableTraitMap);</span>
+<span class="fc" id="L558">            } else {</span>
+<span class="nc" id="L559">                throw new IllegalArgumentException(&quot;ClinVar record found &quot;</span>
+<span class="nc" id="L560">                        + publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc()</span>
+                        + &quot; with no preferred trait provided&quot;);
+            }
+<span class="fc" id="L563">        }</span>
+
+<span class="pc bpc" id="L565" title="1 of 2 branches missed.">        if (heritableTraitList.size() == 0) {</span>
+<span class="nc" id="L566">            logger.warn(&quot;Entry {}. No \&quot;disease\&quot; entry found among the traits&quot;,</span>
+<span class="nc" id="L567">                    publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc());</span>
+<span class="nc" id="L568">            numberNoDiseaseTrait++;</span>
+        } else {
+<span class="fc" id="L570">            propertyList.add(new Property(null, MODE_OF_INHERITANCE,</span>
+<span class="fc" id="L571">                    jsonObjectWriter.writeValueAsString(sourceInheritableTraitList)));</span>
+        }
+<span class="fc" id="L573">        return heritableTraitList;</span>
+    }
+
+    private boolean traitInheritanceModesPresent(List&lt;TraitType.AttributeSet&gt; attributeSetList) {
+<span class="pc bpc" id="L577" title="1 of 2 branches missed.">        if (attributeSetList != null) {</span>
+<span class="fc bfc" id="L578" title="All 2 branches covered.">            for (TraitType.AttributeSet attributeSet : attributeSetList) {</span>
+<span class="pc bpc" id="L579" title="1 of 2 branches missed.">                if (attributeSet.getAttribute().getType() != null</span>
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">                        &amp;&amp; attributeSet.getAttribute().getType().equalsIgnoreCase(&quot;modeofinheritance&quot;)) {</span>
+<span class="nc" id="L581">                    return true;</span>
+                }
+<span class="fc" id="L583">            }</span>
+        }
+
+<span class="fc" id="L586">        return false;</span>
+    }
+
+    private List&lt;String&gt; addBibliographyFromObservationSet(List&lt;String&gt; germlineBibliography, ObservationSet observationSet) {
+<span class="fc bfc" id="L590" title="All 2 branches covered.">        for (ObservationSet.ObservedData observedData : observationSet.getObservedData()) {</span>
+<span class="fc bfc" id="L591" title="All 2 branches covered.">            for (CitationType citation : observedData.getCitation()) {</span>
+<span class="fc bfc" id="L592" title="All 2 branches covered.">                for (CitationType.ID id : citation.getID()) {</span>
+<span class="pc bpc" id="L593" title="1 of 2 branches missed.">                    if (id.getSource().equalsIgnoreCase(&quot;pubmed&quot;)) {</span>
+<span class="pc bpc" id="L594" title="1 of 2 branches missed.">                        if (germlineBibliography == null) {</span>
+<span class="nc" id="L595">                            germlineBibliography = new ArrayList&lt;&gt;();</span>
+                        }
+<span class="fc" id="L597">                        germlineBibliography.add(&quot;PMID:&quot; + id.getValue());</span>
+                    }
+<span class="fc" id="L599">                }</span>
+<span class="fc" id="L600">            }</span>
+<span class="fc" id="L601">        }</span>
+<span class="fc" id="L602">        return germlineBibliography;</span>
+    }
+
+    private Map&lt;String, List&lt;AlleleLocationData&gt;&gt; parseVariantSummary(Map&lt;String, EFO&gt; traitsToEfoTermsMap)
+            throws IOException, RocksDBException {
+
+<span class="fc" id="L608">        logger.info(&quot;Loading AlleleID -&gt; variation ID map...&quot;);</span>
+<span class="fc" id="L609">        Map&lt;String, List&lt;VariationData&gt;&gt; alleleIdToVariationData = loadAlleleIdToVariationData();</span>
+
+<span class="fc" id="L611">        logger.info(&quot;Parsing {}...&quot;, clinvarSummaryFile);</span>
+        BufferedReader bufferedReader;
+<span class="fc" id="L613">        bufferedReader = FileUtils.newBufferedReader(clinvarSummaryFile);</span>
+
+<span class="fc" id="L615">        ProgressLogger progressLogger = new ProgressLogger(&quot;Parsed variant summary lines:&quot;,</span>
+<span class="fc" id="L616">                () -&gt; EtlCommons.countFileLines(clinvarSummaryFile), 200).setBatchSize(10000);</span>
+
+<span class="fc" id="L618">        Map&lt;String, List&lt;AlleleLocationData&gt;&gt; rcvToAlelleLocationData = new HashMap&lt;&gt;();</span>
+        // variationID -&gt; [lineFields1, lineFields2] where lineFields* correspond to the two associated lines in
+        // variant_summary.txt splitted by \t
+<span class="fc" id="L621">        Map&lt;String, List&lt;String[]&gt;&gt; compoundVariationRecords = new HashMap&lt;&gt;();</span>
+
+        // Parse line by line variant_summary.txt. &quot;Simple&quot; lines corresponding to records involving just one variant
+        // will be directly indexed in RocksDB. Lines corresponding to compound records will be saved in memory for
+        // posterior parsing and indexing. This was decided to be done in this way in order to avoid saving all lines
+        // in memory since may become too much in a near future.
+        // Skip header, read first data line
+<span class="fc" id="L628">        bufferedReader.readLine();</span>
+<span class="fc" id="L629">        String line = bufferedReader.readLine();</span>
+<span class="fc bfc" id="L630" title="All 2 branches covered.">        while (line != null) {</span>
+<span class="fc" id="L631">            String[] parts = line.split(&quot;\t&quot;);</span>
+            // Check assembly
+            // Check coordinates fields are not missing
+            // Check reference != alternate
+<span class="fc bfc" id="L635" title="All 2 branches covered.">            if (parts[VARIANT_SUMMARY_ASSEMBLY_COLUMN].equals(assembly)</span>
+<span class="pc bpc" id="L636" title="1 of 2 branches missed.">                    &amp;&amp; !EtlCommons.isMissing(parts[VARIANT_SUMMARY_CHR_COLUMN])</span>
+<span class="pc bpc" id="L637" title="1 of 2 branches missed.">                    &amp;&amp; !EtlCommons.isMissing(parts[VARIANT_SUMMARY_START_COLUMN])</span>
+<span class="pc bpc" id="L638" title="1 of 2 branches missed.">                    &amp;&amp; !EtlCommons.isMissing(parts[VARIANT_SUMMARY_END_COLUMN])</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">                    &amp;&amp; !missingAllele(parts[VARIANT_SUMMARY_REFERENCE_COLUMN])</span>
+<span class="pc bpc" id="L640" title="1 of 2 branches missed.">                    &amp;&amp; !missingAllele(parts[VARIANT_SUMMARY_ALTERNATE_COLUMN])</span>
+<span class="pc bpc" id="L641" title="1 of 2 branches missed.">                    &amp;&amp; !parts[VARIANT_SUMMARY_REFERENCE_COLUMN].equals(parts[VARIANT_SUMMARY_ALTERNATE_COLUMN])) {</span>
+
+<span class="fc" id="L643">                SequenceLocation sequenceLocation = parseSequenceLocation(parts);</span>
+
+                // Each line may contain more than one RCV; e.g.: RCV000000019;RCV000000020;RCV000000021;RCV000000022;...
+                // Also, RCV ids may be repeated in the same line!!! e.g RCV000540418;RCV000540418;RCV000540418;RCV000000066
+<span class="fc" id="L647">                Set&lt;String&gt; rcvSet = new HashSet&lt;&gt;(Arrays.asList(parts[11].split(&quot;;&quot;)));</span>
+                // Fill in rcvToAlleleLocationData map
+<span class="fc bfc" id="L649" title="All 2 branches covered.">                for (String rcv : rcvSet) {</span>
+                    List&lt;AlleleLocationData&gt; alleleLocationDataList;
+                    // One RCV may appear in multiple lines e.g. compound heterozygote
+<span class="fc bfc" id="L652" title="All 2 branches covered.">                    if (rcvToAlelleLocationData.get(rcv) == null) {</span>
+<span class="fc" id="L653">                        alleleLocationDataList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L654">                        rcvToAlelleLocationData.put(rcv, alleleLocationDataList);</span>
+                    } else {
+<span class="fc" id="L656">                        alleleLocationDataList = rcvToAlelleLocationData.get(rcv);</span>
+                    }
+                    // Allele ID assumed to always be present
+<span class="pc bpc" id="L659" title="1 of 2 branches missed.">                    if (EtlCommons.isMissing(parts[0])) {</span>
+<span class="nc" id="L660">                        throw new RuntimeException(&quot;Allele id missing from variant_summary.txt. Aborting parsing. Line: &quot;</span>
+                                + line);
+                    } else {
+<span class="fc" id="L663">                        alleleLocationDataList.add(new AlleleLocationData(parts[0], sequenceLocation));</span>
+                    }
+<span class="fc" id="L665">                }</span>
+                // Index the Germline/Somatic documents corresponding to the aggregated variation object
+                // !EtlCommons.isMissing(parts[0]) is also checked above and therefore redundant but kept it here
+                // just in case
+<span class="pc bpc" id="L669" title="1 of 2 branches missed.">                if (!EtlCommons.isMissing(parts[0])) {</span>
+                    // One allele ID may be associated with multiple variation records e.g. 187140 -&gt; [242617, 424712]
+<span class="fc bfc" id="L671" title="All 2 branches covered.">                    for (VariationData variationData : alleleIdToVariationData.get(parts[0])) {</span>
+                        // This is a &quot;normal&quot; line with just one variant being involved in this/these RCV records
+<span class="fc bfc" id="L673" title="All 2 branches covered.">                        if (VARIANT.equals(variationData.getType())) {</span>
+<span class="fc" id="L674">                            boolean success = updateRocksDB(sequenceLocation, variationData.getId(), parts, null,</span>
+                                    traitsToEfoTermsMap);
+                            // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">                            if (success) {</span>
+<span class="fc" id="L678">                                numberIndexedRecords++;</span>
+                            }
+                        // Save lines forming a compound variation/RCV record in memory, within a HashMap for
+                        // posterior processing.
+                        // In order to generate the EvidenceEntry object of compound variation records we need first to
+                        // collect all the lines associated with it, so that we are able to generate mate variant
+                        // strings for each of the forming variants
+<span class="fc" id="L685">                        } else {</span>
+                            List&lt;String[]&gt; lineList;
+                            // Check if there was a list of lines already initialised for this variation id
+<span class="fc bfc" id="L688" title="All 2 branches covered.">                            if (compoundVariationRecords.containsKey(variationData.getId())) {</span>
+<span class="fc" id="L689">                                lineList = compoundVariationRecords.get(variationData.getId());</span>
+                            } else {
+<span class="fc" id="L691">                                 lineList = new ArrayList&lt;&gt;(2);</span>
+<span class="fc" id="L692">                                 compoundVariationRecords.put(variationData.getId(), lineList);</span>
+                            }
+                            // Add current - splitted - line to the list for this variation id
+<span class="fc" id="L695">                            lineList.add(parts);</span>
+
+                        }
+<span class="fc" id="L698">                    }</span>
+                }
+<span class="fc" id="L700">                totalNumberRecords++;</span>
+            }
+<span class="fc" id="L702">            progressLogger.increment(1);</span>
+<span class="fc" id="L703">            line = bufferedReader.readLine();</span>
+<span class="fc" id="L704">        }</span>
+<span class="fc" id="L705">        bufferedReader.close();</span>
+
+        // Drain compoundVariationRecords map by parsing the lines in it and creating corresponding EvidenceEntry objects
+<span class="fc" id="L708">        logger.info(&quot;{} compound variation records found.&quot;, compoundVariationRecords.size());</span>
+<span class="fc" id="L709">        logger.info(&quot;Indexing compound variation records&quot;);</span>
+<span class="fc bfc" id="L710" title="All 2 branches covered.">        for (String variationId : compoundVariationRecords.keySet()) {</span>
+<span class="fc bfc" id="L711" title="All 2 branches covered.">            for (int i = 0; i &lt; compoundVariationRecords.get(variationId).size(); i++) {</span>
+<span class="fc" id="L712">                String[] currentVarFields = compoundVariationRecords.get(variationId).get(i);</span>
+<span class="fc" id="L713">                boolean success = updateRocksDB(parseSequenceLocation(currentVarFields), variationId, currentVarFields,</span>
+<span class="fc" id="L714">                        getMateVariantStringByVariantSummaryRecord(i, compoundVariationRecords.get(variationId)),</span>
+                        traitsToEfoTermsMap);
+                // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L717" title="1 of 2 branches missed.">                if (success) {</span>
+<span class="fc" id="L718">                    numberIndexedRecords++;</span>
+                }
+            }
+<span class="fc" id="L721">        }</span>
+
+<span class="fc" id="L723">        return rcvToAlelleLocationData;</span>
+    }
+
+    private SequenceLocation parseSequenceLocation(String[] parts) {
+
+<span class="fc" id="L728">        String chromosome = parts[VARIANT_SUMMARY_CHR_COLUMN];</span>
+<span class="fc" id="L729">        String reference = parts[VARIANT_SUMMARY_REFERENCE_COLUMN];</span>
+<span class="fc" id="L730">        String alternate = parts[VARIANT_SUMMARY_ALTERNATE_COLUMN];</span>
+<span class="fc" id="L731">        Integer start = Integer.valueOf(parts[VARIANT_SUMMARY_START_COLUMN]);</span>
+<span class="fc" id="L732">        Integer end = Integer.valueOf(parts[VARIANT_SUMMARY_END_COLUMN]);</span>
+
+        // Insertion in which they do not provide any reference allele. The actual start according to opencb policies
+        // is end (start + 1). Only happens with some insertions (~4800) apparently. Some other insertions they provide
+        // include reference and alternate alleles.
+<span class="pc bpc" id="L737" title="2 of 6 branches missed.">        if (emptySequence(reference) &amp;&amp; !emptySequence(alternate) &amp;&amp; end == (start + 1)) {</span>
+            // NOTE! swapped start and end
+<span class="fc" id="L739">            return new SequenceLocation(chromosome, end, start, reference, alternate);</span>
+        } else {
+<span class="fc" id="L741">            return new SequenceLocation(chromosome, start, end, reference, alternate);</span>
+        }
+    }
+
+    private boolean emptySequence(String allele) {
+<span class="pc bpc" id="L746" title="1 of 4 branches missed.">        return &quot;&quot;.equals(allele) || &quot;-&quot;.equals(allele);</span>
+    }
+
+    /**
+     * Checks if a given allele is missing. An allele string can be empty (deletions, insertions), but cannot contain
+     * certain key words/values which would indicate that it's missing:
+     * {&quot;not specified&quot;, &quot;NS&quot;, &quot;NA&quot;, &quot;na&quot;, &quot;NULL&quot;, &quot;null&quot;, &quot;.&quot;}
+     * @param alleleString
+     * @return true/false indicating whether the allele is missing or not.
+     */
+    private boolean missingAllele(String alleleString) {
+<span class="pc bpc" id="L757" title="1 of 2 branches missed.">        return !((alleleString != null)</span>
+<span class="fc" id="L758">                &amp;&amp; !alleleString.replace(&quot;not specified&quot;, &quot;&quot;)</span>
+<span class="fc" id="L759">                .replace(&quot;NS&quot;, &quot;&quot;)</span>
+<span class="fc" id="L760">                .replace(&quot;NA&quot;, &quot;&quot;)</span>
+<span class="fc" id="L761">                .replace(&quot;na&quot;, &quot;&quot;)</span>
+<span class="fc" id="L762">                .replace(&quot;NULL&quot;, &quot;&quot;)</span>
+<span class="fc" id="L763">                .replace(&quot;null&quot;, &quot;&quot;)</span>
+<span class="pc bpc" id="L764" title="1 of 2 branches missed.">                .replace(&quot;.&quot;, &quot;&quot;).isEmpty());</span>
+    }
+
+    private String getMateVariantStringByVariantSummaryRecord(int i, List&lt;String[]&gt; splitLineList) {
+<span class="fc" id="L768">        StringBuilder mateVariantString = new StringBuilder();</span>
+        // Generate a string with comma separated list of variant strings including all other variants but the one
+        // in position i
+<span class="fc bfc" id="L771" title="All 2 branches covered.">        for (int j = 0; j &lt; splitLineList.size(); j++) {</span>
+<span class="fc bfc" id="L772" title="All 2 branches covered.">            if (j != i) {</span>
+<span class="fc" id="L773">                String[] mateFields = splitLineList.get(j);</span>
+                // Decomposition is forced now in all cases: more than one Variant object can be returned by the
+                // normalisation process
+<span class="fc" id="L776">                List&lt;String&gt; variantStringList = getNormalisedVariantString(</span>
+                        mateFields[VARIANT_SUMMARY_CHR_COLUMN],
+<span class="fc" id="L778">                        Integer.valueOf(mateFields[VARIANT_SUMMARY_START_COLUMN]),</span>
+                        mateFields[VARIANT_SUMMARY_REFERENCE_COLUMN],
+                        mateFields[VARIANT_SUMMARY_ALTERNATE_COLUMN]);
+                // May be null if normalisation fails
+<span class="pc bpc" id="L782" title="1 of 2 branches missed.">                if (variantStringList != null) {</span>
+                    // Decomposition is forced now in all cases: more than one simple Variant object can be returned by
+                    // the normalisation process; this should not represent a problem though since all simple variants
+                    // obtained from the decomposition step are also mates of the original variant
+<span class="fc bfc" id="L786" title="All 2 branches covered.">                    for (String variantString : variantStringList) {</span>
+                        // First variant string must avoid including the separator
+<span class="fc bfc" id="L788" title="All 2 branches covered.">                        if (mateVariantString.length() &gt; 0) {</span>
+<span class="fc" id="L789">                            mateVariantString.append(&quot;,&quot;);</span>
+                        }
+<span class="fc" id="L791">                        mateVariantString.append(variantString);</span>
+<span class="fc" id="L792">                    }</span>
+                }
+            }
+        }
+<span class="pc bpc" id="L796" title="1 of 2 branches missed.">        return mateVariantString.length() == 0 ? null : mateVariantString.toString();</span>
+    }
+
+    private Map&lt;String, List&lt;VariationData&gt;&gt; loadAlleleIdToVariationData() throws IOException {
+<span class="fc" id="L800">        Map&lt;String, List&lt;VariationData&gt;&gt; alleleIdToVariationId = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L801">        BufferedReader bufferedReader = FileUtils.newBufferedReader(clinvarVariationAlleleFile);</span>
+
+<span class="fc" id="L803">        String line = bufferedReader.readLine();</span>
+<span class="pc bpc" id="L804" title="1 of 4 branches missed.">        while (line != null &amp;&amp; line.startsWith(&quot;#&quot;)) {</span>
+<span class="fc" id="L805">            line = bufferedReader.readLine();</span>
+        }
+
+<span class="fc bfc" id="L808" title="All 2 branches covered.">        while (line != null) {</span>
+<span class="fc" id="L809">            String[] parts = line.split(&quot;\t&quot;);</span>
+            List&lt;VariationData&gt; variationDataList;
+<span class="fc" id="L811">            variationDataList = alleleIdToVariationId.get(parts[VARIATION_ALLELE_ALLELE_COLUMN]);</span>
+            // One allele ID may be associated with multiple variation records e.g. 187140 -&gt; [242617, 424712]
+<span class="fc bfc" id="L813" title="All 2 branches covered.">            if (variationDataList == null) {</span>
+<span class="fc" id="L814">                variationDataList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L815">                alleleIdToVariationId.put(parts[VARIATION_ALLELE_ALLELE_COLUMN], variationDataList);</span>
+            }
+//            else if (variationDataList.size() == 2) {
+//                throw new RuntimeException(&quot;No more than two variation records per allele ID are currently modelled.&quot;
+//                        + &quot; Pleasee check line \n&quot; + line + &quot;\n of file &quot; + clinvarVariationAlleleFile.toString());
+//
+//            }
+<span class="fc" id="L822">            variationDataList.add(new VariationData(parts[VARIATION_ALLELE_VARIATION_COLUMN],</span>
+                    parts[VARIATION_ALLELE_TYPE_COLUMN]));
+<span class="fc" id="L824">            line = bufferedReader.readLine();</span>
+<span class="fc" id="L825">        }</span>
+<span class="fc" id="L826">        bufferedReader.close();</span>
+
+<span class="fc" id="L828">        return alleleIdToVariationId;</span>
+    }
+
+    private Map&lt;String, EFO&gt; loadEFOTerms() {
+<span class="pc bpc" id="L832" title="1 of 2 branches missed.">        if (clinvarEFOFile != null) {</span>
+<span class="fc" id="L833">            logger.info(&quot;Loading EFO terms ...&quot;);</span>
+<span class="fc" id="L834">            Map&lt;String, EFO&gt; efoTerms = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L835">            try (Stream&lt;String&gt; linesStream = Files.lines(clinvarEFOFile)) {</span>
+<span class="nc" id="L836">                linesStream.forEach(line -&gt; addEfoTermToMap(line, efoTerms));</span>
+<span class="nc" id="L837">                logger.info(&quot;Done&quot;);</span>
+<span class="nc" id="L838">                return efoTerms;</span>
+<span class="pc bnc" id="L839" title="All 8 branches missed.">            } catch (IOException e) {</span>
+<span class="fc" id="L840">                logger.error(&quot;Error loading EFO file: &quot; + e.getMessage());</span>
+<span class="fc" id="L841">                logger.error(&quot;EFO terms won't be added&quot;);</span>
+            }
+<span class="fc" id="L843">        } else {</span>
+<span class="nc" id="L844">            logger.warn(&quot;No EFO terms file present: EFO terms won't be added&quot;);</span>
+        }
+<span class="fc" id="L846">        return null;</span>
+    }
+
+    private void addEfoTermToMap(String line, Map&lt;String, EFO&gt; efoTerms) {
+<span class="nc" id="L850">        String[] columns = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L851">        efoTerms.put(columns[0], new ClinVarIndexer.EFO(columns[2], columns[3], columns[1]));</span>
+<span class="nc" id="L852">    }</span>
+
+    private JAXBElement&lt;ReleaseType&gt; unmarshalXML(Path clinvarXmlFile) throws JAXBException, IOException {
+<span class="fc" id="L855">        return (JAXBElement&lt;ReleaseType&gt;) ClinvarParser.loadXMLInfo(clinvarXmlFile.toString(), CLINVAR_CONTEXT);</span>
+    }
+
+    class EFO {
+        private final String id;
+        private final String name;
+        private final String url;
+
+<span class="nc" id="L863">        EFO(String id, String name, String url) {</span>
+<span class="nc" id="L864">            this.id = id;</span>
+<span class="nc" id="L865">            this.name = name;</span>
+<span class="nc" id="L866">            this.url = url;</span>
+<span class="nc" id="L867">        }</span>
+    }
+
+    private class AlleleLocationData {
+        private String alleleId;
+        private SequenceLocation sequenceLocation;
+
+<span class="fc" id="L874">        AlleleLocationData(String alleleId, SequenceLocation sequenceLocation) {</span>
+<span class="fc" id="L875">            this.alleleId = alleleId;</span>
+<span class="fc" id="L876">            this.sequenceLocation = sequenceLocation;</span>
+<span class="fc" id="L877">        }</span>
+
+        String getAlleleId() {
+<span class="fc" id="L880">            return alleleId;</span>
+        }
+
+        void setAlleleId(String alleleId) {
+<span class="nc" id="L884">            this.alleleId = alleleId;</span>
+<span class="nc" id="L885">        }</span>
+
+        SequenceLocation getSequenceLocation() {
+<span class="fc" id="L888">            return sequenceLocation;</span>
+        }
+
+        void setSequenceLocation(SequenceLocation sequenceLocation) {
+<span class="nc" id="L892">            this.sequenceLocation = sequenceLocation;</span>
+<span class="nc" id="L893">        }</span>
+    }
+
+    private class VariationData {
+        private String id;
+        private String type;
+
+<span class="fc" id="L900">        VariationData(String id, String type) {</span>
+<span class="fc" id="L901">            this.id = id;</span>
+<span class="fc" id="L902">            this.type = type;</span>
+<span class="fc" id="L903">        }</span>
+
+        String getId() {
+<span class="fc" id="L906">            return id;</span>
+        }
+
+        void setId(String id) {
+<span class="nc" id="L910">            this.id = id;</span>
+<span class="nc" id="L911">        }</span>
+
+        String getType() {
+<span class="fc" id="L914">            return type;</span>
+        }
+
+        void setType(String type) {
+<span class="nc" id="L918">            this.type = type;</span>
+<span class="nc" id="L919">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

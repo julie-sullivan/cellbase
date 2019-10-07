@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinVarParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">ClinVarParser.java</span></div><h1>ClinVarParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform.clinical.variant;
+
+import org.opencb.biodata.formats.variant.clinvar.ClinvarParser;
+import org.opencb.biodata.formats.variant.clinvar.v54jaxb.*;
+//import org.opencb.biodata.formats.variant.clinvar.v24jaxb.*;
+import org.opencb.cellbase.app.transform.CellBaseParser;
+import org.opencb.cellbase.core.common.clinical.ClinvarPublicSet;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+
+import javax.xml.bind.JAXBElement;
+import javax.xml.bind.JAXBException;
+import java.io.*;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.NumberFormat;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+
+/**
+ * Created by imedina on 26/09/14.
+ */
+@Deprecated
+public class ClinVarParser extends CellBaseParser {
+
+    private static final String ASSEMBLY_PREFIX = &quot;GRCh&quot;;
+    public static final String GRCH37_ASSEMBLY = &quot;37&quot;;
+    public static final String GRCH38_ASSEMBLY = &quot;38&quot;;
+    private static final String PREFERRED_TYPE = &quot;Preferred&quot;;
+    public static final String EFO_ID = &quot;EFO id&quot;;
+    public static final String EFO_NAME = &quot;EFO name&quot;;
+    public static final String EFO_URL = &quot;EFO URL&quot;;
+
+    private final String selectedAssembly;
+
+    private Path clinvarXmlFile;
+    private Path clinvarSummaryFile;
+    private Path efosFile;
+
+    public ClinVarParser(Path clinvarXmlFile, Path clinvarSummaryFile, Path efosFile, String assembly,
+                         CellBaseSerializer serializer) {
+<span class="nc" id="L62">        super(serializer);</span>
+<span class="nc" id="L63">        this.clinvarXmlFile = clinvarXmlFile;</span>
+<span class="nc" id="L64">        this.clinvarSummaryFile = clinvarSummaryFile;</span>
+<span class="nc" id="L65">        this.efosFile = efosFile;</span>
+<span class="nc" id="L66">        this.selectedAssembly = ASSEMBLY_PREFIX + assembly;</span>
+<span class="nc" id="L67">    }</span>
+
+    public void parse() {
+        try {
+<span class="nc" id="L71">            logger.info(&quot;Unmarshalling clinvar file &quot; + clinvarXmlFile + &quot; ...&quot;);</span>
+<span class="nc" id="L72">            JAXBElement&lt;ReleaseType&gt; clinvarRelease = unmarshalXML(clinvarXmlFile);</span>
+<span class="nc" id="L73">            logger.info(&quot;Done&quot;);</span>
+
+<span class="nc" id="L75">            Map&lt;String, EFO&gt; traitsToEfoTermsMap = loadEFOTerms();</span>
+<span class="nc" id="L76">            Map&lt;String, SequenceLocationType&gt; rcvTo37SequenceLocation = loadSequenceLocation();</span>
+
+<span class="nc" id="L78">            long serializedClinvarObjects = 0,</span>
+<span class="nc" id="L79">                    clinvarRecordsParsed = 0,</span>
+<span class="nc" id="L80">                    clinvarObjectsWithEfo = 0;</span>
+
+<span class="nc" id="L82">            logger.info(&quot;Serializing clinvar records that have Sequence Location for Assembly &quot; + selectedAssembly + &quot; ...&quot;);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            for (PublicSetType publicSet : clinvarRelease.getValue().getClinVarSet()) {</span>
+<span class="nc" id="L84">                SequenceLocationType sequenceLocation =</span>
+<span class="nc" id="L85">                        rcvTo37SequenceLocation.get(publicSet.getReferenceClinVarAssertion().getClinVarAccession().getAcc());</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                if (sequenceLocation != null) {</span>
+<span class="nc" id="L87">                    ClinvarPublicSet clinvarPublicSet = new ClinvarPublicSet(sequenceLocation.getChr(),</span>
+<span class="nc" id="L88">                            sequenceLocation.getStart().intValue(),</span>
+<span class="nc" id="L89">                            sequenceLocation.getStop().intValue(),</span>
+<span class="nc" id="L90">                            sequenceLocation.getReferenceAllele(),</span>
+<span class="nc" id="L91">                            sequenceLocation.getAlternateAllele(),</span>
+                            publicSet);
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                    if (clinvarRecordHasAssociatedEfos(clinvarPublicSet, traitsToEfoTermsMap)) {</span>
+<span class="nc" id="L94">                        clinvarObjectsWithEfo++;</span>
+                    }
+<span class="nc" id="L96">                    serializer.serialize(clinvarPublicSet);</span>
+<span class="nc" id="L97">                    serializedClinvarObjects++;</span>
+                }
+<span class="nc" id="L99">                clinvarRecordsParsed++;</span>
+<span class="nc" id="L100">            }</span>
+<span class="nc" id="L101">            logger.info(&quot;Done&quot;);</span>
+<span class="nc" id="L102">            this.printSummary(clinvarRecordsParsed, serializedClinvarObjects, clinvarObjectsWithEfo);</span>
+<span class="nc" id="L103">        } catch (JAXBException e) {</span>
+<span class="nc" id="L104">            logger.error(&quot;Error unmarshalling clinvar Xml file &quot; + clinvarXmlFile + &quot;: &quot; + e.getMessage());</span>
+<span class="nc" id="L105">        } catch (IOException e) {</span>
+<span class="nc" id="L106">            logger.error(&quot;File not found: &quot; + e.getMessage());</span>
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">    }</span>
+
+    private Map&lt;String, SequenceLocationType&gt; loadSequenceLocation() throws IOException {
+<span class="nc" id="L111">        logger.info(&quot;Loading ClinVar {} genomic coordinates, reference and alternate strings from {}...&quot;,</span>
+                selectedAssembly, clinvarSummaryFile);
+        BufferedReader bufferedReader;
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (clinvarSummaryFile.toFile().getName().endsWith(&quot;.gz&quot;)) {</span>
+<span class="nc" id="L115">            bufferedReader =</span>
+<span class="nc" id="L116">                    new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(clinvarSummaryFile.toFile()))));</span>
+        } else {
+<span class="nc" id="L118">            bufferedReader = Files.newBufferedReader(clinvarSummaryFile, Charset.defaultCharset());</span>
+        }
+
+<span class="nc" id="L121">        Map&lt;String, SequenceLocationType&gt; rcvToSequenceLocation = new HashMap&lt;&gt;();</span>
+        // Skip header, read first data line
+<span class="nc" id="L123">        bufferedReader.readLine();</span>
+<span class="nc" id="L124">        String line = bufferedReader.readLine();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        while (line != null) {</span>
+<span class="nc" id="L126">            String[] parts = line.split(&quot;\t&quot;);</span>
+            // Check assembly
+<span class="nc bnc" id="L128" title="All 2 branches missed.">            if (parts[16].equals(selectedAssembly)) {</span>
+<span class="nc" id="L129">                SequenceLocationType sequenceLocation = new SequenceLocationType();</span>
+<span class="nc" id="L130">                sequenceLocation.setChr(parts[18]);</span>
+<span class="nc" id="L131">                sequenceLocation.setStart(new BigInteger(parts[19]));</span>
+<span class="nc" id="L132">                sequenceLocation.setStop(new BigInteger(parts[20]));</span>
+<span class="nc" id="L133">                sequenceLocation.setReferenceAllele(parseEmptyAllele(parts[21]));</span>
+<span class="nc" id="L134">                sequenceLocation.setAlternateAllele(parseEmptyAllele(parts[22]));</span>
+                // Each line may contain more than one RCV; e.g.: RCV000000019;RCV000000020;RCV000000021;RCV000000022;...
+<span class="nc" id="L136">                String[] rcvArray = parts[11].split(&quot;;&quot;);</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                for (String rcv : rcvArray) {</span>
+<span class="nc" id="L138">                    rcvToSequenceLocation.put(rcv, sequenceLocation);</span>
+                }
+            }
+<span class="nc" id="L141">            line = bufferedReader.readLine();</span>
+<span class="nc" id="L142">        }</span>
+<span class="nc" id="L143">        return rcvToSequenceLocation;</span>
+    }
+
+    private String parseEmptyAllele(String allele) {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (allele.replace(&quot;-&quot;, &quot;&quot;).isEmpty()</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                || (allele.replace(&quot; &quot;, &quot;&quot;).isEmpty())</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                || (allele.replace(&quot;\t&quot;, &quot;&quot;).isEmpty())</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                || (allele.replace(&quot;&quot;, &quot;&quot;).isEmpty())) {</span>
+<span class="nc" id="L151">            return &quot;&quot;;</span>
+        }
+<span class="nc" id="L153">        return allele;</span>
+    }
+
+    private Map&lt;String, EFO&gt; loadEFOTerms() {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if (efosFile != null) {</span>
+<span class="nc" id="L158">            logger.info(&quot;Loading EFO terms ...&quot;);</span>
+<span class="nc" id="L159">            Map&lt;String, EFO&gt; efoTerms = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L160">            try (Stream&lt;String&gt; linesStream = Files.lines(efosFile)) {</span>
+<span class="nc" id="L161">                linesStream.forEach(line -&gt; addEfoTermToMap(line, efoTerms));</span>
+<span class="nc" id="L162">                logger.info(&quot;Done&quot;);</span>
+<span class="nc" id="L163">                return efoTerms;</span>
+<span class="nc bnc" id="L164" title="All 8 branches missed.">            } catch (IOException e) {</span>
+<span class="nc" id="L165">                logger.error(&quot;Error loading EFO file: &quot; + e.getMessage());</span>
+<span class="nc" id="L166">                logger.error(&quot;EFO terms won't be added&quot;);</span>
+            }
+<span class="nc" id="L168">        } else {</span>
+<span class="nc" id="L169">            logger.warn(&quot;No EFO terms file present: EFO terms won't be added&quot;);</span>
+        }
+<span class="nc" id="L171">        return null;</span>
+    }
+
+    private void addEfoTermToMap(String line, Map&lt;String, EFO&gt; efoTerms) {
+<span class="nc" id="L175">        String[] columns = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L176">        efoTerms.put(columns[0], new EFO(columns[2], columns[3], columns[1]));</span>
+<span class="nc" id="L177">    }</span>
+
+    private boolean clinvarRecordHasAssociatedEfos(ClinvarPublicSet clinvarPublicSet, Map&lt;String, EFO&gt; efoTerms) {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">        if (efosFile != null) {</span>
+<span class="nc" id="L181">            boolean hasEfo = false;</span>
+<span class="nc" id="L182">            List&lt;TraitType&gt; traits = clinvarPublicSet.getClinvarSet().getReferenceClinVarAssertion().getTraitSet().getTrait();</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            for (TraitType trait : traits) {</span>
+<span class="nc" id="L184">                hasEfo = traitHasEfo(efoTerms, hasEfo, trait);</span>
+<span class="nc" id="L185">            }</span>
+<span class="nc" id="L186">            return hasEfo;</span>
+        }
+<span class="nc" id="L188">        return false;</span>
+    }
+
+    private boolean traitHasEfo(Map&lt;String, EFO&gt; efoTerms, boolean hasEfo, TraitType trait) {
+<span class="nc" id="L192">        List&lt;SetElementSetType&gt; traitNames = trait.getName();</span>
+<span class="nc" id="L193">        String preferredTraitName = getPreferredTraitName(traitNames);</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if (preferredTraitName != null) {</span>
+<span class="nc" id="L195">            EFO efo = efoTerms.get(preferredTraitName);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            if (efo != null) {</span>
+<span class="nc" id="L197">                hasEfo = true;</span>
+<span class="nc" id="L198">                addEfoToClinvarTraitNames(trait.getName(), efo);</span>
+            }
+        }
+<span class="nc" id="L201">        return hasEfo;</span>
+    }
+
+    private String getPreferredTraitName(List&lt;SetElementSetType&gt; traitNames) {
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        for (SetElementSetType name : traitNames) {</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">            if (name.getElementValue().getType().equals(PREFERRED_TYPE)) {</span>
+<span class="nc" id="L207">                return name.getElementValue().getValue();</span>
+            }
+<span class="nc" id="L209">        }</span>
+<span class="nc" id="L210">        return null;</span>
+    }
+
+    private void addEfoToClinvarTraitNames(List&lt;SetElementSetType&gt; names, EFO efo) {
+<span class="nc" id="L214">        addClinvarTraitName(names, EFO_ID, efo.id);</span>
+<span class="nc" id="L215">        addClinvarTraitName(names, EFO_NAME, efo.name);</span>
+<span class="nc" id="L216">        addClinvarTraitName(names, EFO_URL, efo.url);</span>
+<span class="nc" id="L217">    }</span>
+
+    private void addClinvarTraitName(List&lt;SetElementSetType&gt; names, String type, String value) {
+<span class="nc" id="L220">        SetElementSetType.ElementValue efoIdValue = new SetElementSetType.ElementValue();</span>
+<span class="nc" id="L221">        efoIdValue.setType(type);</span>
+<span class="nc" id="L222">        efoIdValue.setValue(value);</span>
+<span class="nc" id="L223">        SetElementSetType efoElement = new SetElementSetType();</span>
+<span class="nc" id="L224">        efoElement.setElementValue(efoIdValue);</span>
+<span class="nc" id="L225">        names.add(efoElement);</span>
+<span class="nc" id="L226">    }</span>
+
+    private void printSummary(long clinvarRecordsParsed, long serializedClinvarObjects, long clinvarObjectsWithEfo) {
+<span class="nc" id="L229">        NumberFormat formatter = NumberFormat.getInstance();</span>
+<span class="nc" id="L230">        logger.info(&quot;&quot;);</span>
+<span class="nc" id="L231">        logger.info(&quot;Summary&quot;);</span>
+<span class="nc" id="L232">        logger.info(&quot;=======&quot;);</span>
+<span class="nc" id="L233">        logger.info(&quot;Processed &quot; + formatter.format(clinvarRecordsParsed) + &quot; clinvar records&quot;);</span>
+<span class="nc" id="L234">        logger.info(&quot;Serialized &quot; + formatter.format(serializedClinvarObjects) + &quot; '&quot; + ClinvarPublicSet.class.getName() + &quot;' objects&quot;);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        if (clinvarRecordsParsed != serializedClinvarObjects) {</span>
+<span class="nc" id="L236">            logger.info(formatter.format(clinvarRecordsParsed - serializedClinvarObjects)</span>
+                    + &quot; clinvar records not serialized because don't have complete Sequence Location for assembly &quot; + selectedAssembly);
+        }
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        if (efosFile != null) {</span>
+<span class="nc" id="L240">            NumberFormat percentageFormatter = NumberFormat.getPercentInstance();</span>
+<span class="nc" id="L241">            logger.info(formatter.format(clinvarObjectsWithEfo) + &quot; clinvar records (&quot;</span>
+<span class="nc" id="L242">                    + percentageFormatter.format((double) clinvarObjectsWithEfo / serializedClinvarObjects)</span>
+                    + &quot; of serialized) have at least one associated EFO term&quot;);
+        }
+<span class="nc" id="L245">    }</span>
+
+    @Deprecated
+    private ClinvarPublicSet buildClinvarPublicSet(PublicSetType publicSet, SequenceLocationType sequenceLocation) {
+        //Variant variant = obtainVariant(publicSet);
+<span class="nc" id="L250">        ClinvarPublicSet clinvarPublicSet = null;</span>
+//        SequenceLocationType sequenceLocation = obtainAssembly37SequenceLocation(publicSet);
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        if (sequenceLocation != null) {</span>
+
+<span class="nc" id="L254">            clinvarPublicSet = new ClinvarPublicSet(sequenceLocation.getChr(),</span>
+<span class="nc" id="L255">                    sequenceLocation.getStart().intValue(),</span>
+<span class="nc" id="L256">                    sequenceLocation.getStop().intValue(),</span>
+<span class="nc" id="L257">                    sequenceLocation.getReferenceAllele(),</span>
+<span class="nc" id="L258">                    sequenceLocation.getAlternateAllele(),</span>
+                    publicSet);
+        }
+<span class="nc" id="L261">        return clinvarPublicSet;</span>
+    }
+
+    @Deprecated
+    private SequenceLocationType obtainAssembly37SequenceLocation(PublicSetType publicSet) {
+<span class="nc bnc" id="L266" title="All 2 branches missed.">        for (MeasureType measure : publicSet.getReferenceClinVarAssertion().getMeasureSet().getMeasure()) {</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            for (SequenceLocationType location : measure.getSequenceLocation()) {</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">                if (validLocation(location)) {</span>
+<span class="nc" id="L269">                    return location;</span>
+                }
+<span class="nc" id="L271">            }</span>
+<span class="nc" id="L272">        }</span>
+<span class="nc" id="L273">        return null;</span>
+    }
+
+    private boolean validLocation(SequenceLocationType location) {
+<span class="nc bnc" id="L277" title="All 4 branches missed.">        return location.getAssembly().startsWith(selectedAssembly) &amp;&amp; location.getReferenceAllele() != null</span>
+<span class="nc bnc" id="L278" title="All 6 branches missed.">                &amp;&amp; location.getAlternateAllele() != null &amp;&amp; location.getStart() != null &amp;&amp; location.getStop() != null;</span>
+    }
+
+    private JAXBElement&lt;ReleaseType&gt; unmarshalXML(Path clinvarXmlFile) throws JAXBException, IOException {
+<span class="nc" id="L282">        return (JAXBElement&lt;ReleaseType&gt;) ClinvarParser.loadXMLInfo(clinvarXmlFile.toString(), ClinvarParser.CLINVAR_CONTEXT_v24);</span>
+    }
+
+    class EFO {
+        private final String id;
+        private final String name;
+        private final String url;
+
+<span class="nc" id="L290">        EFO(String id, String name, String url) {</span>
+<span class="nc" id="L291">            this.id = id;</span>
+<span class="nc" id="L292">            this.name = name;</span>
+<span class="nc" id="L293">            this.url = url;</span>
+<span class="nc" id="L294">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParentRestClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.rest</a> &gt; <span class="el_source">ParentRestClient.java</span></div><h1>ParentRestClient.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.client.rest;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.avro.DrugResponseClassification;
+import org.opencb.cellbase.client.config.ClientConfiguration;
+import org.opencb.cellbase.client.rest.models.mixin.DrugResponseClassificationMixIn;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResponse;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.net.URI;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+/**
+ * Created by imedina on 12/05/16.
+ */
+public class ParentRestClient&lt;T&gt; {
+
+    protected final String species;
+    protected final String assembly;
+    protected final Client client;
+
+    // TODO: Should this be final?
+    protected String category;
+    protected String subcategory;
+
+    protected Class&lt;T&gt; clazz;
+
+    protected final ClientConfiguration configuration;
+
+    protected static ObjectMapper jsonObjectMapper;
+    protected final Logger logger;
+
+    public static final int LIMIT = 1000;
+    public static final int REST_CALL_BATCH_SIZE = 200;
+    public static final int DEFAULT_NUM_THREADS = 4;
+
+    protected static final String EMPTY_STRING = &quot;&quot;;
+    protected static final String META = &quot;meta&quot;;
+    protected static final String WEBSERVICES = &quot;webservices&quot;;
+    protected static final String REST = &quot;rest&quot;;
+
+
+    @Deprecated
+    public ParentRestClient(ClientConfiguration configuration) {
+<span class="nc" id="L80">        this(configuration.getDefaultSpecies(), null, configuration);</span>
+<span class="nc" id="L81">    }</span>
+
+<span class="fc" id="L83">    public ParentRestClient(String species, String assembly, ClientConfiguration configuration) {</span>
+<span class="fc" id="L84">        this.species = species;</span>
+<span class="fc" id="L85">        this.assembly = assembly;</span>
+<span class="fc" id="L86">        this.configuration = configuration;</span>
+
+<span class="fc" id="L88">        this.client = ClientBuilder.newClient();</span>
+<span class="fc" id="L89">        logger = LoggerFactory.getLogger(this.getClass().toString());</span>
+<span class="fc" id="L90">    }</span>
+
+    static {
+<span class="fc" id="L93">        jsonObjectMapper = new ObjectMapper();</span>
+<span class="fc" id="L94">        jsonObjectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="fc" id="L95">        jsonObjectMapper.addMixIn(DrugResponseClassification.class, DrugResponseClassificationMixIn.class);</span>
+<span class="fc" id="L96">    }</span>
+
+
+    public QueryResponse&lt;Long&gt; count(Query query) throws IOException {
+<span class="fc" id="L100">        return execute(&quot;count&quot;, query, new QueryOptions(), Long.class);</span>
+    }
+
+    public QueryResponse&lt;T&gt; first() throws IOException {
+<span class="fc" id="L104">        return execute(&quot;first&quot;, new Query(), new QueryOptions(), clazz);</span>
+    }
+
+    public QueryResponse&lt;T&gt; get(List&lt;String&gt; id, QueryOptions queryOptions) throws IOException {
+<span class="fc" id="L108">        return execute(id, &quot;info&quot;, queryOptions, clazz);</span>
+    }
+
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(String action, Query query, QueryOptions queryOptions, Class&lt;U&gt; clazz) throws IOException {
+<span class="fc" id="L113">        return  execute(action, query, queryOptions, clazz, false);</span>
+    }
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(String action, Query query, QueryOptions queryOptions, Class&lt;U&gt; clazz,
+                                           boolean post) throws IOException {
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">        if (query != null &amp;&amp; queryOptions != null) {</span>
+<span class="fc" id="L119">            queryOptions.putAll(query);</span>
+        }
+<span class="fc" id="L121">        return execute(&quot;&quot;, action, queryOptions, clazz, post);</span>
+    }
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(String ids, String resource, QueryOptions queryOptions, Class&lt;U&gt; clazz)
+            throws IOException {
+<span class="fc" id="L126">        return execute(Arrays.asList(ids.split(&quot;,&quot;)), resource, queryOptions, clazz, false);</span>
+    }
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(String ids, String resource, QueryOptions queryOptions, Class&lt;U&gt; clazz,
+                                           boolean post) throws IOException {
+<span class="fc" id="L131">        return execute(Arrays.asList(ids.split(&quot;,&quot;)), resource, queryOptions, clazz, post);</span>
+    }
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(List&lt;String&gt; idList, String resource, QueryOptions options, Class&lt;U&gt; clazz) throws IOException {
+<span class="fc" id="L135">        return execute(idList, resource, options, clazz, false);</span>
+    }
+
+    protected &lt;U&gt; QueryResponse&lt;U&gt; execute(List&lt;String&gt; idList, String resource, QueryOptions options, Class&lt;U&gt; clazz,
+                                           boolean post) throws IOException {
+
+<span class="pc bpc" id="L141" title="2 of 4 branches missed.">        if (idList == null || idList.isEmpty()) {</span>
+<span class="nc" id="L142">            return new QueryResponse&lt;&gt;();</span>
+        }
+
+        // If the list contain less than REST_CALL_BATCH_SIZE variants then we can make a normal REST call.
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        if (idList.size() &lt;= REST_CALL_BATCH_SIZE) {</span>
+<span class="fc" id="L147">            return fetchData(idList, resource, options, clazz, post);</span>
+        }
+
+        // But if there are more than REST_CALL_BATCH_SIZE variants then we launch several threads to increase performance.
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        int numThreads = (options != null)</span>
+<span class="nc" id="L152">                ? options.getInt(&quot;numThreads&quot;, DEFAULT_NUM_THREADS)</span>
+                : DEFAULT_NUM_THREADS;
+
+<span class="nc" id="L155">        ExecutorService executorService = Executors.newFixedThreadPool(numThreads);</span>
+<span class="nc" id="L156">        List&lt;Future&lt;QueryResponse&lt;U&gt;&gt;&gt; futureList = new ArrayList&lt;&gt;((idList.size() / REST_CALL_BATCH_SIZE) + 1);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        for (int i = 0; i &lt; idList.size(); i += REST_CALL_BATCH_SIZE) {</span>
+<span class="nc" id="L158">            final int from = i;</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            final int to = (from + REST_CALL_BATCH_SIZE &gt; idList.size())</span>
+<span class="nc" id="L160">                    ? idList.size()</span>
+                    : from + REST_CALL_BATCH_SIZE;
+<span class="nc" id="L162">            futureList.add(executorService.submit(() -&gt;</span>
+<span class="nc" id="L163">                    fetchData(idList.subList(from, to), resource, options, clazz, post)</span>
+            ));
+        }
+
+<span class="nc" id="L167">        List&lt;QueryResult&lt;U&gt;&gt; queryResults = new ArrayList&lt;&gt;(idList.size());</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        for (Future&lt;QueryResponse&lt;U&gt;&gt; responseFuture : futureList) {</span>
+            try {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                while (!responseFuture.isDone()) {</span>
+<span class="nc" id="L171">                    Thread.sleep(5);</span>
+                }
+<span class="nc" id="L173">                queryResults.addAll(responseFuture.get().getResponse());</span>
+<span class="nc" id="L174">            } catch (InterruptedException | ExecutionException e) {</span>
+<span class="nc" id="L175">                e.printStackTrace();</span>
+<span class="nc" id="L176">            }</span>
+<span class="nc" id="L177">        }</span>
+
+<span class="nc" id="L179">        QueryResponse&lt;U&gt; finalResponse = new QueryResponse&lt;&gt;();</span>
+<span class="nc" id="L180">        finalResponse.setResponse(queryResults);</span>
+<span class="nc" id="L181">        executorService.shutdown();</span>
+
+<span class="nc" id="L183">        return finalResponse;</span>
+    }
+
+    private &lt;U&gt; QueryResponse&lt;U&gt; fetchData(List&lt;String&gt; idList, String resource, QueryOptions options, Class&lt;U&gt; clazz,
+                                           boolean post) throws IOException {
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (options == null) {</span>
+<span class="fc" id="L190">            options = new QueryOptions();</span>
+        }
+<span class="fc" id="L192">        options.putIfAbsent(&quot;limit&quot;, LIMIT);</span>
+
+<span class="fc" id="L194">        Map&lt;String, Integer&gt; idMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L195">        List&lt;String&gt; prevIdList = idList;</span>
+<span class="fc" id="L196">        List&lt;String&gt; newIdsList = null;</span>
+<span class="fc" id="L197">        boolean call = true;</span>
+<span class="fc" id="L198">        int skip = 0;</span>
+<span class="fc" id="L199">        QueryResponse&lt;U&gt; queryResponse = null;</span>
+<span class="fc" id="L200">        QueryResponse&lt;U&gt; finalQueryResponse = null;</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        while (call) {</span>
+<span class="fc" id="L202">            queryResponse = robustRestCall(idList, resource, options, clazz, post);</span>
+
+            // First iteration we set the response object, no merge needed
+            // Create id -&gt; finalQueryResponse-position map, so that we can know in forthcoming iterations where to
+            // save corresponding lists of query results
+<span class="fc bfc" id="L207" title="All 2 branches covered.">            if (finalQueryResponse == null) {</span>
+<span class="fc" id="L208">                finalQueryResponse = queryResponse;</span>
+<span class="fc" id="L209">                idMap = new HashMap&lt;&gt;();</span>
+                // WARN: assuming the order of QueryResults in queryResponse corresponds to the order of ids in idList
+                // i.e. queryResponse[0] contains queryResult for idList[0], queryResponse[1] for idList[1], etc.
+<span class="fc bfc" id="L212" title="All 2 branches covered.">                for (int i = 0; i &lt; idList.size(); i++) {</span>
+<span class="fc" id="L213">                    idMap.put(idList.get(i), i);</span>
+                }
+            } else {    // merge query responses
+//                if (newIdsList != null &amp;&amp; newIdsList.size() &gt; 0) {
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">                if (newIdsList.size() &gt; 0) {</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                    for (int i = 0; i &lt; newIdsList.size(); i++) {</span>
+<span class="fc" id="L219">                        finalQueryResponse.getResponse().get(idMap.get(newIdsList.get(i))).getResult()</span>
+<span class="fc" id="L220">                                .addAll(queryResponse.getResponse().get(i).getResult());</span>
+                    }
+                }
+            }
+
+            // check if we need to call again
+<span class="fc bfc" id="L226" title="All 2 branches covered.">            if (newIdsList != null) {</span>
+<span class="fc" id="L227">                prevIdList = newIdsList;</span>
+            }
+<span class="fc" id="L229">            newIdsList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">            for (int i = 0; i &lt; queryResponse.getResponse().size(); i++) {</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">                if (queryResponse.getResponse().get(i).getNumResults() == LIMIT) {</span>
+<span class="fc" id="L232">                    newIdsList.add(prevIdList.get(i));</span>
+                }
+            }
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">            if (newIdsList.isEmpty()) {</span>
+                // this breaks the while condition
+<span class="fc" id="L238">                call = false;</span>
+            } else {
+<span class="fc" id="L240">                idList = newIdsList;</span>
+<span class="fc" id="L241">                skip += LIMIT;</span>
+<span class="fc" id="L242">                options.put(&quot;skip&quot;, skip);</span>
+            }
+        }
+
+<span class="fc" id="L246">        logger.debug(&quot;queryResponse = &quot; + queryResponse);</span>
+<span class="fc" id="L247">        return finalQueryResponse;</span>
+    }
+
+    private &lt;U&gt; QueryResponse&lt;U&gt; robustRestCall(List&lt;String&gt; idList, String resource, QueryOptions queryOptions,
+                                                Class&lt;U&gt; clazz, boolean post)
+            throws IOException {
+
+<span class="fc" id="L254">        String ids = &quot;&quot;;</span>
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">        if (idList == null) {</span>
+<span class="nc" id="L256">            idList = Collections.emptyList();</span>
+        }
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        if (!idList.isEmpty()) {</span>
+<span class="fc" id="L259">            ids = StringUtils.join(idList, ',');</span>
+        }
+
+<span class="fc" id="L262">        boolean queryError = false;</span>
+        QueryResponse&lt;U&gt; queryResponse;
+        try {
+<span class="fc" id="L265">            queryResponse = restCall(configuration.getRest().getHosts(), configuration.getVersion(),</span>
+                    ids, resource, queryOptions, clazz, post);
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">            if (queryResponse == null) {</span>
+<span class="nc" id="L268">                logger.warn(&quot;CellBase REST fail. Returned null for ids {}. hosts: {}, version: {}, &quot;</span>
+                                + &quot;category: {}, subcategory: {}, resource: {}, queryOptions: {}&quot;,
+<span class="nc" id="L270">                        ids, StringUtils.join(configuration.getRest().getHosts(), &quot;,&quot;), configuration.getVersion(),</span>
+<span class="nc" id="L271">                        category, subcategory, resource, queryOptions.toJson());</span>
+<span class="nc" id="L272">                queryError = true;</span>
+            }
+<span class="nc" id="L274">        } catch (JsonProcessingException | javax.ws.rs.ProcessingException | WebApplicationException e) {</span>
+<span class="nc" id="L275">            logger.warn(&quot;CellBase REST fail. Error parsing query result for ids {}. hosts: {}, version: {}, &quot;</span>
+                            + &quot;category: {}, subcategory: {}, resource: {}, queryOptions: {}. Exception message: {}&quot;,
+<span class="nc" id="L277">                    ids, StringUtils.join(configuration.getRest().getHosts(), &quot;,&quot;), configuration.getVersion(),</span>
+<span class="nc" id="L278">                    category, subcategory, resource, queryOptions.toJson(), e.getMessage());</span>
+<span class="nc" id="L279">            logger.debug(&quot;CellBase REST exception.&quot;, e);</span>
+<span class="nc" id="L280">            queryError = true;</span>
+<span class="nc" id="L281">            queryResponse = null;</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            if (e instanceof WebApplicationException) {</span>
+<span class="nc" id="L283">                Response.Status status = Response.Status.fromStatusCode(((WebApplicationException) e).getResponse().getStatus());</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">                switch (status) {</span>
+                    case GATEWAY_TIMEOUT:
+                    case INTERNAL_SERVER_ERROR:
+                        // Do not propagate this error
+                        // TODO: Add a counter?
+<span class="nc" id="L289">                        break;</span>
+                    default:
+<span class="nc" id="L291">                        throw e;</span>
+                }
+            }
+<span class="fc" id="L294">        }</span>
+
+<span class="pc bpc" id="L296" title="2 of 4 branches missed.">        if (queryResponse != null &amp;&amp; queryResponse.getResponse().size() != idList.size()) {</span>
+<span class="nc" id="L297">            logger.warn(&quot;QueryResponse size (&quot; + queryResponse.getResponse().size() + &quot;) != id list size (&quot;</span>
+<span class="nc" id="L298">                    + idList.size() + &quot;).&quot;);</span>
+        }
+
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">        if (queryError) {</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            if (idList.size() == 1) {</span>
+<span class="nc" id="L303">                logger.warn(&quot;CellBase REST warning. Skipping id. {}&quot;, idList.get(0));</span>
+<span class="nc" id="L304">                return new QueryResponse&lt;U&gt;(configuration.getVersion(), -1, null,</span>
+<span class="nc" id="L305">                        &quot;CellBase REST error. Skipping id &quot; + idList.get(0), queryOptions,</span>
+<span class="nc" id="L306">                        Collections.singletonList(new QueryResult&lt;U&gt;(idList.get(0), -1, 0, 0, null, null,</span>
+<span class="nc" id="L307">                                Collections.emptyList())));</span>
+            }
+
+<span class="nc" id="L310">            List&lt;QueryResult&lt;U&gt;&gt; queryResultList = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L311">            queryResponse = new QueryResponse&lt;U&gt;(configuration.getVersion(), -1, null, null, queryOptions,</span>
+                    queryResultList);
+<span class="nc" id="L313">            logger.info(&quot;Re-attempting to solve the query - trying to identify any problematic id to skip it&quot;);</span>
+<span class="nc" id="L314">            List&lt;String&gt; idList1 = idList.subList(0, idList.size() / 2);</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">            if (!idList1.isEmpty()) {</span>
+<span class="nc" id="L316">                queryResultList.addAll(robustRestCall(idList1, resource, queryOptions, clazz, post).getResponse());</span>
+            }
+<span class="nc" id="L318">            List&lt;String&gt; idList2 = idList.subList(idList.size() / 2, idList.size());</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">            if (!idList2.isEmpty()) {</span>
+<span class="nc" id="L320">                queryResultList.addAll(robustRestCall(idList2, resource, queryOptions, clazz, post).getResponse());</span>
+            }
+        }
+<span class="fc" id="L323">        return queryResponse;</span>
+    }
+
+    private &lt;U&gt; QueryResponse&lt;U&gt; restCall(List&lt;String&gt; hosts, String version, String ids, String resource, QueryOptions queryOptions,
+                                          Class&lt;U&gt; clazz, boolean post) throws IOException {
+
+<span class="fc" id="L329">        WebTarget path = getBaseUrl(hosts, version);</span>
+
+<span class="fc" id="L331">        WebTarget callUrl = path;</span>
+<span class="pc bpc" id="L332" title="1 of 6 branches missed.">        if (ids != null &amp;&amp; !ids.isEmpty() &amp;&amp; !post) {</span>
+<span class="fc" id="L333">            callUrl = path.path(ids);</span>
+        }
+
+        // Add the last URL part, the 'action' or 'resource'
+<span class="fc" id="L337">        callUrl = callUrl.path(resource);</span>
+
+<span class="pc bpc" id="L339" title="1 of 2 branches missed.">        if (queryOptions != null) {</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            for (String s : queryOptions.keySet()) {</span>
+<span class="fc" id="L341">                callUrl = callUrl.queryParam(s, queryOptions.get(s));</span>
+<span class="fc" id="L342">            }</span>
+<span class="pc bpc" id="L343" title="1 of 4 branches missed.">            if (assembly != null &amp;&amp; StringUtils.isEmpty(queryOptions.getString(&quot;assembly&quot;))) {</span>
+<span class="fc" id="L344">                callUrl = callUrl.queryParam(&quot;assembly&quot;, assembly);</span>
+            }
+        } else {
+<span class="nc bnc" id="L347" title="All 2 branches missed.">            if (assembly != null) {</span>
+<span class="nc" id="L348">                callUrl = callUrl.queryParam(&quot;assembly&quot;, assembly);</span>
+            }
+        }
+
+        String jsonString;
+<span class="fc bfc" id="L353" title="All 2 branches covered.">        if (post) {</span>
+<span class="fc" id="L354">            logger.debug(&quot;Making POST call to REST URL: {}&quot;, callUrl.getUri().toURL());</span>
+<span class="fc" id="L355">            jsonString = callUrl.request().post(Entity.text(ids), String.class);</span>
+        } else {
+<span class="fc" id="L357">            logger.debug(&quot;Making GET call to REST URL: {}&quot;, callUrl.getUri().toURL());</span>
+<span class="fc" id="L358">            jsonString = callUrl.request().get(String.class);</span>
+        }
+
+<span class="fc" id="L361">        return parseResult(jsonString, clazz);</span>
+    }
+
+    protected WebTarget getBaseUrl(List&lt;String&gt; hosts, String version) {
+<span class="fc" id="L365">        return client</span>
+<span class="fc" id="L366">                    .target(URI.create(hosts.get(0)))</span>
+<span class="fc" id="L367">                    .path(WEBSERVICES)</span>
+<span class="fc" id="L368">                    .path(REST)</span>
+<span class="fc" id="L369">                    .path(version)</span>
+<span class="fc" id="L370">                    .path(species)</span>
+<span class="fc" id="L371">                    .path(category)</span>
+<span class="fc" id="L372">                    .path(subcategory);</span>
+    }
+
+    private static &lt;U&gt; QueryResponse&lt;U&gt; parseResult(String json, Class&lt;U&gt; clazz) throws IOException {
+<span class="fc" id="L376">        ObjectReader reader = jsonObjectMapper</span>
+<span class="fc" id="L377">                .readerFor(jsonObjectMapper.getTypeFactory().constructParametrizedType(QueryResponse.class, QueryResult.class, clazz));</span>
+<span class="fc" id="L378">        return reader.readValue(json);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

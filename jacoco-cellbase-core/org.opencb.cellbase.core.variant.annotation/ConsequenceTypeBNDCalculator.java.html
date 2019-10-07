@@ -1,0 +1,603 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsequenceTypeBNDCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation</a> &gt; <span class="el_source">ConsequenceTypeBNDCalculator.java</span></div><h1>ConsequenceTypeBNDCalculator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation;
+
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.biodata.models.core.Transcript;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.VariantBuilder;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.commons.datastore.core.QueryOptions;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Created by fjlopez on 09/05/17.
+ */
+public class ConsequenceTypeBNDCalculator extends ConsequenceTypeGenericRegionCalculator {
+
+<span class="nc" id="L20">    public ConsequenceTypeBNDCalculator() {</span>
+<span class="nc" id="L21">    }</span>
+
+    @Override
+    public List&lt;ConsequenceType&gt; run(Variant inputVariant, List&lt;Gene&gt; geneList,
+                                     boolean[] overlapsRegulatoryRegion, QueryOptions queryOptions) {
+<span class="nc" id="L26">        parseQueryParam(queryOptions);</span>
+
+<span class="nc" id="L28">        List&lt;ConsequenceType&gt; consequenceTypeList1 = runBreakend(inputVariant, geneList, overlapsRegulatoryRegion);</span>
+//        Variant mate = Variant.getMateBreakend(inputVariant);
+<span class="nc" id="L30">        Variant mate = VariantBuilder.getMateBreakend(inputVariant);</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        if (mate == null) {</span>
+<span class="nc" id="L32">            return consequenceTypeList1;</span>
+        } else {
+<span class="nc" id="L34">            Set&lt;ConsequenceType&gt; result = new HashSet&lt;&gt;(consequenceTypeList1);</span>
+<span class="nc" id="L35">            result.addAll(runBreakend(mate, geneList, overlapsRegulatoryRegion));</span>
+<span class="nc" id="L36">            return new ArrayList&lt;&gt;(result);</span>
+        }
+    }
+
+    private Integer getEnd(Variant variant) {
+<span class="nc bnc" id="L41" title="All 4 branches missed.">        if (imprecise &amp;&amp; variant.getSv() != null) {</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            return variant.getSv().getCiStartRight() != null ? variant.getSv().getCiStartRight() + svExtraPadding</span>
+<span class="nc" id="L43">                    : variant.getStart();</span>
+        } else {
+<span class="nc" id="L45">            return variant.getStart();</span>
+        }
+    }
+
+    private Integer getStart(Variant variant) {
+<span class="nc bnc" id="L50" title="All 4 branches missed.">        if (imprecise &amp;&amp; variant.getSv() != null) {</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            return variant.getSv().getCiStartLeft() != null ? variant.getSv().getCiStartLeft() - svExtraPadding</span>
+<span class="nc" id="L52">                    : variant.getStart();</span>
+        } else {
+<span class="nc" id="L54">            return variant.getStart();</span>
+        }
+    }
+
+    private List&lt;ConsequenceType&gt; runBreakend(Variant currentVariant, List&lt;Gene&gt; geneList,
+                                              boolean[] overlapsRegulatoryRegion) {
+<span class="nc" id="L60">        variant = currentVariant;</span>
+<span class="nc" id="L61">        variantStart = getStart(variant);</span>
+<span class="nc" id="L62">        variantEnd = getEnd(variant);</span>
+<span class="nc" id="L63">        List&lt;ConsequenceType&gt; consequenceTypeList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L64">        boolean isIntergenic = true;</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        for (Gene currentGene : geneList) {</span>
+            // Check this gene is in the same chromosome of current position - the gene may be here because overlaps the mate
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (variant.getChromosome().equals(currentGene.getChromosome())) {</span>
+<span class="nc" id="L68">                gene = currentGene;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                for (Transcript currentTranscript : gene.getTranscripts()) {</span>
+<span class="nc bnc" id="L70" title="All 6 branches missed.">                    isIntergenic = isIntergenic &amp;&amp; (variantEnd &lt; currentTranscript.getStart() || variantStart &gt; currentTranscript.getEnd());</span>
+<span class="nc" id="L71">                    transcript = currentTranscript;</span>
+<span class="nc" id="L72">                    consequenceType = new ConsequenceType();</span>
+<span class="nc" id="L73">                    consequenceType.setGeneName(gene.getName());</span>
+<span class="nc" id="L74">                    consequenceType.setEnsemblGeneId(gene.getId());</span>
+<span class="nc" id="L75">                    consequenceType.setEnsemblTranscriptId(transcript.getId());</span>
+<span class="nc" id="L76">                    consequenceType.setStrand(transcript.getStrand());</span>
+<span class="nc" id="L77">                    consequenceType.setBiotype(transcript.getBiotype());</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                    consequenceType.setTranscriptAnnotationFlags(transcript.getAnnotationFlags() != null</span>
+<span class="nc" id="L79">                            ? new ArrayList&lt;&gt;(transcript.getAnnotationFlags()) : null);</span>
+<span class="nc" id="L80">                    SoNames.clear();</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                    if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                        if (regionsOverlap(transcript.getStart(), transcript.getEnd(), variantStart, variantEnd)) {</span>
+<span class="nc" id="L84">                            solvePositiveTranscript(consequenceTypeList);</span>
+                        } else {
+<span class="nc" id="L86">                            solveTranscriptFlankingRegions(VariantAnnotationUtils.UPSTREAM_GENE_VARIANT,</span>
+                                    VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT);
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                            if (SoNames.size() &gt; 0) { // Variant does not overlap gene region, just may have upstream/downstream annotations</span>
+<span class="nc" id="L89">                                consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L90">                                consequenceTypeList.add(consequenceType);</span>
+                            }
+                        }
+                    } else {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                        if (regionsOverlap(transcript.getStart(), transcript.getEnd(), variantStart, variantEnd)) {</span>
+<span class="nc" id="L95">                            solveNegativeTranscript(consequenceTypeList);</span>
+                        } else {
+<span class="nc" id="L97">                            solveTranscriptFlankingRegions(VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT,</span>
+                                    VariantAnnotationUtils.UPSTREAM_GENE_VARIANT);
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                            if (SoNames.size() &gt; 0) { // Variant does not overlap gene region, just has upstream/downstream annotations</span>
+                                //                            consequenceType.setSoTermsFromSoNames(new ArrayList&lt;&gt;(SoNames));
+<span class="nc" id="L101">                                consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L102">                                consequenceTypeList.add(consequenceType);</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L106">                }</span>
+            }
+<span class="nc" id="L108">        }</span>
+
+<span class="nc" id="L110">        solveIntergenic(consequenceTypeList, isIntergenic);</span>
+<span class="nc" id="L111">        solveRegulatoryRegions(overlapsRegulatoryRegion, consequenceTypeList);</span>
+<span class="nc" id="L112">        return consequenceTypeList;</span>
+
+    }
+
+//    protected void solveNonCodingNegativeTranscript() {
+//        Exon exon = transcript.getExons().get(0);
+//        String transcriptSequence = exon.getSequence();
+//        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed
+//        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);  // cdnaExonEnd poinst to the same base than exonStart
+//        int cdnaVariantPosition = -1;
+//        boolean[] junctionSolution = {false, false};
+//
+//        if (position &lt;= exon.getEnd() &amp;&amp; position &gt;= exon.getStart()) {  // Variant within the exon
+//            cdnaVariantPosition = cdnaExonEnd - (position - exon.getStart());
+//            consequenceType.setCdnaPosition(cdnaVariantPosition);
+//            consequenceType.setExonNumber(exon.getExonNumber());
+//        }
+//
+//        int exonCounter = 1;
+//        // This is not a do-while since we cannot call solveJunction until
+//        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {
+//            int prevSpliceSite = exon.getStart() - 1;
+//            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded
+//            transcriptSequence = exon.getSequence() + transcriptSequence;
+//            solveJunction(exon.getEnd() + 1, prevSpliceSite, VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT,
+//                    VariantAnnotationUtils.SPLICE_DONOR_VARIANT, junctionSolution);
+//
+//            if (position &lt;= exon.getEnd()) {
+//                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);
+//                if (position &gt;= exon.getStart()) {  // Variant end within the exon
+//                    cdnaVariantPosition = cdnaExonEnd - (position - exon.getStart());
+//                    consequenceType.setCdnaPosition(cdnaVariantPosition);
+//                    consequenceType.setExonNumber(exon.getExonNumber());
+//                }
+//            } else {
+//                variantAhead = false;
+//            }
+//            exonCounter++;
+//        }
+//        solveMiRNA(cdnaVariantPosition, junctionSolution[1]);
+//    }
+
+//    protected void solveCodingNegativeTranscript() {
+//
+//        Exon exon = transcript.getExons().get(0);
+//        String transcriptSequence = exon.getSequence();
+//        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed
+//        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);  // cdnaExonEnd poinst to the same base than exonStart
+//        int cdnaVariantPosition = -1;
+//        int firstCdsPhase = -1;
+//        boolean[] junctionSolution = {false, false};
+//        boolean splicing = false;
+//
+//        if (transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {
+//            firstCdsPhase = exon.getPhase();
+//        }
+//        if (position &lt;= exon.getEnd() &amp;&amp; position &gt;= exon.getStart()) {  // Variant within the exon
+//            cdnaVariantPosition = cdnaExonEnd - (position - exon.getStart());
+//            consequenceType.setCdnaPosition(cdnaVariantPosition);
+//            consequenceType.setExonNumber(exon.getExonNumber());
+//        }
+//
+//        int exonCounter = 1;
+//        // This is not a do-while since we cannot call solveJunction until
+//        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {
+//            int prevSpliceSite = exon.getStart() - 1;
+//            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded
+//            transcriptSequence = exon.getSequence() + transcriptSequence;
+//            // Set firsCdsPhase only when the first coding exon is reached
+//            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {
+//                firstCdsPhase = exon.getPhase();
+//            }
+//            solveJunction(exon.getEnd() + 1, prevSpliceSite, VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT,
+//                    VariantAnnotationUtils.SPLICE_DONOR_VARIANT, junctionSolution);
+//            splicing = (splicing || junctionSolution[0]);
+//
+//            if (position &lt;= exon.getEnd()) {
+//                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);
+//                if (position &gt;= exon.getStart()) {  // Variant end within the exon
+//                    cdnaVariantPosition = cdnaExonEnd - (position - exon.getStart());
+//                    consequenceType.setCdnaPosition(cdnaVariantPosition);
+//                    consequenceType.setExonNumber(exon.getExonNumber());
+//                }
+//            } else {
+//                variantAhead = false;
+//            }
+//            exonCounter++;
+//        }
+//        // Is not intron variant (both ends fall within the same intron)
+//        if (!junctionSolution[1]) {
+//            solveExonVariantInNegativeTranscript(splicing, transcriptSequence, cdnaVariantPosition, firstCdsPhase);
+//        }
+//    }
+
+//    private void solveExonVariantInNegativeTranscript(boolean splicing, String transcriptSequence,
+//                                                      int cdnaVariantPosition, int firstCdsPhase) {
+//        if (position &gt; transcript.getGenomicCodingEnd()
+//                &amp;&amp; (transcript.getEnd() &gt; transcript.getGenomicCodingEnd()
+//                || transcript.unconfirmedStart())) { // Check transcript has 3 UTR
+//            SoNames.add(VariantAnnotationUtils.FIVE_PRIME_UTR_VARIANT);
+//        } else if (position &gt;= transcript.getGenomicCodingStart()) {
+//            // Need to define a local cdnaCodingStart because may modified in two lines below
+//            int cdnaCodingStart = transcript.getCdnaCodingStart();
+//            cdnaCodingStart = setCdsAndProteinPosition(cdnaVariantPosition, firstCdsPhase, cdnaCodingStart);
+//            solveCodingExonVariantInNegativeTranscript(splicing, transcriptSequence, cdnaCodingStart, cdnaVariantPosition);
+//        } else {
+//            if (transcript.getStart() &lt; transcript.getGenomicCodingStart() || transcript.unconfirmedEnd()) { // Check
+//                                                                                                             // transcript
+//                                                                                                             // has 3 UTR)
+//                SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);
+//            }
+//        }
+//    }
+
+//    private void solveCodingExonVariantInNegativeTranscript(Boolean splicing, String transcriptSequence,
+//                                                            int cdnaCodingStart, int cdnaVariantPosition) {
+//
+//        Boolean codingAnnotationAdded = false;
+//        if (cdnaVariantPosition != -1) {
+////            int finalNtPhase = (transcriptSequence.length() - cdnaCodingStart) % 3;
+//            int finalNtPhase = (transcript.getCdnaCodingEnd() - cdnaCodingStart) % 3;
+//            if (!splicing) {
+////                if ((cdnaVariantPosition &gt;= (transcriptSequence.length() - finalNtPhase)) &amp;&amp;
+//                //  Variant in the last codon of a transcript without stop codon. finalNtPhase==2 if the cds length is multiple of 3.
+//                if ((cdnaVariantPosition &gt;= (transcript.getCdnaCodingEnd() - finalNtPhase)) &amp;&amp; finalNtPhase != 2) {
+////                        (transcript.getStart()==transcript.getGenomicCodingStart()) &amp;&amp; finalNtPhase != 2) {
+//                    // If that is the case and variant ocurs in the last complete/incomplete codon, no coding prediction is needed
+//                    SoNames.add(VariantAnnotationUtils.INCOMPLETE_TERMINAL_CODON_VARIANT);
+//                } else if (cdnaVariantPosition &gt; (cdnaCodingStart + 2)
+//                        || cdnaCodingStart &gt; 0) { // cdnaCodingStart&lt;1 if cds_start_NF and phase!=0
+//                    Integer variantPhaseShift = (cdnaVariantPosition - cdnaCodingStart) % 3;
+//                    int modifiedCodonStart = cdnaVariantPosition - variantPhaseShift;
+//                    String reverseCodon =
+//                            new StringBuilder(transcriptSequence.substring(transcriptSequence.length() - modifiedCodonStart - 2,
+//                                    // Rigth limit of the substring sums +1 because substring does not include that position
+//                                    transcriptSequence.length() - modifiedCodonStart + 1)).reverse().toString();
+//                    char[] referenceCodon = reverseCodon.toCharArray();
+//                    referenceCodon[0] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon[0]);
+//                    referenceCodon[1] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon[1]);
+//                    referenceCodon[2] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon[2]);
+////                    char[] modifiedCodonArray = referenceCodon.clone();
+////                    modifiedCodonArray[variantPhaseShift] =
+////                            VariantAnnotationUtils.COMPLEMENTARY_NT.get(variant.getAlternate().toCharArray()[0]);
+//                    String referenceA = VariantAnnotationUtils.getAminoacid(chromosome.equals(&quot;MT&quot;),
+//                            String.valueOf(referenceCodon));
+////                    String alternativeA = VariantAnnotationUtils.getAminoacid(variant.getChromosome().equals(&quot;MT&quot;),
+////                            String.valueOf(modifiedCodonArray));
+//
+//                    if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+//                            String.valueOf(referenceCodon))) {
+//                        codingAnnotationAdded = true;
+//                        SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);
+//                    }
+////                        if (VariantAnnotationUtils.isSynonymousCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                            String.valueOf(referenceCodon), String.valueOf(modifiedCodonArray))) {
+////                        if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                String.valueOf(referenceCodon))) {
+////                            SoNames.add(VariantAnnotationUtils.STOP_RETAINED_VARIANT);
+////                        } else {  // coding end may be not correctly annotated (incomplete_terminal_codon_variant),
+////                            // but if the length of the cds%3=0, annotation should be synonymous variant
+////                            SoNames.add(VariantAnnotationUtils.SYNONYMOUS_VARIANT);
+////                        }
+////                    } else {
+////                        if (cdnaVariantPosition &lt; (cdnaCodingStart + 3)) {
+////                            // Gary - initiator codon SO terms not compatible with the terms below
+////                            SoNames.add(VariantAnnotationUtils.START_LOST);
+////                            if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                    String.valueOf(modifiedCodonArray))) {
+////                                // Gary - initiator codon SO terms not compatible with the terms below
+////                                SoNames.add(VariantAnnotationUtils.STOP_GAINED);
+////                            }
+////                        } else if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                String.valueOf(referenceCodon))) {
+////                            SoNames.add(VariantAnnotationUtils.STOP_LOST);
+////                        } else {
+////                            SoNames.add(VariantAnnotationUtils
+////                                    .isStopCodon(variant.getChromosome().equals(&quot;MT&quot;), String.valueOf(modifiedCodonArray))
+////                                    ? VariantAnnotationUtils.STOP_GAINED : VariantAnnotationUtils.MISSENSE_VARIANT);
+////                        }
+////                    }
+//                    // Set consequenceTypeTemplate.aChange
+////                    consequenceType.setAaChange(referenceA + &quot;/&quot; + alternativeA);
+//                    consequenceType.getProteinVariantAnnotation().setReference(referenceA);
+////                    consequenceType.getProteinVariantAnnotation().setAlternate(alternativeA);
+//                    // Fill consequenceTypeTemplate.codon leaving only the nt that changes in uppercase.
+//                    // Careful with upper/lower case letters
+//                    char[] referenceCodonArray = String.valueOf(referenceCodon).toLowerCase().toCharArray();
+//                    referenceCodonArray[variantPhaseShift] = Character.toUpperCase(referenceCodonArray[variantPhaseShift]);
+////                    modifiedCodonArray = String.valueOf(modifiedCodonArray).toLowerCase().toCharArray();
+////                    modifiedCodonArray[variantPhaseShift] = Character.toUpperCase(modifiedCodonArray[variantPhaseShift]);
+////                    consequenceType.setCodon(String.valueOf(referenceCodonArray) + &quot;/&quot; + String.valueOf(modifiedCodonArray));
+//                    consequenceType.setCodon(String.valueOf(referenceCodonArray));
+//                }
+//            }
+//        }
+//        if (!codingAnnotationAdded) {
+//            SoNames.add(&quot;coding_sequence_variant&quot;);
+//        }
+//    }
+
+//    private void solveTranscriptFlankingRegions(String leftRegionTag, String rightRegionTag) {
+//        // Variant within -5kb region
+//        if (position &gt; (transcript.getStart() - 5001) &amp;&amp; position &lt; transcript.getStart()) {
+//            // Variant within -2kb region
+//            if (position &gt; (transcript.getStart() - 2001)) {
+//                SoNames.add(&quot;2KB_&quot; + leftRegionTag);
+//            } else {
+//                SoNames.add(leftRegionTag);
+//            }
+//        }
+//        // Variant within +5kb region
+//        if (position &gt; transcript.getEnd() &amp;&amp; position &lt; (transcript.getEnd() + 5001)) {
+//            // Variant within +2kb region
+//            if (position &lt; (transcript.getEnd() + 2001)) {
+//                SoNames.add(&quot;2KB_&quot; + rightRegionTag);
+//            } else {
+//                SoNames.add(rightRegionTag);
+//            }
+//        }
+//    }
+
+//    protected void solveNonCodingPositiveTranscript() {
+//        Exon exon = transcript.getExons().get(0);
+//        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed
+//        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);
+//        int cdnaVariantPosition = -1;
+//        boolean[] junctionSolution = {false, false};
+//        junctionSolution[0] = false;
+//        junctionSolution[1] = false;
+//
+//        if (position &gt;= exon.getStart()) {
+//            if (position &lt;= exon.getEnd()) {  // Variant start within the exon
+//                cdnaVariantPosition = cdnaExonEnd - (exon.getEnd() - position);
+//                consequenceType.setCdnaPosition(cdnaVariantPosition);
+//                consequenceType.setExonNumber(exon.getExonNumber());
+//            }
+//        }
+//
+//        int exonCounter = 1;
+//        // This is not a do-while since we cannot call solveJunction  until
+//        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {
+//            int prevSpliceSite = exon.getEnd() + 1;
+//            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded
+//            solveJunction(prevSpliceSite, exon.getStart() - 1, VariantAnnotationUtils.SPLICE_DONOR_VARIANT,
+//                    VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT, junctionSolution);
+//
+//            if (position &gt;= exon.getStart()) {
+//                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);
+//                if (position &lt;= exon.getEnd()) {  // Variant within the exon
+//                    cdnaVariantPosition = cdnaExonEnd - (exon.getEnd() - position);
+//                    consequenceType.setCdnaPosition(cdnaVariantPosition);
+//                    consequenceType.setExonNumber(exon.getExonNumber());
+//                }
+//            } else {
+//                variantAhead = false;
+//            }
+//            exonCounter++;
+//        }
+//        solveMiRNA(cdnaVariantPosition, junctionSolution[1]);
+//    }
+//
+//    private void solveMiRNA(int cdnaVariantPosition, boolean isIntronicVariant) {
+//        if (transcript.getBiotype().equals(VariantAnnotationUtils.MIRNA)) {  // miRNA with miRBase data
+//            if (gene.getMirna() != null) {
+//                // This if provides equivalent functionality to the one in the original (before refactoring) version,
+//                // may be modified in the future
+//                if (cdnaVariantPosition == -1) {
+//                    SoNames.add(VariantAnnotationUtils.MATURE_MIRNA_VARIANT);
+//                } else {
+//                    List&lt;MiRNAGene.MiRNAMature&gt; miRNAMatureList = gene.getMirna().getMatures();
+//                    int i = 0;
+//                    while (i &lt; miRNAMatureList.size() &amp;&amp; (cdnaVariantPosition &lt; miRNAMatureList.get(i).cdnaStart
+//                            || cdnaVariantPosition &gt; miRNAMatureList.get(i).cdnaEnd)) {
+//                        i++;
+//                    }
+//                    if (i &lt; miRNAMatureList.size()) {  // Variant overlaps at least one mature miRNA
+//                        SoNames.add(VariantAnnotationUtils.MATURE_MIRNA_VARIANT);
+//                    } else {
+//                        addNonCodingSOs(isIntronicVariant);
+//                    }
+//                }
+//            } else {
+//                addNonCodingSOs(isIntronicVariant);
+//            }
+//        } else {
+//            addNonCodingSOs(isIntronicVariant);
+//        }
+//    }
+//
+//    protected void solveCodingPositiveTranscript() {
+//
+//        Exon exon = transcript.getExons().get(0);
+//        String transcriptSequence = exon.getSequence();
+//        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed
+//        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);
+//        int cdnaVariantPosition = -1;
+//        int firstCdsPhase = -1;
+//        boolean[] junctionSolution = {false, false};
+//        boolean splicing = false;
+//
+//        if (transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {
+//            firstCdsPhase = exon.getPhase();
+//        }
+//        if (position &gt;= exon.getStart() &amp;&amp; position &lt;= exon.getEnd()) {  // Variant start within the exon
+//            cdnaVariantPosition = cdnaExonEnd - (exon.getEnd() - position);
+//            consequenceType.setCdnaPosition(cdnaVariantPosition);
+//            consequenceType.setExonNumber(exon.getExonNumber());
+//        }
+//
+//        int exonCounter = 1;
+//        // This is not a do-while since we cannot call solveJunction  until
+//        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {
+//            int prevSpliceSite = exon.getEnd() + 1;
+//            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded
+//            transcriptSequence = transcriptSequence + exon.getSequence();
+//            // Set firsCdsPhase only when the first coding exon is reached
+//            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {
+//                firstCdsPhase = exon.getPhase();
+//            }
+//            solveJunction(prevSpliceSite, exon.getStart() - 1, VariantAnnotationUtils.SPLICE_DONOR_VARIANT,
+//                    VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT, junctionSolution);
+//            splicing = (splicing || junctionSolution[0]);
+//
+//            if (position &gt;= exon.getStart()) {
+//                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);
+//                if (position &lt;= exon.getEnd()) {  // Variant within the exon
+//                    cdnaVariantPosition = cdnaExonEnd - (exon.getEnd() - position);
+//                    consequenceType.setCdnaPosition(cdnaVariantPosition);
+//                    consequenceType.setExonNumber(exon.getExonNumber());
+//                }
+//            } else {
+//                variantAhead = false;
+//            }
+//            exonCounter++;
+//        }
+//
+//        // Is not intron variant (both ends fall within the same intron)
+//        if (!junctionSolution[1]) {
+//            solveExonVariantInPositiveTranscript(splicing, transcriptSequence, cdnaVariantPosition, firstCdsPhase);
+//        }
+//    }
+//
+//    private void solveExonVariantInPositiveTranscript(boolean splicing, String transcriptSequence, int cdnaVariantPosition,
+//                                                      int firstCdsPhase) {
+//        if (position &lt; transcript.getGenomicCodingStart()
+//                &amp;&amp; (transcript.getStart() &lt; transcript.getGenomicCodingStart()
+//                || transcript.unconfirmedStart())) { // Check transcript has 5 UTR
+//            SoNames.add(VariantAnnotationUtils.FIVE_PRIME_UTR_VARIANT);
+//        } else if (position &lt;= transcript.getGenomicCodingEnd()) {  // Variant start within coding region
+//            // Need to define a local cdnaCodingStart because may modified in two lines below
+//            int cdnaCodingStart = transcript.getCdnaCodingStart();
+//            cdnaCodingStart = setCdsAndProteinPosition(cdnaVariantPosition, firstCdsPhase, cdnaCodingStart);
+//            solveCodingExonVariantInPositiveTranscript(splicing, transcriptSequence, cdnaCodingStart,
+//                    cdnaVariantPosition);
+//        } else {
+//            if (transcript.getEnd() &gt; transcript.getGenomicCodingEnd() || transcript.unconfirmedEnd()) { // Check transcript has 3 UTR)
+//                SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);
+//            }
+//        }
+//    }
+//
+//    private void solveCodingExonVariantInPositiveTranscript(boolean splicing, String transcriptSequence, int cdnaCodingStart,
+//                                                            int cdnaVariantPosition) {
+//        // This will indicate whether it is needed to add the &quot;coding_sequence_variant&quot; annotation or not
+//        boolean codingAnnotationAdded = false;
+//        if (cdnaVariantPosition != -1) {
+////            int finalNtPhase = (transcriptSequence.length() - cdnaCodingStart) % 3;
+//            int finalNtPhase = (transcript.getCdnaCodingEnd() - cdnaCodingStart) % 3;
+//            if (!splicing) {
+////                if ((cdnaVariantPosition &gt;= (transcriptSequence.length() - finalNtPhase)) &amp;&amp;
+//                //  Variant in the last codon of a transcript without stop codon. finalNtPhase==2 if the cds length is multiple of 3.
+//                if ((cdnaVariantPosition &gt;= (transcript.getCdnaCodingEnd() - finalNtPhase)) &amp;&amp; finalNtPhase != 2) {
+////                        (transcript.getEnd()==transcript.getGenomicCodingEnd()) &amp;&amp; finalNtPhase != 2) {
+//                    // If not, avoid calculating reference/modified codon
+//                    SoNames.add(VariantAnnotationUtils.INCOMPLETE_TERMINAL_CODON_VARIANT);
+//                } else if (cdnaVariantPosition &gt; (cdnaCodingStart + 2)
+//                        || cdnaCodingStart &gt; 0) {  // cdnaCodingStart&lt;1 if cds_start_NF and phase!=0
+//                    int variantPhaseShift = (cdnaVariantPosition - cdnaCodingStart) % 3;
+//                    int modifiedCodonStart = cdnaVariantPosition - variantPhaseShift;
+//                    // -1 and +2 because of base 0 String indexing
+//                    String referenceCodon = transcriptSequence.substring(modifiedCodonStart - 1, modifiedCodonStart + 2);
+////                    char[] modifiedCodonArray = referenceCodon.toCharArray();
+////                    modifiedCodonArray[variantPhaseShift] = variant.getAlternate().toCharArray()[0];
+//                    String referenceA =
+//                            VariantAnnotationUtils.getAminoacid(chromosome.equals(&quot;MT&quot;), referenceCodon);
+////                    String alternativeA =
+////                            VariantAnnotationUtils.getAminoacid(variant.getChromosome().equals(&quot;MT&quot;),
+////                                    String.valueOf(modifiedCodonArray));
+//
+//                    if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;), referenceCodon)) {
+//                        codingAnnotationAdded = true;
+//                        SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);
+//                    }
+////                    if (VariantAnnotationUtils.isSynonymousCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                            referenceCodon, String.valueOf(modifiedCodonArray))) {
+////                        if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;), referenceCodon)) {
+////                            SoNames.add(VariantAnnotationUtils.STOP_RETAINED_VARIANT);
+////                        } else {  // coding end may be not correctly annotated (incomplete_terminal_codon_variant),
+////                            // but if the length of the cds%3=0, annotation should be synonymous variant
+////                            SoNames.add(VariantAnnotationUtils.SYNONYMOUS_VARIANT);
+////                        }
+////                    } else {
+////                        if (cdnaVariantPosition &lt; (cdnaCodingStart + 3)) {
+////                            // Gary - initiator codon SO terms not compatible with the terms below
+////                            SoNames.add(VariantAnnotationUtils.START_LOST);
+////                            if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                    String.valueOf(modifiedCodonArray))) {
+////                                // Gary - initiator codon SO terms not compatible with the terms below
+////                                SoNames.add(VariantAnnotationUtils.STOP_GAINED);
+////                            }
+////                        } else if (VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                String.valueOf(referenceCodon))) {
+////                            SoNames.add(VariantAnnotationUtils.STOP_LOST);
+////                        } else {
+////                            SoNames.add(VariantAnnotationUtils.isStopCodon(variant.getChromosome().equals(&quot;MT&quot;),
+////                                    String.valueOf(modifiedCodonArray))
+////                                    ? VariantAnnotationUtils.STOP_GAINED : VariantAnnotationUtils.MISSENSE_VARIANT);
+////                        }
+////                    }
+////                    // Set consequenceTypeTemplate.aChange
+//////                    consequenceType.setAaChange(referenceA + &quot;/&quot; + alternativeA);
+//                    consequenceType.getProteinVariantAnnotation().setReference(referenceA);
+////                    consequenceType.getProteinVariantAnnotation().setAlternate(alternativeA);
+//                    // Set consequenceTypeTemplate.codon leaving only the nt that changes in uppercase.
+//                    // Careful with upper/lower case letters
+//                    char[] referenceCodonArray = referenceCodon.toLowerCase().toCharArray();
+//                    referenceCodonArray[variantPhaseShift] = Character.toUpperCase(referenceCodonArray[variantPhaseShift]);
+////                    modifiedCodonArray = String.valueOf(modifiedCodonArray).toLowerCase().toCharArray();
+////                    modifiedCodonArray[variantPhaseShift] = Character.toUpperCase(modifiedCodonArray[variantPhaseShift]);
+////                    consequenceType.setCodon(String.valueOf(referenceCodonArray) + &quot;/&quot; + String.valueOf(modifiedCodonArray));
+//                    consequenceType.setCodon(String.valueOf(referenceCodonArray));
+//                }
+//            }
+//        }
+//        if (!codingAnnotationAdded) {
+//            SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);
+//        }
+//    }
+//
+//    private void solveJunction(Integer spliceSite1, Integer spliceSite2, String leftSpliceSiteTag,
+//                               String rightSpliceSiteTag, boolean[] junctionSolution) {
+//
+//        junctionSolution[0] = false;  // Is splicing variant in non-coding region
+//        junctionSolution[1] = false;  // Variant is intronic and both ends fall within the intron
+//
+//        // Variant overlaps the rest of intronic region (splice region within the intron and/or rest of intron)
+//        if (position &gt; (spliceSite1 + 1) &amp;&amp; position &lt; (spliceSite2 - 1)) {
+//            SoNames.add(VariantAnnotationUtils.INTRON_VARIANT);
+//            junctionSolution[1] = true;  // variant falls within the intron
+//        } else {
+//            if (position &gt;= spliceSite1 &amp;&amp; position &lt;= spliceSite2) {
+//                junctionSolution[1] = true;  // variant falls within the intron
+//            }
+//        }
+//
+//        if (position.equals(spliceSite1) || position.equals(spliceSite1 + 1)) {  // Variant donor/acceptor
+//            SoNames.add(leftSpliceSiteTag);  // donor/acceptor depending on transcript strand
+//            // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+//            junctionSolution[0] = (position &lt;= spliceSite2);
+//        } else {
+//            if (position &gt; (spliceSite1 + 1) &amp;&amp; position &lt; (spliceSite1 + 8)) {
+//                SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);
+//                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+//                junctionSolution[0] = (position &lt;= spliceSite2);
+//            } else {
+//                // Insertion coordinates are passed to this function as (variantStart-1,variantStart)
+//                if (position &gt; (spliceSite1 - 4) &amp;&amp; position &lt; spliceSite1) {
+//                    SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);
+//                }
+//            }
+//        }
+//
+//        if (position.equals(spliceSite2 - 1) || position.equals(spliceSite2)) {  // Variant donor/acceptor
+//            SoNames.add(rightSpliceSiteTag);  // donor/acceptor depending on transcript strand
+//            // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+//            junctionSolution[0] = (position &gt;= spliceSite1);
+//        } else {
+//            if (position &lt; (spliceSite2 - 1) &amp;&amp; position &gt; (spliceSite2 - 8)) {
+//                SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);
+//                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+//                junctionSolution[0] = (spliceSite1 &lt;= position);
+//            } else {
+//                // Insertion coordinates are passed to this function as (variantStart-1,variantStart)
+//                if (position &lt; (spliceSite2 + 4) &amp;&amp; position &gt; spliceSite2) {
+//                    SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);
+//                }
+//            }
+//        }
+//
+//    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

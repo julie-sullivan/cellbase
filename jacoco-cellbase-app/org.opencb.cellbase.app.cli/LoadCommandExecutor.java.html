@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">LoadCommandExecutor.java</span></div><h1>LoadCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import org.opencb.cellbase.core.loader.LoadRunner;
+import org.opencb.cellbase.core.loader.LoaderException;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.ExecutionException;
+
+/**
+ * Created by imedina on 03/02/15.
+ */
+public class LoadCommandExecutor extends CommandExecutor {
+
+    private static final String METADATA = &quot;metadata&quot;;
+    private LoadRunner loadRunner;
+    private CliOptionsParser.LoadCommandOptions loadCommandOptions;
+
+    private Path input;
+
+    private String database;
+    private String field;
+    private String[] innerFields;
+    private String loader;
+    private int numThreads;
+
+    public LoadCommandExecutor(CliOptionsParser.LoadCommandOptions loadCommandOptions) {
+<span class="nc" id="L50">        super(loadCommandOptions.commonOptions.logLevel, loadCommandOptions.commonOptions.verbose,</span>
+                loadCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L53">        this.loadCommandOptions = loadCommandOptions;</span>
+
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (loadCommandOptions.input != null) {</span>
+<span class="nc" id="L56">            input = Paths.get(loadCommandOptions.input);</span>
+        }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (loadCommandOptions.database != null) {</span>
+<span class="nc" id="L59">            database = loadCommandOptions.database;</span>
+        }
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if (loadCommandOptions.field != null) {</span>
+<span class="nc" id="L62">            field = loadCommandOptions.field;</span>
+        }
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if (loadCommandOptions.innerFields != null) {</span>
+<span class="nc" id="L65">            innerFields = loadCommandOptions.innerFields.split(&quot;,&quot;);</span>
+        }
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (loadCommandOptions.loader != null) {</span>
+<span class="nc" id="L68">            loader = loadCommandOptions.loader;</span>
+        }
+<span class="nc" id="L70">    }</span>
+
+
+    /**
+     * Parse specific 'data' command options.
+     */
+    public void execute() {
+
+<span class="nc" id="L78">        checkParameters();</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (loadCommandOptions.data != null) {</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            if (loadCommandOptions.loaderParams.containsKey(&quot;mongodb-index-folder&quot;)) {</span>
+<span class="nc" id="L83">                configuration.getDatabases().getMongodb().getOptions().put(&quot;mongodb-index-folder&quot;,</span>
+<span class="nc" id="L84">                        loadCommandOptions.loaderParams.get(&quot;mongodb-index-folder&quot;));</span>
+            }
+            // If 'authenticationDatabase' is not passed by argument then we read it from configuration.json
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (loadCommandOptions.loaderParams.containsKey(&quot;authenticationDatabase&quot;)) {</span>
+<span class="nc" id="L88">                configuration.getDatabases().getMongodb().getOptions().put(&quot;authenticationDatabase&quot;,</span>
+<span class="nc" id="L89">                        loadCommandOptions.loaderParams.get(&quot;authenticationDatabase&quot;));</span>
+            }
+
+//                loadRunner = new LoadRunner(loader, database, loadCommandOptions.loaderParams, numThreads, configuration);
+<span class="nc" id="L93">            loadRunner = new LoadRunner(loader, database, numThreads, configuration);</span>
+
+            String[] loadOptions;
+<span class="nc bnc" id="L96" title="All 2 branches missed.">            if (loadCommandOptions.data.equals(&quot;all&quot;)) {</span>
+<span class="nc" id="L97">                loadOptions = new String[]{EtlCommons.GENOME_DATA, EtlCommons.GENE_DATA, EtlCommons.CONSERVATION_DATA,</span>
+                        EtlCommons.REGULATION_DATA, EtlCommons.PROTEIN_DATA, EtlCommons.PPI_DATA,
+                        EtlCommons.PROTEIN_FUNCTIONAL_PREDICTION_DATA, EtlCommons.VARIATION_DATA,
+                        EtlCommons.VARIATION_FUNCTIONAL_SCORE_DATA, EtlCommons.CLINICAL_VARIANTS_DATA,
+                        EtlCommons.REPEATS_DATA, EtlCommons.STRUCTURAL_VARIANTS_DATA, };
+            } else {
+<span class="nc" id="L103">                loadOptions = loadCommandOptions.data.split(&quot;,&quot;);</span>
+            }
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            for (int i = 0; i &lt; loadOptions.length; i++) {</span>
+<span class="nc" id="L107">                String loadOption = loadOptions[i];</span>
+                try {
+<span class="nc bnc" id="L109" title="All 50 branches missed.">                    switch (loadOption) {</span>
+                        case EtlCommons.GENOME_DATA:
+<span class="nc" id="L111">                            loadIfExists(input.resolve(&quot;genome_info.json&quot;), &quot;genome_info&quot;);</span>
+<span class="nc" id="L112">                            loadIfExists(input.resolve(&quot;genome_sequence.json.gz&quot;), &quot;genome_sequence&quot;);</span>
+<span class="nc" id="L113">                            loadIfExists(input.resolve(&quot;genomeVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L114">                            loadRunner.index(&quot;genome_sequence&quot;);</span>
+<span class="nc" id="L115">                            break;</span>
+                        case EtlCommons.GENE_DATA:
+<span class="nc" id="L117">                            loadIfExists(input.resolve(&quot;gene.json.gz&quot;), &quot;gene&quot;);</span>
+<span class="nc" id="L118">                            loadIfExists(input.resolve(&quot;dgidbVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L119">                            loadIfExists(input.resolve(&quot;ensemblCoreVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L120">                            loadIfExists(input.resolve(&quot;uniprotXrefVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L121">                            loadIfExists(input.resolve(&quot;geneExpressionAtlasVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L122">                            loadIfExists(input.resolve(&quot;hpoVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L123">                            loadIfExists(input.resolve(&quot;disgenetVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L124">                            loadRunner.index(&quot;gene&quot;);</span>
+<span class="nc" id="L125">                            break;</span>
+                        case EtlCommons.VARIATION_DATA:
+<span class="nc" id="L127">                            loadVariationData();</span>
+<span class="nc" id="L128">                            break;</span>
+                        case EtlCommons.VARIATION_FUNCTIONAL_SCORE_DATA:
+<span class="nc" id="L130">                            loadIfExists(input.resolve(&quot;cadd.json.gz&quot;), &quot;cadd&quot;);</span>
+<span class="nc" id="L131">                            loadIfExists(input.resolve(&quot;caddVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L132">                            loadRunner.index(&quot;variation_functional_score&quot;);</span>
+<span class="nc" id="L133">                            break;</span>
+                        case EtlCommons.CONSERVATION_DATA:
+<span class="nc" id="L135">                            loadConservation();</span>
+<span class="nc" id="L136">                            break;</span>
+                        case EtlCommons.REGULATION_DATA:
+<span class="nc" id="L138">                            loadIfExists(input.resolve(&quot;regulatory_region.json.gz&quot;), &quot;regulatory_region&quot;);</span>
+<span class="nc" id="L139">                            loadIfExists(input.resolve(&quot;ensemblRegulationVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L140">                            loadIfExists(input.resolve(&quot;mirbaseVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L141">                            loadIfExists(input.resolve(&quot;targetScanVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L142">                            loadIfExists(input.resolve(&quot;miRTarBaseVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L143">                            loadRunner.index(&quot;regulatory_region&quot;);</span>
+<span class="nc" id="L144">                            break;</span>
+                        case EtlCommons.PROTEIN_DATA:
+<span class="nc" id="L146">                            loadIfExists(input.resolve(&quot;protein.json.gz&quot;), &quot;protein&quot;);</span>
+<span class="nc" id="L147">                            loadIfExists(input.resolve(&quot;uniprotVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L148">                            loadIfExists(input.resolve(&quot;interproVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L149">                            loadRunner.index(&quot;protein&quot;);</span>
+<span class="nc" id="L150">                            break;</span>
+                        case EtlCommons.PPI_DATA:
+<span class="nc" id="L152">                            loadIfExists(input.resolve(&quot;protein_protein_interaction.json.gz&quot;), &quot;protein_protein_interaction&quot;);</span>
+<span class="nc" id="L153">                            loadIfExists(input.resolve(&quot;intactVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L154">                            loadRunner.index(&quot;protein_protein_interaction&quot;);</span>
+<span class="nc" id="L155">                            break;</span>
+                        case EtlCommons.PROTEIN_FUNCTIONAL_PREDICTION_DATA:
+<span class="nc" id="L157">                            loadProteinFunctionalPrediction();</span>
+<span class="nc" id="L158">                            break;</span>
+                        case EtlCommons.CLINICAL_VARIANTS_DATA:
+<span class="nc" id="L160">                            loadClinical();</span>
+<span class="nc" id="L161">                            break;</span>
+                        case EtlCommons.REPEATS_DATA:
+<span class="nc" id="L163">                            loadRepeats();</span>
+<span class="nc" id="L164">                            break;</span>
+                        case EtlCommons.STRUCTURAL_VARIANTS_DATA:
+<span class="nc" id="L166">                            loadStructuralVariants();</span>
+<span class="nc" id="L167">                            break;</span>
+                        default:
+<span class="nc" id="L169">                            logger.warn(&quot;Not valid 'data'. We should not reach this point&quot;);</span>
+                            break;
+                    }
+<span class="nc" id="L172">                } catch (IllegalAccessException | InstantiationException | InvocationTargetException | ExecutionException</span>
+                        | NoSuchMethodException | InterruptedException | ClassNotFoundException | LoaderException | IOException e) {
+<span class="nc" id="L174">                    e.printStackTrace();</span>
+<span class="nc" id="L175">                }</span>
+            }
+        }
+<span class="nc" id="L178">    }</span>
+
+    private void loadStructuralVariants() throws NoSuchMethodException, IllegalAccessException, InstantiationException,
+            LoaderException, InvocationTargetException, ClassNotFoundException {
+<span class="nc" id="L182">        Path path = input.resolve(EtlCommons.STRUCTURAL_VARIANTS_JSON + &quot;.json.gz&quot;);</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        if (Files.exists(path)) {</span>
+            try {
+<span class="nc" id="L185">                logger.debug(&quot;Loading '{}' ...&quot;, path.toString());</span>
+<span class="nc" id="L186">                loadRunner.load(path, EtlCommons.STRUCTURAL_VARIANTS_DATA);</span>
+<span class="nc" id="L187">                loadIfExists(input.resolve(EtlCommons.DGV_VERSION_FILE), &quot;metadata&quot;);</span>
+<span class="nc" id="L188">            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | InvocationTargetException</span>
+                    | IllegalAccessException | ExecutionException | IOException | InterruptedException e) {
+<span class="nc" id="L190">                logger.error(e.toString());</span>
+<span class="nc" id="L191">            }</span>
+        }
+        // Assuming variation collection is already indexed
+//        loadRunner.index(&quot;variation&quot;);
+<span class="nc" id="L195">    }</span>
+
+    private void loadIfExists(Path path, String collection) throws NoSuchMethodException, InterruptedException,
+            ExecutionException, InstantiationException, IOException, IllegalAccessException, InvocationTargetException,
+            ClassNotFoundException {
+<span class="nc" id="L200">        File file = new File(path.toString());</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">        if (file.exists()) {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">            if (file.isFile()) {</span>
+<span class="nc" id="L203">                loadRunner.load(path, collection);</span>
+            } else {
+<span class="nc" id="L205">                logger.warn(&quot;{} is not a file - skipping&quot;, path.toString());</span>
+            }
+        } else {
+<span class="nc" id="L208">            logger.warn(&quot;{} does not exist - skipping&quot;, path.toString());</span>
+        }
+<span class="nc" id="L210">    }</span>
+
+    private void checkParameters() {
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (loadCommandOptions.numThreads &gt; 1) {</span>
+<span class="nc" id="L214">            numThreads = loadCommandOptions.numThreads;</span>
+        } else {
+<span class="nc" id="L216">            numThreads = 1;</span>
+<span class="nc" id="L217">            logger.warn(&quot;Incorrect number of numThreads, it must be a positive value. This has been set to '{}'&quot;, numThreads);</span>
+        }
+
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        if (field != null) {</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            if (loadCommandOptions.data == null) {</span>
+<span class="nc" id="L222">                logger.error(&quot;--data option cannot be empty. Please provide a valid value for the --data parameter.&quot;);</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            } else if (!Files.exists(input)) {</span>
+<span class="nc" id="L224">                logger.error(&quot;Input parameter {} does not exist&quot;, input);</span>
+            }
+<span class="nc bnc" id="L226" title="All 4 branches missed.">        } else if (!Files.exists(input) || !Files.isDirectory(input)) {</span>
+<span class="nc" id="L227">            logger.error(&quot;Input parameter {} does not exist or is not a directory&quot;, input);</span>
+        }
+        try {
+<span class="nc" id="L230">            Class.forName(loader);</span>
+<span class="nc" id="L231">        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L232">            logger.error(&quot;Loader Java class '{}' does not exist&quot;, loader);</span>
+<span class="nc" id="L233">            e.printStackTrace();</span>
+<span class="nc" id="L234">            System.exit(-1);</span>
+<span class="nc" id="L235">        }</span>
+<span class="nc" id="L236">    }</span>
+
+
+    private void loadVariationData() throws NoSuchMethodException, InterruptedException, ExecutionException,
+            InstantiationException, IllegalAccessException, InvocationTargetException, ClassNotFoundException,
+            IOException, LoaderException {
+
+        // Common loading process from CellBase variation data models
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (field == null) {</span>
+<span class="nc" id="L245">            DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(input, entry -&gt; {</span>
+<span class="nc" id="L246">                return entry.getFileName().toString().startsWith(&quot;variation_chr&quot;);</span>
+            });
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            for (Path entry : stream) {</span>
+<span class="nc" id="L250">                logger.info(&quot;Loading file '{}'&quot;, entry.toString());</span>
+<span class="nc" id="L251">                loadRunner.load(input.resolve(entry.getFileName()), &quot;variation&quot;);</span>
+<span class="nc" id="L252">            }</span>
+<span class="nc" id="L253">            loadIfExists(input.resolve(&quot;ensemblVariationVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L254">            loadRunner.index(&quot;variation&quot;);</span>
+            // Custom update required e.g. population freqs loading
+<span class="nc" id="L256">        } else {</span>
+<span class="nc" id="L257">            logger.info(&quot;Loading file '{}'&quot;, input.toString());</span>
+<span class="nc" id="L258">            loadRunner.load(input, &quot;variation&quot;, field, innerFields);</span>
+        }
+<span class="nc" id="L260">    }</span>
+
+    private void loadConservation() throws NoSuchMethodException, InterruptedException, ExecutionException,
+            InstantiationException, IllegalAccessException, InvocationTargetException, ClassNotFoundException,
+            IOException, LoaderException {
+
+<span class="nc" id="L266">        DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(input, entry -&gt; {</span>
+<span class="nc" id="L267">            return entry.getFileName().toString().startsWith(&quot;conservation_&quot;);</span>
+        });
+
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        for (Path entry : stream) {</span>
+<span class="nc" id="L271">            logger.info(&quot;Loading file '{}'&quot;, entry.toString());</span>
+<span class="nc" id="L272">            loadRunner.load(input.resolve(entry.getFileName()), &quot;conservation&quot;);</span>
+<span class="nc" id="L273">        }</span>
+<span class="nc" id="L274">        loadIfExists(input.resolve(&quot;gerpVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L275">        loadIfExists(input.resolve(&quot;phastConsVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L276">        loadIfExists(input.resolve(&quot;phyloPVersion.json&quot;), METADATA);</span>
+<span class="nc" id="L277">        loadRunner.index(&quot;conservation&quot;);</span>
+<span class="nc" id="L278">    }</span>
+
+    private void loadProteinFunctionalPrediction() throws NoSuchMethodException, InterruptedException, ExecutionException,
+            InstantiationException, IllegalAccessException, InvocationTargetException, ClassNotFoundException,
+            IOException, LoaderException {
+
+<span class="nc" id="L284">        DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(input, entry -&gt; {</span>
+<span class="nc" id="L285">            return entry.getFileName().toString().startsWith(&quot;prot_func_pred_&quot;);</span>
+        });
+
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        for (Path entry : stream) {</span>
+<span class="nc" id="L289">            logger.info(&quot;Loading file '{}'&quot;, entry.toString());</span>
+<span class="nc" id="L290">            loadRunner.load(input.resolve(entry.getFileName()), &quot;protein_functional_prediction&quot;);</span>
+<span class="nc" id="L291">        }</span>
+<span class="nc" id="L292">        loadRunner.index(&quot;protein_functional_prediction&quot;);</span>
+<span class="nc" id="L293">    }</span>
+
+    private void loadClinical() throws NoSuchMethodException, IllegalAccessException, InstantiationException,
+            LoaderException, InvocationTargetException, ClassNotFoundException, FileNotFoundException {
+
+//        Map&lt;String, String&gt; files = new LinkedHashMap&lt;&gt;();
+//        files.put(&quot;clinvar&quot;, &quot;clinvar.json.gz&quot;);
+//        files.put(&quot;cosmic&quot;, &quot;cosmic.json.gz&quot;);
+//        files.put(&quot;gwas&quot;, &quot;gwas.json.gz&quot;);
+//        files.put(&quot;gwas&quot;, &quot;gwas.json.gz&quot;);
+
+//        files.keySet().forEach(entry -&gt; {
+//            Path path = input.resolve(files.get(entry));
+<span class="nc" id="L306">        Path path = input.resolve(EtlCommons.CLINICAL_VARIANTS_ANNOTATED_JSON_FILE);</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">        if (Files.exists(path)) {</span>
+            try {
+<span class="nc" id="L309">                logger.info(&quot;Loading '{}' ...&quot;, path.toString());</span>
+<span class="nc" id="L310">                loadRunner.load(path, EtlCommons.CLINICAL_VARIANTS_DATA);</span>
+<span class="nc" id="L311">                loadIfExists(input.resolve(&quot;clinvarVersion.json&quot;), &quot;metadata&quot;);</span>
+<span class="nc" id="L312">                loadIfExists(input.resolve(&quot;cosmicVersion.json&quot;), &quot;metadata&quot;);</span>
+<span class="nc" id="L313">                loadIfExists(input.resolve(&quot;gwasVersion.json&quot;), &quot;metadata&quot;);</span>
+<span class="nc" id="L314">            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | InvocationTargetException</span>
+                    | IllegalAccessException | ExecutionException | IOException | InterruptedException e) {
+<span class="nc" id="L316">                logger.error(e.toString());</span>
+<span class="nc" id="L317">            }</span>
+        } else {
+<span class="nc" id="L319">            throw new FileNotFoundException(&quot;File &quot; + path.toString() + &quot; does not exist&quot;);</span>
+        }
+//        });
+<span class="nc" id="L322">        loadRunner.index(&quot;clinical_variants&quot;);</span>
+//        loadRunner.index(&quot;clinical&quot;);
+<span class="nc" id="L324">    }</span>
+
+    private void loadRepeats() throws NoSuchMethodException, IllegalAccessException, InstantiationException,
+            LoaderException, InvocationTargetException, ClassNotFoundException {
+
+<span class="nc" id="L329">        Path path = input.resolve(EtlCommons.REPEATS_JSON + &quot;.json.gz&quot;);</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        if (Files.exists(path)) {</span>
+            try {
+<span class="nc" id="L332">                logger.debug(&quot;Loading '{}' ...&quot;, path.toString());</span>
+<span class="nc" id="L333">                loadRunner.load(path, EtlCommons.REPEATS_DATA);</span>
+<span class="nc" id="L334">                loadIfExists(input.resolve(EtlCommons.TRF_VERSION_FILE), METADATA);</span>
+<span class="nc" id="L335">                loadIfExists(input.resolve(EtlCommons.GSD_VERSION_FILE), METADATA);</span>
+<span class="nc" id="L336">                loadIfExists(input.resolve(EtlCommons.WM_VERSION_FILE), METADATA);</span>
+<span class="nc" id="L337">            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | InvocationTargetException</span>
+                    | IllegalAccessException | ExecutionException | IOException | InterruptedException e) {
+<span class="nc" id="L339">                logger.error(e.toString());</span>
+<span class="nc" id="L340">            }</span>
+<span class="nc" id="L341">            loadRunner.index(EtlCommons.REPEATS_DATA);</span>
+        } else {
+<span class="nc" id="L343">            logger.warn(&quot;Repeats file {} not found&quot;, path.toString());</span>
+<span class="nc" id="L344">            logger.warn(&quot;No repeats data will be loaded&quot;);</span>
+        }
+//        Map&lt;String, String&gt; files = new LinkedHashMap&lt;&gt;();
+//        files.put(&quot;simpleRepeat&quot;, &quot;simpleRepeat.json.gz&quot;);
+//        files.put(&quot;genomicSuperDup&quot;, &quot;genomicSuperDup.json.gz&quot;);
+//        files.put(&quot;windowMasker&quot;, &quot;windowMasker.json.gz&quot;);
+//
+//        files.keySet().forEach(entry -&gt; {
+//            Path path = input.resolve(files.get(entry));
+//            if (Files.exists(path)) {
+//                try {
+//                    logger.debug(&quot;Loading '{}' ...&quot;, entry);
+//                    loadRunner.load(path, entry);
+//                    loadIfExists(input.resolve(EtlCommons.TRF_VERSION_FILE), &quot;metadata&quot;);
+//                    loadIfExists(input.resolve(EtlCommons.GSD_VERSION_FILE), &quot;metadata&quot;);
+//                    loadIfExists(input.resolve(EtlCommons.WM_VERSION_FILE), &quot;metadata&quot;);
+//                } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | InvocationTargetException
+//                        | IllegalAccessException | ExecutionException | IOException | InterruptedException e) {
+//                    logger.error(e.toString());
+//                }
+//            }
+//        });
+
+<span class="nc" id="L367">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

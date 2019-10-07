@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GwasTrait.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.clinical.gwas</a> &gt; <span class="el_source">GwasTrait.java</span></div><h1>GwasTrait.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.clinical.gwas;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+* Created by parce on 5/12/14.
+*/
+public class GwasTrait {
+
+    private String diseaseTrait;
+    private String dateAddedToCatalog;
+    private List&lt;GwasTest&gt; tests;
+
+<span class="nc" id="L31">    public GwasTrait() {}</span>
+
+<span class="nc" id="L33">    public GwasTrait(String diseaseTrait, String dateAddedToCatalog) {</span>
+<span class="nc" id="L34">        this.diseaseTrait = diseaseTrait;</span>
+<span class="nc" id="L35">        this.dateAddedToCatalog = dateAddedToCatalog;</span>
+<span class="nc" id="L36">        this.tests = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L37">    }</span>
+
+    public String getDiseaseTrait() {
+<span class="nc" id="L40">        return diseaseTrait;</span>
+    }
+
+    public void setDiseaseTrait(String diseaseTrait) {
+<span class="nc" id="L44">        this.diseaseTrait = diseaseTrait;</span>
+<span class="nc" id="L45">    }</span>
+
+
+    public String getDateAddedToCatalog() {
+<span class="nc" id="L49">        return dateAddedToCatalog;</span>
+    }
+
+    public void setDateAddedToCatalog(String dateAddedToCatalog) {
+<span class="nc" id="L53">        this.dateAddedToCatalog = dateAddedToCatalog;</span>
+<span class="nc" id="L54">    }</span>
+
+    public List&lt;GwasTest&gt; getTests() {
+<span class="nc" id="L57">        return this.tests;</span>
+    }
+
+    public void setTests(List&lt;GwasTest&gt; tests) {
+<span class="nc" id="L61">        this.tests = tests;</span>
+<span class="nc" id="L62">    }</span>
+
+    public void addTests(List&lt;GwasTest&gt; tests) {
+<span class="nc" id="L65">        this.tests.addAll(tests);</span>
+<span class="nc" id="L66">    }</span>
+
+    public void addTest(GwasTest test) {
+<span class="nc" id="L69">        this.tests.add(test);</span>
+<span class="nc" id="L70">    }</span>
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc" id="L74">        boolean equals = false;</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (o instanceof GwasTrait) {</span>
+<span class="nc" id="L76">            equals = this.diseaseTrait.equals(((GwasTrait)o).getDiseaseTrait());</span>
+        }
+<span class="nc" id="L78">        return equals;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L83">        return this.diseaseTrait.hashCode();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

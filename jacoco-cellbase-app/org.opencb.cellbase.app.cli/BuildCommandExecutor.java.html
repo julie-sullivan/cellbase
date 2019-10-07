@@ -1,0 +1,485 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BuildCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">BuildCommandExecutor.java</span></div><h1>BuildCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.beust.jcommander.ParameterException;
+import org.opencb.cellbase.app.transform.*;
+import org.opencb.cellbase.app.transform.clinical.variant.ClinVarParser;
+import org.opencb.cellbase.app.transform.clinical.variant.ClinicalVariantParser;
+import org.opencb.cellbase.app.transform.clinical.variant.CosmicParser;
+import org.opencb.cellbase.app.transform.clinical.variant.GwasParser;
+import org.opencb.cellbase.app.transform.variation.VariationParser;
+import org.opencb.cellbase.core.config.Species;
+import org.opencb.cellbase.core.serializer.CellBaseFileSerializer;
+import org.opencb.cellbase.core.serializer.CellBaseJsonFileSerializer;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Created by imedina on 03/02/15.
+ */
+public class BuildCommandExecutor extends CommandExecutor {
+
+    // TODO: these constants should be defined in the 'download' module
+    public static final String GWAS_INPUT_FILE_NAME = &quot;gwas_catalog.tsv&quot;;
+    public static final String CADD_INPUT_FILE_NAME = &quot;whole_genome_SNVs.tsv.gz&quot;;
+    public static final String DISGENET_INPUT_FILE_NAME = &quot;all_gene_disease_associations.txt.gz&quot;;
+    public static final String HPO_INPUT_FILE_NAME = &quot;ALL_SOURCES_ALL_FREQUENCIES_diseases_to_genes_to_phenotypes.txt&quot;;
+    public static final String DBSNP_INPUT_FILE_NAME = &quot;All.vcf.gz&quot;;
+
+    private CliOptionsParser.BuildCommandOptions buildCommandOptions;
+
+<span class="nc" id="L55">    private Path input = null;</span>
+<span class="nc" id="L56">    private Path output = null;</span>
+<span class="nc" id="L57">    private Path common = null;</span>
+<span class="nc" id="L58">    private boolean normalize = true;</span>
+
+    private File ensemblScriptsFolder;
+    private File proteinScriptsFolder;
+
+    private boolean flexibleGTFParsing;
+    private Species species;
+
+    public BuildCommandExecutor(CliOptionsParser.BuildCommandOptions buildCommandOptions) {
+<span class="nc" id="L67">        super(buildCommandOptions.commonOptions.logLevel, buildCommandOptions.commonOptions.verbose,</span>
+                buildCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L70">        this.buildCommandOptions = buildCommandOptions;</span>
+
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (buildCommandOptions.input != null) {</span>
+<span class="nc" id="L73">            input = Paths.get(buildCommandOptions.input);</span>
+        }
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (buildCommandOptions.output != null) {</span>
+<span class="nc" id="L76">            output = Paths.get(buildCommandOptions.output);</span>
+        }
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (buildCommandOptions.common != null) {</span>
+<span class="nc" id="L79">            common = Paths.get(buildCommandOptions.common);</span>
+        } else {
+<span class="nc" id="L81">            common = input.getParent().getParent().resolve(&quot;common&quot;);</span>
+        }
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        normalize = !buildCommandOptions.skipNormalize;</span>
+
+<span class="nc" id="L85">        this.ensemblScriptsFolder = new File(System.getProperty(&quot;basedir&quot;) + &quot;/bin/ensembl-scripts/&quot;);</span>
+<span class="nc" id="L86">        this.proteinScriptsFolder = new File(System.getProperty(&quot;basedir&quot;) + &quot;/bin/protein/&quot;);</span>
+<span class="nc" id="L87">        this.flexibleGTFParsing = buildCommandOptions.flexibleGTFParsing;</span>
+<span class="nc" id="L88">    }</span>
+
+
+    /**
+     * Parse specific 'build' command options.
+     */
+    public void execute() {
+        try {
+<span class="nc" id="L96">            checkParameters();</span>
+
+            // Output directory need to be created if it not exists
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (!Files.exists(output)) {</span>
+<span class="nc" id="L100">                Files.createDirectories(output);</span>
+            }
+
+            // We need to get the Species object from the CLI name
+            // This can be the scientific or common name, or the ID
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            for (Species sp : configuration.getAllSpecies()) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                if (buildCommandOptions.species.equalsIgnoreCase(sp.getScientificName())</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                        || buildCommandOptions.species.equalsIgnoreCase(sp.getCommonName())</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                        || buildCommandOptions.species.equalsIgnoreCase(sp.getId())) {</span>
+<span class="nc" id="L109">                    species = sp;</span>
+<span class="nc" id="L110">                    break;</span>
+                }
+<span class="nc" id="L112">            }</span>
+
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            if (species == null) {</span>
+<span class="nc" id="L115">                logger.error(&quot;Species '{}' not valid&quot;, buildCommandOptions.species);</span>
+            }
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (buildCommandOptions.data != null) {</span>
+
+                String[] buildOptions;
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                if (buildCommandOptions.data.equals(&quot;all&quot;)) {</span>
+<span class="nc" id="L122">                    buildOptions = species.getData().toArray(new String[0]);</span>
+                } else {
+<span class="nc" id="L124">                    buildOptions = buildCommandOptions.data.split(&quot;,&quot;);</span>
+                }
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                for (int i = 0; i &lt; buildOptions.length; i++) {</span>
+<span class="nc" id="L128">                    String buildOption = buildOptions[i];</span>
+
+<span class="nc" id="L130">                    logger.info(&quot;Building '{}' data&quot;, buildOption);</span>
+<span class="nc" id="L131">                    CellBaseParser parser = null;</span>
+<span class="nc bnc" id="L132" title="All 66 branches missed.">                    switch (buildOption) {</span>
+                        case EtlCommons.GENOME_INFO_DATA:
+<span class="nc" id="L134">                            buildGenomeInfo();</span>
+<span class="nc" id="L135">                            break;</span>
+                        case EtlCommons.GENOME_DATA:
+<span class="nc" id="L137">                            parser = buildGenomeSequence();</span>
+<span class="nc" id="L138">                            break;</span>
+                        case EtlCommons.GENE_DATA:
+<span class="nc" id="L140">                            parser = buildGene();</span>
+<span class="nc" id="L141">                            break;</span>
+                        case EtlCommons.VARIATION_DATA:
+<span class="nc" id="L143">                            parser = buildVariation();</span>
+<span class="nc" id="L144">                            break;</span>
+                        case EtlCommons.VARIATION_FUNCTIONAL_SCORE_DATA:
+<span class="nc" id="L146">                            parser = buildCadd();</span>
+<span class="nc" id="L147">                            break;</span>
+                        case EtlCommons.REGULATION_DATA:
+<span class="nc" id="L149">                            parser = buildRegulation();</span>
+<span class="nc" id="L150">                            break;</span>
+                        case EtlCommons.PROTEIN_DATA:
+<span class="nc" id="L152">                            parser = buildProtein();</span>
+<span class="nc" id="L153">                            break;</span>
+                        case EtlCommons.PPI_DATA:
+<span class="nc" id="L155">                            parser = getInteractionParser();</span>
+<span class="nc" id="L156">                            break;</span>
+                        case EtlCommons.CONSERVATION_DATA:
+<span class="nc" id="L158">                            parser = buildConservation();</span>
+<span class="nc" id="L159">                            break;</span>
+                        case EtlCommons.DRUG_DATA:
+<span class="nc" id="L161">                            parser = buildDrugParser();</span>
+<span class="nc" id="L162">                            break;</span>
+                        case EtlCommons.CLINICAL_VARIANTS_DATA:
+<span class="nc" id="L164">                            parser = buildClinicalVariants();</span>
+<span class="nc" id="L165">                            break;</span>
+                        case EtlCommons.CLINVAR_DATA:
+<span class="nc" id="L167">                            parser = buildClinvar();</span>
+<span class="nc" id="L168">                            break;</span>
+                        case EtlCommons.COSMIC_DATA:
+<span class="nc" id="L170">                            parser = buildCosmic();</span>
+<span class="nc" id="L171">                            break;</span>
+                        case EtlCommons.GWAS_DATA:
+<span class="nc" id="L173">                            parser = buildGwas();</span>
+<span class="nc" id="L174">                            break;</span>
+                        case EtlCommons.STRUCTURAL_VARIANTS_DATA:
+<span class="nc" id="L176">                            parser = buildStructuralVariants();</span>
+<span class="nc" id="L177">                            break;</span>
+                        case EtlCommons.REPEATS_DATA:
+<span class="nc" id="L179">                            parser = buildRepeats();</span>
+<span class="nc" id="L180">                            break;</span>
+                        default:
+<span class="nc" id="L182">                            logger.error(&quot;Build option '&quot; + buildCommandOptions.data + &quot;' is not valid&quot;);</span>
+                            break;
+                    }
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                    if (parser != null) {</span>
+                        try {
+<span class="nc" id="L188">                            parser.parse();</span>
+<span class="nc" id="L189">                        } catch (Exception e) {</span>
+<span class="nc" id="L190">                            logger.error(&quot;Error executing 'build' command &quot; + buildCommandOptions.data + &quot;: &quot; + e.getMessage(), e);</span>
+<span class="nc" id="L191">                        }</span>
+<span class="nc" id="L192">                        parser.disconnect();</span>
+                    }
+                }
+            }
+<span class="nc" id="L196">        } catch (ParameterException e) {</span>
+<span class="nc" id="L197">            logger.error(&quot;Error parsing build command line parameters: &quot; + e.getMessage(), e);</span>
+<span class="nc" id="L198">        } catch (IOException e) {</span>
+<span class="nc" id="L199">            logger.error(e.getMessage());</span>
+<span class="nc" id="L200">        }</span>
+<span class="nc" id="L201">    }</span>
+
+    private CellBaseParser buildStructuralVariants() {
+<span class="nc" id="L204">        Path structuralVariantsFolder = input.resolve(EtlCommons.STRUCTURAL_VARIANTS_FOLDER);</span>
+<span class="nc" id="L205">        copyVersionFiles(Arrays.asList(structuralVariantsFolder.resolve(EtlCommons.DGV_VERSION_FILE)));</span>
+<span class="nc" id="L206">        Path structuralVariantsFile = structuralVariantsFolder.resolve(EtlCommons.DGV_FILE);</span>
+
+<span class="nc" id="L208">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, EtlCommons.STRUCTURAL_VARIANTS_JSON,</span>
+                true);
+<span class="nc" id="L210">        return new DgvParser(structuralVariantsFile, serializer);</span>
+    }
+
+    private CellBaseParser buildRepeats() {
+<span class="nc" id="L214">        Path repeatsFilesDir = input.resolve(EtlCommons.REPEATS_FOLDER);</span>
+<span class="nc" id="L215">        copyVersionFiles(Arrays.asList(repeatsFilesDir.resolve(EtlCommons.TRF_VERSION_FILE)));</span>
+<span class="nc" id="L216">        copyVersionFiles(Arrays.asList(repeatsFilesDir.resolve(EtlCommons.GSD_VERSION_FILE)));</span>
+<span class="nc" id="L217">        copyVersionFiles(Arrays.asList(repeatsFilesDir.resolve(EtlCommons.WM_VERSION_FILE)));</span>
+        // TODO: chunk size is not really used in ConvervedRegionParser, remove?
+<span class="nc" id="L219">        CellBaseFileSerializer serializer = new CellBaseJsonFileSerializer(output, EtlCommons.REPEATS_JSON);</span>
+<span class="nc" id="L220">        return new RepeatsParser(repeatsFilesDir, serializer);</span>
+    }
+
+    private void copyVersionFiles(List&lt;Path&gt; pathList) {
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        for (Path path : pathList) {</span>
+            try {
+<span class="nc" id="L226">                Files.copy(path, output.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="nc" id="L227">            } catch (IOException e) {</span>
+<span class="nc" id="L228">                logger.warn(&quot;Version file {} not found - skipping&quot;, path.toString());</span>
+<span class="nc" id="L229">            }</span>
+<span class="nc" id="L230">        }</span>
+<span class="nc" id="L231">    }</span>
+
+    private void checkParameters() throws IOException {
+<span class="nc bnc" id="L234" title="All 4 branches missed.">        if (!Files.exists(input) || !Files.isDirectory(input)) {</span>
+<span class="nc" id="L235">            throw new IOException(&quot;Input parameter '&quot; + input.toString() + &quot;' does not exist or is not a directory&quot;);</span>
+        }
+
+<span class="nc bnc" id="L238" title="All 4 branches missed.">        if (!Files.exists(common) || !Files.isDirectory(common)) {</span>
+<span class="nc" id="L239">            throw new IOException(&quot;Common parameter '&quot; + common.toString() + &quot;' does not exist or is not a directory&quot;);</span>
+        }
+
+<span class="nc" id="L242">    }</span>
+
+    private void buildGenomeInfo() {
+        /**
+         * To get some extra info about the genome such as chromosome length or cytobands
+         * we execute the following script.
+         */
+        try {
+<span class="nc" id="L250">            String outputFileName = output.resolve(&quot;genome_info.json&quot;).toAbsolutePath().toString();</span>
+<span class="nc" id="L251">            List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            args.addAll(Arrays.asList(&quot;--species&quot;, species.getScientificName(),</span>
+<span class="nc" id="L253">                    &quot;--assembly&quot;, buildCommandOptions.assembly == null ? getDefaultHumanAssembly() : buildCommandOptions.assembly,</span>
+                    &quot;-o&quot;, outputFileName,
+<span class="nc" id="L255">                    &quot;--ensembl-libs&quot;, configuration.getDownload().getEnsembl().getLibs()));</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">            if (!configuration.getSpecies().getVertebrates().contains(species)</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                    &amp;&amp; !species.getScientificName().equals(&quot;Drosophila melanogaster&quot;)) {</span>
+<span class="nc" id="L258">                args.add(&quot;--phylo&quot;);</span>
+<span class="nc" id="L259">                args.add(&quot;no-vertebrate&quot;);</span>
+            }
+
+<span class="nc" id="L262">            String geneInfoLogFileName = output.resolve(&quot;genome_info.log&quot;).toAbsolutePath().toString();</span>
+
+            boolean downloadedGenomeInfo;
+<span class="nc" id="L265">            downloadedGenomeInfo = EtlCommons.runCommandLineProcess(ensemblScriptsFolder, &quot;./genome_info.pl&quot;, args, geneInfoLogFileName);</span>
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            if (downloadedGenomeInfo) {</span>
+<span class="nc" id="L268">                logger.info(outputFileName + &quot; created OK&quot;);</span>
+            } else {
+<span class="nc" id="L270">                logger.error(&quot;Genome info for &quot; + species.getScientificName() + &quot; cannot be downloaded&quot;);</span>
+            }
+<span class="nc" id="L272">        } catch (IOException | InterruptedException e) {</span>
+<span class="nc" id="L273">            e.printStackTrace();</span>
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">    }</span>
+
+    private CellBaseParser buildGenomeSequence() {
+<span class="nc" id="L278">        copyVersionFiles(Collections.singletonList(input.resolve(&quot;genome/genomeVersion.json&quot;)));</span>
+<span class="nc" id="L279">        Path fastaFile = getFastaReferenceGenome();</span>
+<span class="nc" id="L280">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;genome_sequence&quot;);</span>
+<span class="nc" id="L281">        return new GenomeSequenceFastaParser(fastaFile, serializer);</span>
+    }
+
+    private CellBaseParser buildGene() {
+<span class="nc" id="L285">        Path geneFolderPath = input.resolve(&quot;gene&quot;);</span>
+<span class="nc" id="L286">        copyVersionFiles(Arrays.asList(geneFolderPath.resolve(&quot;geneDrug/dgidbVersion.json&quot;),</span>
+<span class="nc" id="L287">                geneFolderPath.resolve(&quot;ensemblCoreVersion.json&quot;), geneFolderPath.resolve(&quot;uniprotXrefVersion.json&quot;),</span>
+<span class="nc" id="L288">                geneFolderPath.resolve(common.resolve(&quot;expression/geneExpressionAtlasVersion.json&quot;)),</span>
+<span class="nc" id="L289">                geneFolderPath.resolve(&quot;hpoVersion.json&quot;), geneFolderPath.resolve(&quot;disgenetVersion.json&quot;)));</span>
+<span class="nc" id="L290">        Path genomeFastaFilePath = getFastaReferenceGenome();</span>
+<span class="nc" id="L291">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;gene&quot;);</span>
+<span class="nc" id="L292">        return new GeneParser(geneFolderPath, genomeFastaFilePath, species, flexibleGTFParsing, serializer);</span>
+    }
+
+
+    private CellBaseParser buildVariation() {
+<span class="nc" id="L297">        Path variationFolderPath = input.resolve(&quot;variation&quot;);</span>
+<span class="nc" id="L298">        copyVersionFiles(Arrays.asList(variationFolderPath.resolve(&quot;ensemblVariationVersion.json&quot;)));</span>
+<span class="nc" id="L299">        CellBaseFileSerializer serializer = new CellBaseJsonFileSerializer(output, null, true, true, true);</span>
+<span class="nc" id="L300">        return new VariationParser(variationFolderPath, serializer);</span>
+    }
+
+    private CellBaseParser buildCadd() {
+<span class="nc" id="L304">        Path variationFunctionalScorePath = input.resolve(&quot;variation_functional_score&quot;);</span>
+<span class="nc" id="L305">        copyVersionFiles(Arrays.asList(variationFunctionalScorePath.resolve(&quot;caddVersion.json&quot;)));</span>
+<span class="nc" id="L306">        Path caddFilePath = variationFunctionalScorePath.resolve(CADD_INPUT_FILE_NAME);</span>
+<span class="nc" id="L307">        CellBaseFileSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;cadd&quot;);</span>
+<span class="nc" id="L308">        return new CaddScoreParser(caddFilePath, serializer);</span>
+    }
+
+    private CellBaseParser buildRegulation() {
+<span class="nc" id="L312">        Path regulatoryRegionFilesDir = input.resolve(&quot;regulation&quot;);</span>
+<span class="nc" id="L313">        copyVersionFiles(Arrays.asList(regulatoryRegionFilesDir.resolve(&quot;ensemblRegulationVersion.json&quot;),</span>
+<span class="nc" id="L314">                common.resolve(&quot;mirbase/mirbaseVersion.json&quot;),</span>
+<span class="nc" id="L315">                regulatoryRegionFilesDir.resolve(&quot;targetScanVersion.json&quot;),</span>
+<span class="nc" id="L316">                regulatoryRegionFilesDir.resolve(&quot;miRTarBaseVersion.json&quot;)));</span>
+<span class="nc" id="L317">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;regulatory_region&quot;);</span>
+<span class="nc" id="L318">        return new RegulatoryRegionParser(regulatoryRegionFilesDir, serializer);</span>
+
+    }
+
+    private CellBaseParser buildProtein() {
+<span class="nc" id="L323">        Path proteinFolder = common.resolve(&quot;protein&quot;);</span>
+<span class="nc" id="L324">        copyVersionFiles(Arrays.asList(proteinFolder.resolve(&quot;uniprotVersion.json&quot;),</span>
+<span class="nc" id="L325">                proteinFolder.resolve(&quot;interproVersion.json&quot;)));</span>
+<span class="nc" id="L326">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;protein&quot;);</span>
+<span class="nc" id="L327">        return new ProteinParser(proteinFolder.resolve(&quot;uniprot_chunks&quot;),</span>
+<span class="nc" id="L328">                common.resolve(&quot;protein&quot;).resolve(&quot;protein2ipr.dat.gz&quot;), species.getScientificName(), serializer);</span>
+    }
+
+    private void getProteinFunctionPredictionMatrices(Species sp, Path geneFolder)
+            throws IOException, InterruptedException {
+<span class="nc" id="L333">        logger.info(&quot;Downloading protein function prediction matrices ...&quot;);</span>
+
+        // run protein_function_prediction_matrices.pl
+<span class="nc" id="L336">        String proteinFunctionProcessLogFile = geneFolder.resolve(&quot;protein_function_prediction_matrices.log&quot;).toString();</span>
+<span class="nc" id="L337">        List&lt;String&gt; args = Arrays.asList(&quot;--species&quot;, sp.getScientificName(), &quot;--outdir&quot;, geneFolder.toString(),</span>
+<span class="nc" id="L338">                &quot;--ensembl-libs&quot;, configuration.getDownload().getEnsembl().getLibs());</span>
+
+<span class="nc" id="L340">        boolean proteinFunctionPredictionMatricesObtaines = EtlCommons.runCommandLineProcess(ensemblScriptsFolder,</span>
+                &quot;./protein_function_prediction_matrices.pl&quot;,
+                args,
+                proteinFunctionProcessLogFile);
+
+        // check output
+<span class="nc bnc" id="L346" title="All 2 branches missed.">        if (proteinFunctionPredictionMatricesObtaines) {</span>
+<span class="nc" id="L347">            logger.info(&quot;Protein function prediction matrices created OK&quot;);</span>
+        } else {
+<span class="nc" id="L349">            logger.error(&quot;Protein function prediction matrices for &quot; + sp.getScientificName() + &quot; cannot be downloaded&quot;);</span>
+        }
+<span class="nc" id="L351">    }</span>
+
+    private CellBaseParser getInteractionParser() {
+<span class="nc" id="L354">        Path proteinFolder = common.resolve(&quot;protein&quot;);</span>
+<span class="nc" id="L355">        Path psimiTabFile = proteinFolder.resolve(&quot;intact.txt&quot;);</span>
+<span class="nc" id="L356">        copyVersionFiles(Arrays.asList(proteinFolder.resolve(&quot;intactVersion.json&quot;)));</span>
+<span class="nc" id="L357">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;protein_protein_interaction&quot;);</span>
+<span class="nc" id="L358">        return new InteractionParser(psimiTabFile, species.getScientificName(), serializer);</span>
+    }
+
+    private CellBaseParser buildDrugParser() {
+<span class="nc" id="L362">        throw new ParameterException(&quot;'drug' builder is not implemented yet&quot;);</span>
+//        Path drugFile = getInputFileFromCommandLine();
+//        CellBaseSerializer serializer = new JsonParser(output, &quot;drug&quot;);
+//        return new DrugParser(drugFile, serializer);
+    }
+
+
+    private CellBaseParser buildConservation() {
+<span class="nc" id="L370">        Path conservationFilesDir = input.resolve(&quot;conservation&quot;);</span>
+<span class="nc" id="L371">        copyVersionFiles(Arrays.asList(conservationFilesDir.resolve(&quot;gerpVersion.json&quot;),</span>
+<span class="nc" id="L372">                conservationFilesDir.resolve(&quot;phastConsVersion.json&quot;),</span>
+<span class="nc" id="L373">                conservationFilesDir.resolve(&quot;phyloPVersion.json&quot;)));</span>
+        // TODO: chunk size is not really used in ConvervedRegionParser, remove?
+<span class="nc" id="L375">        int conservationChunkSize = MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE;</span>
+<span class="nc" id="L376">        CellBaseFileSerializer serializer = new CellBaseJsonFileSerializer(output);</span>
+<span class="nc" id="L377">        return new ConservationParser(conservationFilesDir, conservationChunkSize, serializer);</span>
+    }
+
+    private CellBaseParser buildClinicalVariants() {
+<span class="nc" id="L381">        Path clinicalVariantFolder = input.resolve(EtlCommons.CLINICAL_VARIANTS_FOLDER);</span>
+<span class="nc" id="L382">        copyVersionFiles(Arrays.asList(clinicalVariantFolder.resolve(&quot;clinvarVersion.json&quot;)));</span>
+<span class="nc" id="L383">        copyVersionFiles(Arrays.asList(clinicalVariantFolder.resolve(&quot;gwasVersion.json&quot;)));</span>
+
+<span class="nc" id="L385">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output,</span>
+<span class="nc" id="L386">                EtlCommons.CLINICAL_VARIANTS_JSON_FILE.replace(&quot;.json.gz&quot;, &quot;&quot;), true);</span>
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        return new ClinicalVariantParser(clinicalVariantFolder, normalize, getFastaReferenceGenome(),</span>
+<span class="nc" id="L388">                buildCommandOptions.assembly == null ? getDefaultHumanAssembly() : buildCommandOptions.assembly,</span>
+                serializer);
+    }
+
+    private String getDefaultHumanAssembly() {
+<span class="nc bnc" id="L393" title="All 2 branches missed.">        for (Species species : configuration.getSpecies().getVertebrates()) {</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">            if (species.getId().equals(&quot;hsapiens&quot;)) {</span>
+<span class="nc" id="L395">                return species.getAssemblies().get(0).getName();</span>
+            }
+<span class="nc" id="L397">        }</span>
+
+<span class="nc" id="L399">        throw new ParameterException(&quot;Clinical data can only be built if an hsapiens entry is defined within the &quot;</span>
+                + &quot;configuration file. No hsapiens data found within the configuration.json file&quot;);
+    }
+
+    @Deprecated
+    private CellBaseParser buildClinvar() {
+<span class="nc" id="L405">        logger.warn(&quot;This method is deprecated, should no longer be used and will soon be removed&quot;);</span>
+<span class="nc" id="L406">        Path clinvarFolder = input.resolve(&quot;clinical&quot;);</span>
+<span class="nc" id="L407">        copyVersionFiles(Arrays.asList(clinvarFolder.resolve(&quot;clinvarVersion.json&quot;)));</span>
+<span class="nc" id="L408">        Path clinvarFile = clinvarFolder.resolve(&quot;ClinVar.xml.gz&quot;);</span>
+<span class="nc" id="L409">        Path clinvarSummaryFile = clinvarFolder.resolve(&quot;variant_summary.txt.gz&quot;);</span>
+<span class="nc" id="L410">        Path efosFilePath = clinvarFolder.resolve(&quot;ClinVar_Traits_EFO_Names.csv&quot;);</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">        if (!efosFilePath.toFile().exists()) {</span>
+<span class="nc" id="L412">            efosFilePath = null;</span>
+        }
+
+<span class="nc" id="L415">        String assembly = buildCommandOptions.assembly;</span>
+<span class="nc" id="L416">        checkMandatoryOption(&quot;assembly&quot;, assembly);</span>
+<span class="nc bnc" id="L417" title="All 4 branches missed.">        if (!assembly.equals(ClinVarParser.GRCH37_ASSEMBLY) &amp;&amp; !assembly.equals(ClinVarParser.GRCH38_ASSEMBLY)) {</span>
+<span class="nc" id="L418">            throw new ParameterException(&quot;Assembly '&quot; + assembly + &quot;' is not valid. Possible values: &quot; + ClinVarParser.GRCH37_ASSEMBLY</span>
+                    + &quot;, &quot; + ClinVarParser.GRCH38_ASSEMBLY);
+        }
+
+<span class="nc" id="L422">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;clinvar&quot;, true);</span>
+<span class="nc" id="L423">        return new ClinVarParser(clinvarFile, clinvarSummaryFile, efosFilePath, assembly, serializer);</span>
+    }
+
+    @Deprecated
+    private CellBaseParser buildCosmic() {
+<span class="nc" id="L428">        logger.warn(&quot;This method is deprecated, should no longer be used and will soon be removed&quot;);</span>
+<span class="nc" id="L429">        Path cosmicFilePath = input.resolve(&quot;CosmicMutantExport.tsv&quot;);</span>
+        //MutationParser vp = new MutationParser(Paths.get(cosmicFilePath), mSerializer);
+        // this parser works with cosmic file: CosmicCompleteExport_vXX.tsv (XX &gt;= 70)
+<span class="nc" id="L432">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;cosmic&quot;, true);</span>
+<span class="nc" id="L433">        String assembly = buildCommandOptions.assembly;</span>
+<span class="nc" id="L434">        return new CosmicParser(cosmicFilePath, serializer, assembly);</span>
+    }
+
+    @Deprecated
+    private CellBaseParser buildGwas() throws IOException {
+<span class="nc" id="L439">        logger.warn(&quot;This method is deprecated, should no longer be used and will soon be removed&quot;);</span>
+<span class="nc" id="L440">        Path inputDir = getInputDirFromCommandLine().resolve(&quot;clinical&quot;);</span>
+<span class="nc" id="L441">        copyVersionFiles(Arrays.asList(inputDir.resolve(&quot;gwasVersion.json&quot;)));</span>
+<span class="nc" id="L442">        Path gwasFile = inputDir.resolve(GWAS_INPUT_FILE_NAME);</span>
+<span class="nc" id="L443">        FileUtils.checkPath(gwasFile);</span>
+<span class="nc" id="L444">        Path dbsnpFile = inputDir.resolve(DBSNP_INPUT_FILE_NAME);</span>
+<span class="nc" id="L445">        FileUtils.checkPath(dbsnpFile);</span>
+<span class="nc" id="L446">        CellBaseSerializer serializer = new CellBaseJsonFileSerializer(output, &quot;gwas&quot;);</span>
+<span class="nc" id="L447">        return new GwasParser(gwasFile, dbsnpFile, serializer);</span>
+    }
+
+    private Path getInputDirFromCommandLine() {
+<span class="nc" id="L451">        File inputDirectory = new File(input.toString());</span>
+<span class="nc bnc" id="L452" title="All 2 branches missed.">        if (inputDirectory.exists()) {</span>
+<span class="nc bnc" id="L453" title="All 2 branches missed.">            if (inputDirectory.isDirectory()) {</span>
+<span class="nc" id="L454">                return input;</span>
+            } else {
+<span class="nc" id="L456">                throw new ParameterException(&quot;'&quot; + input + &quot;' is not a directory&quot;);</span>
+            }
+        } else {
+<span class="nc" id="L459">            throw new ParameterException(&quot;Folder '&quot; + input + &quot;' doesn't exist&quot;);</span>
+        }
+    }
+
+    private Path getFastaReferenceGenome() {
+<span class="nc" id="L464">        Path fastaFile = null;</span>
+        try {
+<span class="nc" id="L466">            DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(input.resolve(&quot;genome&quot;), entry -&gt; {</span>
+<span class="nc" id="L467">                return entry.toString().endsWith(&quot;.fa.gz&quot;);</span>
+            });
+<span class="nc bnc" id="L469" title="All 2 branches missed.">            for (Path entry : stream) {</span>
+<span class="nc" id="L470">                fastaFile = entry;</span>
+<span class="nc" id="L471">            }</span>
+<span class="nc" id="L472">        } catch (IOException e) {</span>
+<span class="nc" id="L473">            e.printStackTrace();</span>
+<span class="nc" id="L474">        }</span>
+<span class="nc" id="L475">        return fastaFile;</span>
+    }
+
+    private void checkMandatoryOption(String option, String value) {
+<span class="nc bnc" id="L479" title="All 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L480">            throw new ParameterException(&quot;'&quot; + option + &quot;' option is mandatory for '&quot; + buildCommandOptions.data + &quot;' builder&quot;);</span>
+        }
+<span class="nc" id="L482">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

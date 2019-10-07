@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HgvsDeletionCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation.hgvs</a> &gt; <span class="el_source">HgvsDeletionCalculator.java</span></div><h1>HgvsDeletionCalculator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation.hgvs;
+
+import org.opencb.biodata.models.core.Transcript;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.cellbase.core.api.GenomeDBAdaptor;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 15/06/17.
+ */
+public class HgvsDeletionCalculator extends HgvsCalculator {
+
+    private static final String DEL = &quot;del&quot;;
+
+    public HgvsDeletionCalculator(GenomeDBAdaptor genomeDBAdaptor) {
+<span class="nc" id="L20">        super(genomeDBAdaptor);</span>
+<span class="nc" id="L21">    }</span>
+
+    @Override
+    protected List&lt;String&gt; run(Variant variant, Transcript transcript, String geneId, boolean normalize) {
+<span class="nc" id="L25">        Variant normalizedVariant = normalize(variant, normalize);</span>
+<span class="nc" id="L26">        return calculateTranscriptHhgvs(normalizedVariant, transcript, geneId);</span>
+    }
+
+    private List&lt;String&gt; calculateTranscriptHhgvs(Variant variant, Transcript transcript, String geneId) {
+        // Additional normalization required for insertions
+<span class="nc" id="L31">        Variant normalizedVariant = new Variant();</span>
+<span class="nc" id="L32">        String mutationType = hgvsNormalize(variant, transcript, normalizedVariant);</span>
+
+        // Populate HGVSName parse tree.
+<span class="nc" id="L35">        HgvsStringBuilder hgvsStringBuilder = new HgvsStringBuilder();</span>
+
+        // Use cDNA coordinates.
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        hgvsStringBuilder.setKind(isCoding(transcript) ? HgvsStringBuilder.Kind.CODING : HgvsStringBuilder.Kind.NON_CODING);</span>
+
+        // Use a range of coordinates. - Calculate start/end, reference/alternate alleles as appropriate
+//        setRangeCoordsAndAlleles(normalizedVariant, transcript, hgvsStringBuilder);
+<span class="nc" id="L42">        setRangeCoordsAndAlleles(normalizedVariant.getStart(), normalizedVariant.getEnd(),</span>
+<span class="nc" id="L43">                normalizedVariant.getReference(), normalizedVariant.getAlternate(), transcript, hgvsStringBuilder);</span>
+
+<span class="nc" id="L45">        hgvsStringBuilder.setMutationType(mutationType);</span>
+<span class="nc" id="L46">        hgvsStringBuilder.setTranscriptId(transcript.getId());</span>
+<span class="nc" id="L47">        hgvsStringBuilder.setGeneId(geneId);</span>
+
+<span class="nc" id="L49">        return Collections.singletonList(hgvsStringBuilder.format());</span>
+
+    }
+
+    private String hgvsNormalize(Variant variant, Transcript transcript, Variant normalizedVariant) {
+        // Get genomic sequence around the lesion.
+<span class="nc" id="L55">        int start = Math.max(variant.getStart() - NEIGHBOURING_SEQUENCE_SIZE, 1);  // TODO: might need to adjust +-1 nt</span>
+<span class="nc" id="L56">        int end = variant.getStart() + NEIGHBOURING_SEQUENCE_SIZE;                 // TODO: might need to adjust +-1 nt</span>
+<span class="nc" id="L57">        Query query = new Query(GenomeDBAdaptor.QueryParams.REGION.key(), variant.getChromosome()</span>
+                + &quot;:&quot; + start + &quot;-&quot; + end);
+<span class="nc" id="L59">        String genomicSequence</span>
+<span class="nc" id="L60">                = genomeDBAdaptor.getGenomicSequence(query, new QueryOptions()).getResult().get(0).getSequence();</span>
+
+        // Create normalizedVariant and justify sequence to the right/left as appropriate
+<span class="nc" id="L63">        normalizedVariant.setChromosome(variant.getChromosome());</span>
+<span class="nc" id="L64">        normalizedVariant.setStart(variant.getStart());</span>
+<span class="nc" id="L65">        normalizedVariant.setEnd(variant.getEnd());</span>
+<span class="nc" id="L66">        normalizedVariant.setReference(variant.getReference());</span>
+<span class="nc" id="L67">        normalizedVariant.setAlternate(variant.getAlternate());</span>
+<span class="nc" id="L68">        normalizedVariant.resetType();</span>
+<span class="nc" id="L69">        normalizedVariant.resetLength();</span>
+        // startOffset must point to the position right before the actual variant start, since that's the position that
+        // will be looked at for coincidences within the variant reference sequence. Likewise, endOffset must point tho
+        // the position right after the actual variant end.
+<span class="nc" id="L73">        justify(normalizedVariant, variant.getStart() - start,</span>
+<span class="nc" id="L74">                variant.getStart() - start + normalizedVariant.getReference().length() - 1,</span>
+<span class="nc" id="L75">                normalizedVariant.getReference(), genomicSequence, transcript.getStrand());</span>
+
+<span class="nc" id="L77">        return DEL;</span>
+    }
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

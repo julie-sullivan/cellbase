@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SequenceOntologyTermComparisonObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">SequenceOntologyTermComparisonObject.java</span></div><h1>SequenceOntologyTermComparisonObject.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import org.opencb.biodata.models.variant.avro.SequenceOntologyTerm;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+
+/**
+ * Created by fjlopez on 08/04/16.
+ */
+public class SequenceOntologyTermComparisonObject {
+
+    private static final String SO_0001631 = &quot;SO:0001631&quot;; // upstream_variant
+    private static final String SO_0001636 = &quot;SO:0001636&quot;; // 2KB_upstream_variant
+    private static final String SO_0001632 = &quot;SO:0001632&quot;; // downstream_variant
+    private static final String SO_0002083 = &quot;SO:0002083&quot;; // 2KB_downstream_variant
+    private String transcriptId;
+    private String name;
+    private String accession;
+
+<span class="nc" id="L19">    public SequenceOntologyTermComparisonObject(String transcriptId, SequenceOntologyTerm sequenceOntologyTerm) {</span>
+<span class="nc" id="L20">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L21">        this.name = sequenceOntologyTerm.getName();</span>
+<span class="nc" id="L22">        this.accession = sequenceOntologyTerm.getAccession();</span>
+<span class="nc" id="L23">    }</span>
+//
+//    public boolean equals(SequenceOntologyTermComparisonObject o) {
+//        if (this == o) {
+//            return true;
+//        }
+//        if (o == null) {
+//            return false;
+//        }
+//
+//        if (getTranscriptId() != null ? !getTranscriptId().equals(o.getTranscriptId()) : o.getTranscriptId() != null) {
+//            return false;
+//        }
+//        if (getAccession() != null ? !getAccession().equals(o.getAccession()) : o.getAccession() != null) {
+//            return false;
+//        }
+//        if (getName() != null ? !equivalentAccession(getName(), o.getName()) : o.getName() != null) {
+//            return false;
+//        }
+//
+//        return true;
+//    }
+
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (this == o) {</span>
+<span class="nc" id="L50">            return true;</span>
+        }
+<span class="nc bnc" id="L52" title="All 4 branches missed.">        if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L53">            return false;</span>
+        }
+
+<span class="nc" id="L56">        SequenceOntologyTermComparisonObject that = (SequenceOntologyTermComparisonObject) o;</span>
+
+<span class="nc bnc" id="L58" title="All 6 branches missed.">        if (getTranscriptId() != null ? !getTranscriptId().equals(that.getTranscriptId()) : that.getTranscriptId() != null) {</span>
+<span class="nc" id="L59">            return false;</span>
+        }
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        return getEquivalentAccession() != null ? getEquivalentAccession().equals(that.getEquivalentAccession())</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                : that.getEquivalentAccession() == null;</span>
+
+    }
+
+    public String getEquivalentAccession() {
+        // VEP does not use 2KB_upstream/downstream_variant. This class is exclusively used for CellBase - VEP
+        // comparison and in this comparison these two terms must be considered  equivalent to upstream/downstream_variant
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (SO_0001636.equals(getAccession())) {</span>
+<span class="nc" id="L70">            return SO_0001631;</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        } else if (SO_0002083.equals(getAccession())) {</span>
+<span class="nc" id="L72">            return SO_0001632;</span>
+        } else {
+<span class="nc" id="L74">            return getAccession();</span>
+        }
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        int result = getTranscriptId() != null ? getTranscriptId().hashCode() : 0;</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        result = 31 * result + (getEquivalentAccession() != null ? getEquivalentAccession().hashCode() : 0);</span>
+<span class="nc" id="L82">        return result;</span>
+    }
+
+    private boolean equalsName(String name1, String name2) {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (name1.equals(name2)) {</span>
+<span class="nc" id="L87">            return true;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        } else if (((name1.equals(VariantAnnotationUtils.TWOKB_UPSTREAM_VARIANT)</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                      || name1.equals(VariantAnnotationUtils.UPSTREAM_GENE_VARIANT))</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    &amp;&amp; (name2.equals(VariantAnnotationUtils.TWOKB_UPSTREAM_VARIANT)</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                      || name2.equals(VariantAnnotationUtils.UPSTREAM_GENE_VARIANT)))</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                || ((name1.equals(VariantAnnotationUtils.TWOKB_DOWNSTREAM_VARIANT)</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                      || name1.equals(VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT))</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                    &amp;&amp; (name2.equals(VariantAnnotationUtils.TWOKB_DOWNSTREAM_VARIANT)</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                      || name2.equals(VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT)))</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                || ((name1.equals(&quot;nc_transcript_variant&quot;)</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                      || name1.equals(VariantAnnotationUtils.NON_CODING_TRANSCRIPT_VARIANT))</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                    &amp;&amp; (name2.equals(&quot;nc_transcript_variant&quot;)</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                      || name2.equals(VariantAnnotationUtils.NON_CODING_TRANSCRIPT_VARIANT)))</span>
+                ) {
+<span class="nc" id="L101">            return true;</span>
+        }
+<span class="nc" id="L103">        return false;</span>
+    }
+
+    public String getName() {
+<span class="nc" id="L107">        return name;</span>
+    }
+
+    public void setName(String name) {
+<span class="nc" id="L111">        this.name = name;</span>
+<span class="nc" id="L112">    }</span>
+
+    public String getAccession() {
+<span class="nc" id="L115">        return accession;</span>
+    }
+
+    public void setAccession(String accession) {
+<span class="nc" id="L119">        this.accession = accession;</span>
+<span class="nc" id="L120">    }</span>
+
+    public String getTranscriptId() {
+<span class="nc" id="L123">        return transcriptId;</span>
+    }
+
+    public void setTranscriptId(String transcriptId) {
+<span class="nc" id="L127">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L128">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationConverter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.loader.converters</a> &gt; <span class="el_source">VariationConverter.java</span></div><h1>VariationConverter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.loader.converters;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.mongodb.util.JSON;
+import org.bson.Document;
+import org.opencb.biodata.models.variation.Variation;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by imedina on 31/08/14.
+ */
+@Deprecated
+public class VariationConverter extends MongoDBTypeConverter&lt;Variation, Document&gt; {
+
+    private int chunkSize;
+    private String chunkIdSuffix;
+
+
+    public VariationConverter() {
+<span class="nc" id="L39">        this(MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE);</span>
+<span class="nc" id="L40">    }</span>
+
+    public VariationConverter(int chunkSize) {
+        // Parent class initializes and configures Jackson objects
+<span class="nc" id="L44">        super();</span>
+
+<span class="nc" id="L46">        this.chunkSize = chunkSize;</span>
+<span class="nc" id="L47">        this.chunkIdSuffix = this.chunkSize / 1000 + &quot;k&quot;;</span>
+<span class="nc" id="L48">    }</span>
+
+    @Override
+    public Document convertToStorageSchema(Variation variation) {
+<span class="nc" id="L52">        Document document = null;</span>
+        try {
+<span class="nc" id="L54">            document = (Document) JSON.parse(jsonObjectWriter.writeValueAsString(variation));</span>
+
+<span class="nc" id="L56">            int chunkStart = (variation.getStart()) / chunkSize;</span>
+<span class="nc" id="L57">            int chunkEnd = (variation.getEnd()) / chunkSize;</span>
+
+<span class="nc" id="L59">            List&lt;String&gt; chunkIdsList = new ArrayList&lt;&gt;(chunkEnd - chunkStart + 1);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            for (int i = chunkStart; i &lt;= chunkEnd; i++) {</span>
+<span class="nc" id="L61">                chunkIdsList.add(variation.getChromosome() + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+            }
+
+<span class="nc" id="L64">            document.put(&quot;chunkIds&quot;, chunkIdsList);</span>
+<span class="nc" id="L65">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L66">            e.printStackTrace();</span>
+<span class="nc" id="L67">        }</span>
+
+<span class="nc" id="L69">        return document;</span>
+    }
+
+    @Override
+    public Variation convertToDataModel(Document dbObject) {
+<span class="nc" id="L74">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

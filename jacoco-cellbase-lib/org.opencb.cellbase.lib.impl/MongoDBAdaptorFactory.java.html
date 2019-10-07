@@ -1,0 +1,556 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MongoDBAdaptorFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">MongoDBAdaptorFactory.java</span></div><h1>MongoDBAdaptorFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.MongoTimeoutException;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.time.StopWatch;
+import org.bson.Document;
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.cellbase.core.api.*;
+import org.opencb.cellbase.core.config.CellBaseConfiguration;
+import org.opencb.cellbase.core.config.DatabaseCredentials;
+import org.opencb.cellbase.core.config.Species;
+import org.opencb.cellbase.core.monitor.HealthStatus;
+import org.opencb.commons.datastore.core.DataStoreServerAddress;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBConfiguration;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+import org.opencb.commons.datastore.mongodb.MongoDataStoreManager;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.InvalidParameterException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+public class MongoDBAdaptorFactory extends DBAdaptorFactory {
+
+    private static final String CELLBASE_DB_MONGODB_REPLICASET = &quot;CELLBASE.DB.MONGODB.REPLICASET&quot;;
+    private static final String SERVER_ADDRESS = &quot;serverAddress&quot;;
+    private static final String MEMBERS = &quot;members&quot;;
+    private static final String SET = &quot;set&quot;;
+    private static final String STATE_STR = &quot;stateStr&quot;;
+    private static final String NAME = &quot;name&quot;;
+    private static final String COLON = &quot;:&quot;;
+    private static final String REPLICA_SET = &quot;replica_set&quot;;
+    private static final String HOST = &quot;host&quot;;
+    private static final String ADMIN_DATABASE = &quot;admin&quot;;
+    /**
+     * MongoDataStoreManager acts as singleton by keeping a reference to all databases connections created.
+     */
+    private MongoDataStoreManager mongoDataStoreManager;
+<span class="fc" id="L62">    private static Map&lt;String, MongoDataStoreManager&gt; memberDataStoreManagerMap = new HashMap&lt;&gt;();</span>
+//    private static Map&lt;String, MongoDataStore&gt; mongoDatastoreFactory;
+
+    public MongoDBAdaptorFactory(CellBaseConfiguration cellBaseConfiguration) {
+<span class="fc" id="L66">        super(cellBaseConfiguration);</span>
+
+<span class="fc" id="L68">        init();</span>
+<span class="fc" id="L69">    }</span>
+
+    private void init() {
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (mongoDataStoreManager == null) {</span>
+//            String[] hosts = cellBaseConfiguration.getDatabases().get(&quot;mongodb&quot;).getHost().split(&quot;,&quot;);
+<span class="fc" id="L74">            String[] hosts = cellBaseConfiguration.getDatabases().getMongodb().getHost().split(&quot;,&quot;);</span>
+<span class="fc" id="L75">            List&lt;DataStoreServerAddress&gt; dataStoreServerAddresses = new ArrayList&lt;&gt;(hosts.length);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            for (String host : hosts) {</span>
+<span class="fc" id="L77">                String[] hostPort = host.split(&quot;:&quot;);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                if (hostPort.length == 1) {</span>
+<span class="nc" id="L79">                    dataStoreServerAddresses.add(new DataStoreServerAddress(hostPort[0], 27017));</span>
+                } else {
+<span class="fc" id="L81">                    dataStoreServerAddresses.add(new DataStoreServerAddress(hostPort[0], Integer.parseInt(hostPort[1])));</span>
+                }
+            }
+<span class="fc" id="L84">            mongoDataStoreManager = new MongoDataStoreManager(dataStoreServerAddresses);</span>
+<span class="fc" id="L85">            logger.debug(&quot;MongoDBAdaptorFactory constructor, this should be only be printed once&quot;);</span>
+        }
+
+//        logger = LoggerFactory.getLogger(this.getClass());
+<span class="fc" id="L89">    }</span>
+
+    private MongoDataStore createMongoDBDatastore(String species, String assembly) {
+        /**
+         Database name has the following pattern in lower case and with no '.' in the name:
+         cellbase_speciesId_assembly_cellbaseVersion
+         Example:
+         cellbase_hsapiens_grch37_v3
+         **/
+
+        // We need to look for the species object in the configuration
+<span class="fc" id="L100">        Species speciesObject = getSpecies(species);</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        if (speciesObject != null) {</span>
+<span class="fc" id="L102">            species = speciesObject.getId();</span>
+<span class="fc" id="L103">            String cellbaseAssembly = getAssembly(speciesObject, assembly);</span>
+
+<span class="pc bpc" id="L105" title="4 of 8 branches missed.">            if (species != null &amp;&amp; !species.isEmpty() &amp;&amp; cellbaseAssembly != null &amp;&amp; !cellbaseAssembly.isEmpty()) {</span>
+<span class="fc" id="L106">                cellbaseAssembly = cellbaseAssembly.toLowerCase();</span>
+                // Database name is built following the above pattern
+<span class="fc" id="L108">                String database = &quot;cellbase&quot; + &quot;_&quot; + species + &quot;_&quot; + cellbaseAssembly.replaceAll(&quot;\\.&quot;, &quot;&quot;).replaceAll(&quot;-&quot;, &quot;&quot;)</span>
+<span class="fc" id="L109">                        .replaceAll(&quot;_&quot;, &quot;&quot;) + &quot;_&quot; + cellBaseConfiguration.getVersion();</span>
+<span class="fc" id="L110">                logger.debug(&quot;Database for the species is '{}'&quot;, database);</span>
+<span class="fc" id="L111">                return createMongoDBDatastore(database);</span>
+            } else {
+<span class="nc" id="L113">                logger.error(&quot;Assembly is not valid, assembly '{}'. Valid assemblies: {}&quot;, assembly,</span>
+<span class="nc" id="L114">                        String.join(&quot;,&quot;, speciesObject.getAssemblies().stream().map((assemblyObject)</span>
+<span class="nc" id="L115">                                -&gt; assemblyObject.getName()).collect(Collectors.toList())));</span>
+<span class="nc" id="L116">                throw new InvalidParameterException(&quot;Assembly is not valid, assembly '&quot; + assembly</span>
+                        + &quot;'. Please provide one of supported assemblies: {&quot;
+<span class="nc" id="L118">                        + String.join(&quot;,&quot;, speciesObject.getAssemblies().stream().map((assemblyObject)</span>
+<span class="nc" id="L119">                        -&gt; assemblyObject.getName()).collect(Collectors.toList())) + &quot;}&quot;);</span>
+            }
+        } else {
+<span class="nc" id="L122">            logger.error(&quot;Species name is not valid: '{}'. Valid species: {}&quot;, species,</span>
+<span class="nc" id="L123">                    String.join(&quot;,&quot;, cellBaseConfiguration.getAllSpecies().stream().map((tmpSpeciesObject)</span>
+<span class="nc" id="L124">                            -&gt; (tmpSpeciesObject.getCommonName() + &quot;|&quot; + tmpSpeciesObject.getScientificName()))</span>
+<span class="nc" id="L125">                            .collect(Collectors.toList())));</span>
+<span class="nc" id="L126">            throw new InvalidParameterException(&quot;Species name is not valid: '&quot; + species + &quot;'. Please provide one&quot;</span>
+                    + &quot; of supported species: {&quot;
+<span class="nc" id="L128">                    + String.join(&quot;,&quot;, cellBaseConfiguration.getAllSpecies().stream().map((tmpSpeciesObject)</span>
+<span class="nc" id="L129">                    -&gt; (tmpSpeciesObject.getCommonName() + &quot;|&quot; + tmpSpeciesObject.getScientificName()))</span>
+<span class="nc" id="L130">                    .collect(Collectors.toList())) + &quot;}&quot;);</span>
+        }
+    }
+
+    private MongoDataStore createMongoDBDatastore(String database) {
+<span class="fc" id="L135">        DatabaseCredentials mongodbCredentials = cellBaseConfiguration.getDatabases().getMongodb();</span>
+        MongoDBConfiguration mongoDBConfiguration;
+<span class="fc" id="L137">        MongoDBConfiguration.Builder builder = MongoDBConfiguration.builder();</span>
+
+        // For authenticated databases
+<span class="pc bpc" id="L140" title="3 of 4 branches missed.">        if (!mongodbCredentials.getUser().isEmpty() &amp;&amp; !mongodbCredentials.getPassword().isEmpty()) {</span>
+            // MongoDB could authenticate against different databases
+<span class="nc" id="L142">            builder.setUserPassword(mongodbCredentials.getUser(), mongodbCredentials.getPassword());</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            if (mongodbCredentials.getOptions().containsKey(MongoDBConfiguration.AUTHENTICATION_DATABASE)) {</span>
+<span class="nc" id="L144">                builder.setAuthenticationDatabase(mongodbCredentials.getOptions()</span>
+<span class="nc" id="L145">                        .get(MongoDBConfiguration.AUTHENTICATION_DATABASE));</span>
+            }
+        }
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (mongodbCredentials.getOptions().get(MongoDBConfiguration.READ_PREFERENCE) != null</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                &amp;&amp; !mongodbCredentials.getOptions().get(MongoDBConfiguration.READ_PREFERENCE).isEmpty()) {</span>
+<span class="nc" id="L151">            builder.add(MongoDBConfiguration.READ_PREFERENCE,</span>
+<span class="nc" id="L152">                    mongodbCredentials.getOptions().get(MongoDBConfiguration.READ_PREFERENCE));</span>
+        }
+
+<span class="fc" id="L155">        String replicaSet = mongodbCredentials.getOptions().get(MongoDBConfiguration.REPLICA_SET);</span>
+<span class="pc bpc" id="L156" title="4 of 6 branches missed.">        if (replicaSet != null &amp;&amp; !replicaSet.isEmpty() &amp;&amp; !replicaSet.contains(CELLBASE_DB_MONGODB_REPLICASET)) {</span>
+<span class="nc" id="L157">            builder.setReplicaSet(mongodbCredentials.getOptions().get(MongoDBConfiguration.REPLICA_SET));</span>
+        }
+
+<span class="fc" id="L160">        String connectionsPerHost = mongodbCredentials.getOptions().get(MongoDBConfiguration.CONNECTIONS_PER_HOST);</span>
+<span class="pc bpc" id="L161" title="2 of 4 branches missed.">        if (connectionsPerHost != null &amp;&amp; !connectionsPerHost.isEmpty()) {</span>
+<span class="fc" id="L162">            builder.setConnectionsPerHost(Integer.valueOf(mongodbCredentials.getOptions()</span>
+<span class="fc" id="L163">                    .get(MongoDBConfiguration.CONNECTIONS_PER_HOST)));</span>
+        }
+
+<span class="fc" id="L166">        mongoDBConfiguration = builder.build();</span>
+
+<span class="fc" id="L168">        logger.debug(&quot;*************************************************************************************&quot;);</span>
+<span class="fc" id="L169">        logger.debug(&quot;MongoDataStore configuration parameters: &quot;);</span>
+<span class="fc" id="L170">        logger.debug(&quot;{} = {}&quot;, MongoDBConfiguration.AUTHENTICATION_DATABASE,</span>
+<span class="fc" id="L171">                mongoDBConfiguration.get(MongoDBConfiguration.AUTHENTICATION_DATABASE));</span>
+<span class="fc" id="L172">        logger.debug(&quot;{} = {}&quot;, MongoDBConfiguration.READ_PREFERENCE,</span>
+<span class="fc" id="L173">                mongoDBConfiguration.get(MongoDBConfiguration.READ_PREFERENCE));</span>
+<span class="fc" id="L174">        logger.debug(&quot;{} = {}&quot;, MongoDBConfiguration.REPLICA_SET,</span>
+<span class="fc" id="L175">                mongoDBConfiguration.get(MongoDBConfiguration.REPLICA_SET));</span>
+<span class="fc" id="L176">        logger.debug(&quot;{} = {}&quot;, MongoDBConfiguration.CONNECTIONS_PER_HOST,</span>
+<span class="fc" id="L177">                mongoDBConfiguration.get(MongoDBConfiguration.CONNECTIONS_PER_HOST));</span>
+<span class="fc" id="L178">        logger.debug(&quot;*************************************************************************************&quot;);</span>
+//                } else {
+//                    mongoDBConfiguration = MongoDBConfiguration.builder().init().build();
+//                }
+
+        // A MongoDataStore to this host and database is returned
+<span class="fc" id="L184">        MongoDataStore mongoDatastore = mongoDataStoreManager.get(database, mongoDBConfiguration);</span>
+
+        // we return the MongoDataStore object
+<span class="fc" id="L187">        return mongoDatastore;</span>
+    }
+
+
+    @Override
+    public void open(String species, String assembly) {
+
+<span class="nc" id="L194">    }</span>
+
+    @Override
+    public void close() {
+<span class="nc" id="L198">        mongoDataStoreManager.close();</span>
+<span class="nc" id="L199">    }</span>
+
+    @Override
+    public Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt;
+    getDatabaseStatus(String species, String assembly) {
+<span class="nc" id="L204">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+        try {
+<span class="nc bnc" id="L206" title="All 2 branches missed.">            if (mongoDatastore.isReplSet()) {</span>
+                // This mongoDatastore object is not valid for a RS since will be used to run replSetGetStatus which
+                // can only be run against the &quot;admin&quot; database
+<span class="nc" id="L209">                return getReplSetStatus(species, assembly);</span>
+            } else {
+<span class="nc" id="L211">                return getSingleMachineDBStatus(mongoDatastore, species, assembly);</span>
+            }
+        // Can happen if cannot find host, for example
+<span class="nc" id="L214">        } catch (MongoTimeoutException e) {</span>
+<span class="nc" id="L215">            e.printStackTrace();</span>
+<span class="nc" id="L216">            return null;</span>
+        }
+    }
+
+    private Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt;
+    getSingleMachineDBStatus(MongoDataStore mongoDatastore, String species, String assembly) {
+<span class="nc" id="L222">        Document statusDocument = mongoDatastore.getServerStatus();</span>
+<span class="nc" id="L223">        Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt; statusMap</span>
+                = new HashMap&lt;&gt;(1);
+<span class="nc" id="L225">        HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus datastoreStatus</span>
+                = new HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus();
+<span class="nc" id="L227">        datastoreStatus.setResponseTime(getQueryResponseTime(species, assembly));</span>
+<span class="nc" id="L228">        statusMap.put((String) statusDocument.get(HOST), datastoreStatus);</span>
+<span class="nc" id="L229">        return statusMap;</span>
+    }
+
+    private Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt;
+    getReplSetStatus(String species, String assembly) {
+<span class="nc" id="L234">        MongoDataStore mongoDatastore = createMongoDBDatastore(ADMIN_DATABASE);</span>
+<span class="nc" id="L235">        Document statusDocument = mongoDatastore.getReplSetStatus();</span>
+<span class="nc" id="L236">        Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt; statusMap</span>
+                = new HashMap&lt;&gt;(4);
+
+<span class="nc" id="L239">        String repset = (String) statusDocument.get(SET);</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (StringUtils.isNotBlank(repset)) {</span>
+<span class="nc" id="L241">            HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus datastoreStatus</span>
+                    = new HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus();
+<span class="nc" id="L243">            datastoreStatus.setRepset(repset);</span>
+            // Overall database response time is measured by raising a query to Gene collection
+<span class="nc" id="L245">            datastoreStatus.setResponseTime(getQueryResponseTime(species, assembly));</span>
+<span class="nc" id="L246">            datastoreStatus.setRole(REPLICA_SET);</span>
+<span class="nc" id="L247">            statusMap.put(repset, datastoreStatus);</span>
+        }
+
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        for (Map memberStatus : (List&lt;Map&gt;) statusDocument.get(MEMBERS)) {</span>
+<span class="nc" id="L251">            HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus datastoreStatus</span>
+                    = new HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus();
+<span class="nc" id="L253">            datastoreStatus.setRepset(repset);</span>
+<span class="nc" id="L254">            datastoreStatus.setRole(((String) memberStatus.get(STATE_STR)).toLowerCase());</span>
+<span class="nc" id="L255">            String memberName = ((String) memberStatus.get(NAME)).split(COLON)[0];</span>
+            // Per-machine response time is measured by doing ping to the machine. it's not possible to create a connection
+            // to one single machine in the rep set
+<span class="nc" id="L258">            datastoreStatus.setResponseTime(getPingResponseTime(memberName));</span>
+<span class="nc" id="L259">            statusMap.put(memberName, datastoreStatus);</span>
+<span class="nc" id="L260">        }</span>
+<span class="nc" id="L261">        return statusMap;</span>
+    }
+
+    private String getQueryResponseTime(String species, String assembly) {
+<span class="nc" id="L265">        GeneDBAdaptor geneDBAdaptor = getGeneDBAdaptor(species, assembly);</span>
+        try {
+<span class="nc" id="L267">            QueryResult&lt;Gene&gt; queryResult = geneDBAdaptor.first();</span>
+            // Query must return one gene. Otherwise there's a problem
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            if (queryResult.getNumResults() == 1) {</span>
+<span class="nc" id="L270">                return queryResult.getDbTime() + &quot;ms&quot;;</span>
+            } else {
+<span class="nc" id="L272">                return null;</span>
+            }
+<span class="nc" id="L274">        } catch (MongoTimeoutException e) {</span>
+<span class="nc" id="L275">            e.printStackTrace();</span>
+<span class="nc" id="L276">            return null;</span>
+        }
+    }
+
+    private String getPingResponseTime(String memberName) {
+        try {
+<span class="nc" id="L282">            StopWatch uptime = new StopWatch();</span>
+<span class="nc" id="L283">            uptime.start();</span>
+<span class="nc" id="L284">            InetAddress address = InetAddress.getByName(memberName);</span>
+<span class="nc" id="L285">            boolean chkConnection = address.isReachable(1000);</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">            if (chkConnection) {</span>
+<span class="nc" id="L287">                return String.valueOf(TimeUnit.NANOSECONDS.toMillis(uptime.getNanoTime())) + &quot;ms&quot;;</span>
+            }
+<span class="nc" id="L289">        } catch (UnknownHostException e) {</span>
+<span class="nc" id="L290">            e.printStackTrace();</span>
+<span class="nc" id="L291">        } catch (IOException e) {</span>
+<span class="nc" id="L292">            e.printStackTrace();</span>
+<span class="nc" id="L293">        }</span>
+
+<span class="nc" id="L295">        return null;</span>
+    }
+
+    @Override
+    public GenomeDBAdaptor getGenomeDBAdaptor(String species) {
+<span class="nc" id="L300">        return getGenomeDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public GenomeDBAdaptor getGenomeDBAdaptor(String species, String assembly) {
+<span class="fc" id="L305">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L306">        return new GenomeMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+    @Override
+    public CellBaseDBAdaptor&lt;Document&gt; getMetaDBAdaptor(String species) {
+<span class="nc" id="L311">        return getMetaDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public CellBaseDBAdaptor&lt;Document&gt; getMetaDBAdaptor(String species, String assembly) {
+<span class="nc" id="L316">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="nc" id="L317">        return new MetaMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+    @Override
+    public GeneDBAdaptor getGeneDBAdaptor(String species) {
+<span class="nc" id="L322">        return getGeneDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public GeneDBAdaptor getGeneDBAdaptor(String species, String assembly) {
+<span class="fc" id="L327">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L328">        GeneMongoDBAdaptor geneMongoDBAdaptor = new GeneMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+//        geneMongoDBAdaptor.setClinicalDBAdaptor(getClinicalLegacyDBAdaptor(species, assembly));
+<span class="fc" id="L330">        return geneMongoDBAdaptor;</span>
+    }
+
+
+    @Override
+    public TranscriptDBAdaptor getTranscriptDBAdaptor(String species) {
+<span class="nc" id="L336">        return getTranscriptDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public TranscriptDBAdaptor getTranscriptDBAdaptor(String species, String assembly) {
+<span class="fc" id="L341">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L342">        return new TranscriptMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+    @Override
+    public ConservationDBAdaptor getConservationDBAdaptor(String species) {
+<span class="nc" id="L348">        return getConservationDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public ConservationDBAdaptor getConservationDBAdaptor(String species, String assembly) {
+<span class="fc" id="L353">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L354">        return new ConservationMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+    @Override
+    public XRefDBAdaptor getXRefDBAdaptor(String species) {
+<span class="nc" id="L360">        return getXRefDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public XRefDBAdaptor getXRefDBAdaptor(String species, String assembly) {
+<span class="fc" id="L365">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L366">        return new XRefMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+    @Override
+    public VariantDBAdaptor getVariationDBAdaptor(String species) {
+<span class="nc" id="L372">        return getVariationDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public VariantDBAdaptor getVariationDBAdaptor(String species, String assembly) {
+<span class="fc" id="L377">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L378">        return new VariantMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+//    @Override
+//    public VariantAnnotationDBAdaptor getVariantAnnotationDBAdaptor(String species) {
+//        return getVariantAnnotationDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public VariantAnnotationDBAdaptor getVariantAnnotationDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        return new VariantAnnotationCalculator(species, assembly, mongoDatastore, this);
+//    }
+
+
+//    @Override
+//    public VariantFunctionalScoreDBAdaptor getVariantFunctionalScoreDBAdaptor(String species) {
+//        return getVariantFunctionalScoreDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public VariantFunctionalScoreDBAdaptor getVariantFunctionalScoreDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        return new VariantFunctionalScoreMongoDBAdaptor(species, assembly, mongoDatastore);
+//    }
+
+
+    @Override
+    public ClinicalDBAdaptor getClinicalLegacyDBAdaptor(String species) {
+<span class="nc" id="L407">        return getClinicalLegacyDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public ClinicalDBAdaptor getClinicalLegacyDBAdaptor(String species, String assembly) {
+<span class="nc" id="L412">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="nc" id="L413">        return new ClinicalLegacyMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+    @Override
+    public ClinicalDBAdaptor getClinicalDBAdaptor(String species) {
+<span class="nc" id="L418">        return getClinicalDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public ClinicalDBAdaptor getClinicalDBAdaptor(String species, String assembly) {
+<span class="fc" id="L423">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L424">        return new ClinicalMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+    @Override
+    public RepeatsDBAdaptor getRepeatsDBAdaptor(String species, String assembly) {
+<span class="fc" id="L429">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L430">        return new RepeatsMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+//
+//    @Override
+//    public VariantAnnotationDBAdaptor getVariantAnnotationDBAdaptor(String species) {
+//        return getVariantAnnotationDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public VariantAnnotationDBAdaptor getVariantAnnotationDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        VariantAnnotationDBAdaptor variantAnnotationDBAdaptor = new VariantAnnotationMongoDBAdaptor(species, assembly,
+//                mongoDatastore);
+//        variantAnnotationDBAdaptor.setGeneDBAdaptor(getGeneDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setRegulationDBAdaptor(getRegulatoryRegionDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setVariantDBAdaptor(getVariationDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setVariantClinicalDBAdaptor(getClinicalLegacyDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setProteinDBAdaptor(getProteinDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setConservationDBAdaptor(getConservedRegionDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setVariantFunctionalScoreDBAdaptor(getVariantFunctionalScoreDBAdaptor(species, assembly));
+//        variantAnnotationDBAdaptor.setGenomeDBAdaptor(getGenomeDBAdaptor(species, assembly));
+//
+//        return variantAnnotationDBAdaptor;
+//    }
+//
+//
+
+
+    @Override
+    public ProteinDBAdaptor getProteinDBAdaptor(String species) {
+<span class="nc" id="L462">        return getProteinDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public ProteinDBAdaptor getProteinDBAdaptor(String species, String assembly) {
+<span class="fc" id="L467">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L468">        return new ProteinMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+    @Override
+    public ProteinProteinInteractionDBAdaptor getProteinProteinInteractionDBAdaptor(String species) {
+<span class="nc" id="L474">        return getProteinProteinInteractionDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public ProteinProteinInteractionDBAdaptor getProteinProteinInteractionDBAdaptor(String species, String assembly) {
+<span class="nc" id="L479">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="nc" id="L480">        return new ProteinProteinInteractionMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+
+
+    @Override
+    public RegulationDBAdaptor getRegulationDBAdaptor(String species) {
+<span class="nc" id="L486">        return getRegulationDBAdaptor(species, null);</span>
+    }
+
+    @Override
+    public RegulationDBAdaptor getRegulationDBAdaptor(String species, String assembly) {
+<span class="fc" id="L491">        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);</span>
+<span class="fc" id="L492">        return new RegulationMongoDBAdaptor(species, assembly, mongoDatastore);</span>
+    }
+//
+//    @Override
+//    public TfbsDBAdaptor getTfbsDBAdaptor(String species) {
+//        return getTfbsDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public TfbsDBAdaptor getTfbsDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        return new TfbsMongoDBAdaptor(species, assembly, mongoDatastore);
+//    }
+//
+//
+//    @Override
+//    public PathwayDBAdaptor getPathwayDBAdaptor(String species) {
+//        return getPathwayDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public PathwayDBAdaptor getPathwayDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        return new PathwayMongoDBAdaptor(species, assembly, mongoDatastore);
+//    }
+//
+//
+//    @Override
+//    public VariationPhenotypeAnnotationDBAdaptor getVariationPhenotypeAnnotationDBAdaptor(String species) {
+//        return getVariationPhenotypeAnnotationDBAdaptor(species, null);
+//    }
+//
+//    @Override
+//    public VariationPhenotypeAnnotationDBAdaptor getVariationPhenotypeAnnotationDBAdaptor(String species, String assembly) {
+//        MongoDataStore mongoDatastore = createMongoDBDatastore(species, assembly);
+//        return (VariationPhenotypeAnnotationDBAdaptor) new VariationPhenotypeAnnotationMongoDBAdaptor(species, assembly, mongoDatastore);
+//    }
+//
+//
+//    @Override
+//    public StructuralVariationDBAdaptor getStructuralVariationDBAdaptor(String species) {
+//        // TODO Auto-generated method stub
+//        return null;
+//    }
+//
+//    @Override
+//    public StructuralVariationDBAdaptor getStructuralVariationDBAdaptor(String species, String assembly) {
+//        // TODO Auto-generated method stub
+//        return null;
+//    }
+//
+//    @Override
+//    public MirnaDBAdaptor getMirnaDBAdaptor(String species) {
+//        // TODO Auto-generated method stub
+//        return null;
+//    }
+//
+//    @Override
+//    public MirnaDBAdaptor getMirnaDBAdaptor(String species, String assembly) {
+//        // TODO Auto-generated method stub
+//        return null;
+//    }
+//
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

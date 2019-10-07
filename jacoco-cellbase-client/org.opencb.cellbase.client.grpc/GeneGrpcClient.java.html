@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeneGrpcClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.grpc</a> &gt; <span class="el_source">GeneGrpcClient.java</span></div><h1>GeneGrpcClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.grpc;
+
+import io.grpc.ManagedChannel;
+import org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel;
+import org.opencb.biodata.models.core.protobuf.GeneModel;
+import org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel;
+import org.opencb.biodata.models.core.protobuf.TranscriptModel;
+import org.opencb.cellbase.core.grpc.service.GeneServiceGrpc;
+import org.opencb.cellbase.core.grpc.service.GenericServiceModel;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+/**
+ * Created by swaathi on 27/05/16.
+ */
+public class GeneGrpcClient extends ParentGrpcClient {
+
+    private GeneServiceGrpc.GeneServiceBlockingStub geneServiceBlockingStub;
+
+    public GeneGrpcClient(ManagedChannel channel) {
+<span class="nc" id="L23">        super(channel);</span>
+<span class="nc" id="L24">        geneServiceBlockingStub = GeneServiceGrpc.newBlockingStub(channel);</span>
+<span class="nc" id="L25">    }</span>
+
+    public Long count(Map&lt;String, String&gt; query) {
+<span class="nc" id="L28">        GenericServiceModel.Request request = buildRequest(query, new HashMap&lt;&gt;());</span>
+<span class="nc" id="L29">        return geneServiceBlockingStub.count(request).getValue();</span>
+    }
+
+    public GeneModel.Gene first(Map&lt;String, String&gt; query, Map&lt;String, String&gt; queryOptions)  {
+<span class="nc" id="L33">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L34">        return geneServiceBlockingStub.first(request);</span>
+    }
+
+    public Iterator&lt;GeneModel.Gene&gt; get(Map&lt;String, String&gt; query, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L38">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L39">        return geneServiceBlockingStub.get(request);</span>
+    }
+
+    public ServiceTypesModel.StringArrayResponse distinct(Map&lt;String, String&gt; query, String field) {
+<span class="nc" id="L43">        Map&lt;String, String&gt; queryOptions = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L44">        queryOptions.put(&quot;distinct&quot;, field);</span>
+<span class="nc" id="L45">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L46">        return geneServiceBlockingStub.distinct(request);</span>
+    }
+
+    public Iterator&lt;TranscriptModel.Transcript&gt; getTranscripts(String id, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L50">        Map&lt;String, String&gt; query = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L51">        query.put(&quot;id&quot;, id);</span>
+<span class="nc" id="L52">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L53">        return geneServiceBlockingStub.getTranscripts(request);</span>
+    }
+
+    public Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; getRegulatoryRegions(String id, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L57">        Map&lt;String, String&gt; query = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L58">        query.put(&quot;id&quot;, id);</span>
+<span class="nc" id="L59">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L60">        return geneServiceBlockingStub.getRegulatoryRegions(request);</span>
+    }
+
+    public Iterator&lt;TranscriptModel.TranscriptTfbs&gt; getTranscriptTfbs(String id, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L64">        Map&lt;String, String&gt; query = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L65">        query.put(&quot;id&quot;, id);</span>
+<span class="nc" id="L66">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L67">        return geneServiceBlockingStub.getTranscriptTfbs(request);</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

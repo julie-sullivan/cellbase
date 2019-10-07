@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.variation</a> &gt; <span class="el_source">VariationParser.java</span></div><h1>VariationParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform.variation;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.base.Stopwatch;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.annotation.exceptions.SOTermNotAvailableException;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.biodata.models.variation.TranscriptVariation;
+
+import org.opencb.cellbase.app.transform.CellBaseParser;
+import org.opencb.cellbase.app.transform.utils.VariationUtils;
+import org.opencb.cellbase.core.serializer.CellBaseFileSerializer;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils.getSequenceOntologyTerms;
+
+public class VariationParser extends CellBaseParser {
+
+    protected static final String PREPROCESSED_VARIATION_FILENAME = &quot;variation.sorted.txt&quot;;
+
+    private Path variationDirectoryPath;
+
+    private static final int VARIATION_FEATURE_ID_COLUMN_INDEX_IN_TRANSCRIPT_VARIATION_FILE = 1;
+
+    private Pattern cnvPattern;
+    private static final String SEQUENCE_GROUP = &quot;seq&quot;;
+    private static final String COUNT_GROUP = &quot;count&quot;;
+
+    private CellBaseFileSerializer fileSerializer;
+    private Map&lt;String, String&gt; outputFileNames;
+
+    private VariationFile variationFile;
+    private VariationTranscriptFile variationTranscriptFile;
+    private VariationFeatureFile variationFeatureFile;
+    private VariationSynonymFile variationSynonymFile;
+    private ObjectWriter jsonObjectWriter;
+
+    public VariationParser(Path variationDirectoryPath, CellBaseFileSerializer serializer) {
+<span class="fc" id="L67">        super(serializer);</span>
+<span class="fc" id="L68">        fileSerializer = serializer;</span>
+<span class="fc" id="L69">        this.variationDirectoryPath = variationDirectoryPath;</span>
+        //cnvPattern = Pattern.compile(&quot;((?&lt;&quot; + SEQUENCE_GROUP + &quot;&gt;\\(\\w+\\))&quot; + &quot;(?&lt;&quot; + COUNT_GROUP + &quot;&gt;\\d*))+&quot;);
+        // Avoid patterns alleles like &quot;(AG)15(TG)16&quot; to be procesed as CNVs - just one occurrence like &quot;(AG)15&quot;
+        // will be accepted
+<span class="fc" id="L73">        cnvPattern = Pattern.compile(&quot;((?&lt;&quot; + SEQUENCE_GROUP + &quot;&gt;\\(\\w+\\))&quot; + &quot;(?&lt;&quot; + COUNT_GROUP + &quot;&gt;\\d*))&quot;);</span>
+<span class="fc" id="L74">        outputFileNames = new HashMap&lt;&gt;();</span>
+        // create files
+<span class="fc" id="L76">        variationFile = new VariationFile(variationDirectoryPath);</span>
+<span class="fc" id="L77">        variationFeatureFile = new VariationFeatureFile(variationDirectoryPath);</span>
+<span class="fc" id="L78">        variationTranscriptFile = new VariationTranscriptFile(variationDirectoryPath);</span>
+<span class="fc" id="L79">        variationSynonymFile = new VariationSynonymFile(variationDirectoryPath);</span>
+<span class="fc" id="L80">        initializeJsonWriter();</span>
+<span class="fc" id="L81">    }</span>
+
+    @Override
+    public void parse() throws IOException, InterruptedException, SQLException, ClassNotFoundException {
+
+<span class="pc bpc" id="L86" title="2 of 4 branches missed.">        if (!Files.exists(variationDirectoryPath) || !Files.isDirectory(variationDirectoryPath)</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                || !Files.isReadable(variationDirectoryPath)) {</span>
+<span class="nc" id="L88">            throw new IOException(&quot;Variation directory whether does not exist, is not a directory or cannot be read&quot;);</span>
+        }
+<span class="pc bpc" id="L90" title="2 of 4 branches missed.">        if (!variationFile.existsZippedOrUnzippedFile() || variationFile.isEmpty()) {</span>
+<span class="nc" id="L91">            throw new IOException(&quot;variation.txt.gz whether does not exist, is not a directory or cannot be read&quot;);</span>
+        }
+
+        // add idVariation to transcript_variation file
+<span class="fc" id="L95">        preprocessInputFiles();</span>
+
+        // Open variation file, this file never gets uncompressed. It's read from gzip file
+<span class="fc" id="L98">        BufferedReader bufferedReaderVariation = variationFile.getBufferedReader();</span>
+
+        // create buffered readers for all other input files
+<span class="fc" id="L101">        createVariationFilesReaders();</span>
+
+<span class="fc" id="L103">        Map&lt;String, String&gt; seqRegionMap = VariationUtils.parseSeqRegionToMap(variationDirectoryPath);</span>
+<span class="fc" id="L104">        Map&lt;String, String&gt; sourceMap = VariationUtils.parseSourceToMap(variationDirectoryPath);</span>
+
+<span class="fc" id="L106">        Stopwatch globalStartwatch = Stopwatch.createStarted();</span>
+<span class="fc" id="L107">        Stopwatch batchWatch = Stopwatch.createStarted();</span>
+<span class="fc" id="L108">        logger.info(&quot;Parsing variation file {} ...&quot;, variationDirectoryPath.resolve(PREPROCESSED_VARIATION_FILENAME));</span>
+<span class="fc" id="L109">        long countprocess = 0, incorrectEndVariants = 0, incorrectAllelesVariants = 0;</span>
+
+        String line;
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        while ((line = bufferedReaderVariation.readLine()) != null) {</span>
+<span class="fc" id="L113">            String[] variationFields = line.split(&quot;\t&quot;);</span>
+
+<span class="fc" id="L115">            int variationId = Integer.parseInt(variationFields[0]);</span>
+
+<span class="fc" id="L117">            List&lt;String[]&gt; resultVariationFeature = variationFeatureFile.getVariationRelatedLines(variationId);</span>
+<span class="pc bpc" id="L118" title="2 of 4 branches missed.">            if (resultVariationFeature != null &amp;&amp; resultVariationFeature.size() &gt; 0) {</span>
+<span class="fc" id="L119">                String[] variationFeatureFields = resultVariationFeature.get(0);</span>
+
+<span class="fc" id="L121">                List&lt;TranscriptVariation&gt; transcriptVariation = getTranscriptVariations(variationId, variationFeatureFields[0]);</span>
+<span class="fc" id="L122">                List&lt;Xref&gt; xrefs = getXrefs(sourceMap, variationId);</span>
+
+                try {
+                    // Preparing the variation alleles
+<span class="fc" id="L126">                    String[] allelesArray = getAllelesArray(variationFeatureFields);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">                    if (allelesArray == null) {</span>
+<span class="nc" id="L128">                        logger.debug(&quot;Incorrect allele string: {}&quot;, variationFeatureFields[6]);</span>
+<span class="nc" id="L129">                        incorrectAllelesVariants++;</span>
+                    } else {
+<span class="fc" id="L131">                        String chromosome = seqRegionMap.get(variationFeatureFields[1]);</span>
+
+<span class="pc bpc" id="L133" title="3 of 6 branches missed.">                        if (!chromosome.contains(&quot;PATCH&quot;) &amp;&amp; !chromosome.contains(&quot;HSCHR&quot;) &amp;&amp; !chromosome.contains(&quot;contig&quot;)) {</span>
+<span class="fc" id="L134">                            int start = Integer.valueOf(variationFeatureFields[2]);</span>
+<span class="fc" id="L135">                            int end = Integer.valueOf(variationFeatureFields[3]);</span>
+<span class="pc bpc" id="L136" title="2 of 4 branches missed.">                            String id = (variationFields[2] != null &amp;&amp; !variationFields[2].equals(&quot;\\N&quot;)) ? variationFields[2] : &quot;&quot;;</span>
+<span class="pc bpc" id="L137" title="2 of 4 branches missed.">                            String reference = (allelesArray[0] != null &amp;&amp; !allelesArray[0].equals(&quot;\\N&quot;)) ? allelesArray[0] : &quot;&quot;;</span>
+<span class="fc" id="L138">                            List&lt;String&gt; alternates = getAlternates(allelesArray);</span>
+
+<span class="fc" id="L140">                            List&lt;String&gt; ids = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L141">                            ids.add(id);</span>
+
+<span class="fc" id="L143">                            List&lt;String&gt; hgvs = getHgvs(transcriptVariation);</span>
+<span class="fc" id="L144">                            Map&lt;String, AdditionalAttribute&gt; additionalAttributes</span>
+<span class="fc" id="L145">                                    = getAdditionalAttributes(variationFields, variationFeatureFields);</span>
+
+<span class="fc" id="L147">                            List&lt;ConsequenceType&gt; conseqTypes = getConsequenceTypes(transcriptVariation);</span>
+<span class="fc" id="L148">                            String displayConsequenceTypes = getDisplayConsequenceType(variationFeatureFields);</span>
+<span class="fc" id="L149">                            String strand = variationFeatureFields[4];</span>
+<span class="pc bpc" id="L150" title="2 of 4 branches missed.">                            String ancestralAllele = (variationFields[4] != null &amp;&amp; !variationFields[4].equals(&quot;\\N&quot;))</span>
+                                    ? variationFields[4] : &quot;&quot;;
+<span class="pc bpc" id="L152" title="1 of 4 branches missed.">                            String minorAllele = (variationFeatureFields[16] != null &amp;&amp; !variationFeatureFields[16].equals(&quot;\\N&quot;))</span>
+                                    ? variationFeatureFields[16] : &quot;&quot;;
+<span class="pc bpc" id="L154" title="1 of 4 branches missed.">                            Float minorAlleleFreq = (variationFeatureFields[17] != null &amp;&amp; !variationFeatureFields[17].equals(&quot;\\N&quot;))</span>
+<span class="fc" id="L155">                                    ? Float.parseFloat(variationFeatureFields[17]) : null;</span>
+
+                            // create a variation object for each alternative
+<span class="fc bfc" id="L158" title="All 2 branches covered.">                            for (String alternate : alternates) {</span>
+<span class="fc" id="L159">                                VariantType type = getVariantType(reference, alternate);</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">                                if (type == null) {</span>
+<span class="nc" id="L161">                                    logger.warn(&quot;Unrecognized variant type (won't be parsed): {}:{}-{} {}/{}&quot;, chromosome, start, end,</span>
+                                            reference, alternate);
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">                                } else if (incorrectStartAndEnd(start, end, reference)) {</span>
+<span class="nc" id="L164">                                    logger.debug(&quot;Incorrect variant start-end pair:  {}:{}-{} {}/{}&quot;, chromosome, start, end, reference,</span>
+                                            alternate);
+<span class="nc" id="L166">                                    incorrectEndVariants++;</span>
+                                } else {
+                                    // build and serialize variant
+<span class="fc" id="L169">                                    Variant variation = buildVariant(chromosome, start, end, reference, alternate, type, ids, hgvs,</span>
+                                            additionalAttributes, displayConsequenceTypes, conseqTypes, id, xrefs, strand, ancestralAllele,
+                                            minorAllele, minorAlleleFreq);
+<span class="fc" id="L172">                                    fileSerializer.serialize(variation, getOutputFileName(chromosome));</span>
+                                }
+<span class="fc" id="L174">                                countprocess++;</span>
+<span class="fc" id="L175">                            }</span>
+                        }
+                    }
+
+<span class="pc bpc" id="L179" title="3 of 4 branches missed.">                    if (countprocess % 100000 == 0 &amp;&amp; countprocess != 0) {</span>
+<span class="nc" id="L180">                        logger.info(&quot;Processed variations: {}&quot;, countprocess);</span>
+<span class="nc" id="L181">                        logger.debug(&quot;Elapsed time processing batch: {}&quot;, batchWatch);</span>
+<span class="nc" id="L182">                        batchWatch.reset();</span>
+<span class="nc" id="L183">                        batchWatch.start();</span>
+                    }
+
+<span class="nc" id="L186">                } catch (Exception e) {</span>
+<span class="nc" id="L187">                    e.printStackTrace();</span>
+<span class="nc" id="L188">                    logger.error(&quot;Error parsing variation: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L189">                    logger.error(&quot;Last line processed: {}&quot;, line);</span>
+<span class="nc" id="L190">                    break;</span>
+<span class="fc" id="L191">                }</span>
+            }
+//            // TODO: just for testing, remove
+//            if (countprocess % 1000000 == 0) {
+//                break;
+//            }
+<span class="fc" id="L197">        }</span>
+
+<span class="fc" id="L199">        serializer.close();</span>
+<span class="fc" id="L200">        logger.info(&quot;Variation parsing finished&quot;);</span>
+<span class="fc" id="L201">        logger.info(&quot;Variants processed: {}&quot;, countprocess);</span>
+<span class="fc" id="L202">        logger.info(&quot;Variants not parsed due to incorrect start-end: {}&quot;, incorrectEndVariants);</span>
+<span class="fc" id="L203">        logger.info(&quot;Variants not parsed due to incorrect alleles: {}&quot;, incorrectAllelesVariants);</span>
+<span class="fc" id="L204">        logger.debug(&quot;Elapsed time parsing: {}&quot;, globalStartwatch);</span>
+
+<span class="fc" id="L206">        gzipVariationFiles(variationDirectoryPath);</span>
+
+        try {
+<span class="fc" id="L209">            bufferedReaderVariation.close();</span>
+<span class="nc" id="L210">        } catch (Exception e) {</span>
+<span class="nc" id="L211">            e.printStackTrace();</span>
+<span class="fc" id="L212">        }</span>
+<span class="fc" id="L213">    }</span>
+
+    private void preprocessInputFiles() throws IOException, InterruptedException {
+<span class="fc" id="L216">        gunzipVariationInputFiles();</span>
+<span class="fc" id="L217">        variationFile.sort();</span>
+<span class="fc" id="L218">        variationFeatureFile.sort();</span>
+<span class="fc" id="L219">        variationSynonymFile.sort();</span>
+<span class="fc" id="L220">        variationTranscriptFile.preprocess(variationFeatureFile);</span>
+<span class="fc" id="L221">    }</span>
+
+    private void createVariationFilesReaders() throws IOException {
+<span class="fc" id="L224">        variationFeatureFile.createBufferedReader();</span>
+<span class="fc" id="L225">        variationSynonymFile.createBufferedReader();</span>
+<span class="fc" id="L226">        variationTranscriptFile.createBufferedReader();</span>
+<span class="fc" id="L227">    }</span>
+
+    private Variant buildVariant(String chromosome, int start, int end, String reference, String alternate, VariantType type,
+                                 List&lt;String&gt; ids, List&lt;String&gt; hgvs, Map&lt;String, AdditionalAttribute&gt; additionalAttributes,
+                                 String displayConsequenceType, List&lt;ConsequenceType&gt; conseqTypes, String id, List&lt;Xref&gt; xrefs,
+                                 String strand, String ancestralAllele, String minorAllele, Float minorAlleleFreq) {
+
+<span class="fc" id="L234">        StructuralVariation sv = null;</span>
+<span class="pc bpc" id="L235" title="1 of 3 branches missed.">        switch (type) {</span>
+            case INDEL:
+            case INSERTION:
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">                if (end &lt; start) {</span>
+<span class="fc" id="L239">                    end = start;</span>
+                }
+                break;
+            case CNV:
+<span class="nc" id="L243">                reference = String.valueOf(reference.toCharArray()[1]);</span>
+<span class="nc" id="L244">                String copyNumberStr = alternate.split(&quot;\\)&quot;)[1];</span>
+<span class="nc" id="L245">                alternate = &quot;&lt;CN&quot; + copyNumberStr + &quot;&gt;&quot;;</span>
+<span class="nc" id="L246">                Integer copyNumber = Integer.valueOf(copyNumberStr);</span>
+<span class="nc" id="L247">                sv = new StructuralVariation(start, start, end, end, copyNumber, null, null,</span>
+<span class="nc" id="L248">                        Variant.getCNVSubtype(copyNumber), null);</span>
+<span class="nc" id="L249">                break;</span>
+            default:
+                break;
+        }
+
+//        end = fixEndForInsertions(start, end, type);
+<span class="fc" id="L255">        Variant variant = new Variant(chromosome, start, end, reference, alternate);</span>
+<span class="fc" id="L256">        variant.setIds(ids);</span>
+<span class="fc" id="L257">        variant.setType(type);</span>
+<span class="fc" id="L258">        variant.setSv(sv);</span>
+<span class="fc" id="L259">        VariantAnnotation ensemblVariantAnnotation = new VariantAnnotation(null, null, null,</span>
+                null, null, null, id, xrefs, hgvs,
+                displayConsequenceType, conseqTypes, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null,
+                null, null);
+        try {
+<span class="fc" id="L266">            String ensemblAnnotationJson = getEnsemblAnnotationJson(ensemblVariantAnnotation);</span>
+<span class="fc" id="L267">            additionalAttributes.get(&quot;ensemblAnnotation&quot;).getAttribute().put(&quot;annotation&quot;, ensemblAnnotationJson);</span>
+<span class="nc" id="L268">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L269">            logger.warn(&quot;Variant {} annotation cannot be serialized to Json: {}&quot;, id, e.getMessage());</span>
+<span class="fc" id="L270">        }</span>
+<span class="fc" id="L271">        VariantAnnotation variantAnnotation = new VariantAnnotation(null, null, null,</span>
+                null, null, ancestralAllele, id, xrefs, hgvs,
+                displayConsequenceType, conseqTypes, null, minorAllele, minorAlleleFreq,
+                null, null, null, null,
+                null, null, null, null, null,
+                null, additionalAttributes);
+<span class="fc" id="L277">        variant.setAnnotation(variantAnnotation);</span>
+<span class="fc" id="L278">        variant.setStrand(strand);</span>
+
+<span class="fc" id="L280">        return variant;</span>
+    }
+
+//    private int fixEndForInsertions(int start, int end, VariantType type) {
+//        if (type == VariantType.INDEL || type == VariantType.INSERTION) {
+//            if (end &lt; start) {
+//                end = start;
+//            }
+//        }
+//        return end;
+//    }
+
+    private String getDisplayConsequenceType(String[] variationFeatureFields) {
+<span class="fc" id="L293">        List&lt;String&gt; consequenceTypes = Arrays.asList(variationFeatureFields[12].split(&quot;,&quot;));</span>
+<span class="fc" id="L294">        String displayConsequenceType = null;</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (consequenceTypes.size() == 1) {</span>
+<span class="fc" id="L296">            displayConsequenceType = consequenceTypes.get(0);</span>
+        } else {
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">            for (String cons : consequenceTypes) {</span>
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">                if (!cons.equals(&quot;intergenic_variant&quot;)) {</span>
+<span class="fc" id="L300">                    displayConsequenceType = cons;</span>
+<span class="fc" id="L301">                    break;</span>
+                }
+<span class="nc" id="L303">            }</span>
+        }
+<span class="fc" id="L305">        return displayConsequenceType;</span>
+    }
+
+    private String getEnsemblAnnotationJson(VariantAnnotation ensemblVariantAnnotation) throws JsonProcessingException {
+<span class="fc" id="L309">        return jsonObjectWriter.writeValueAsString(ensemblVariantAnnotation);</span>
+    }
+
+    private void initializeJsonWriter() {
+<span class="fc" id="L313">        ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="fc" id="L314">        jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="fc" id="L315">        jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="fc" id="L316">        jsonObjectWriter = jsonObjectMapper.writer();</span>
+<span class="fc" id="L317">    }</span>
+
+    private VariantType getVariantType(String reference, String alternate) {
+<span class="pc bpc" id="L320" title="2 of 4 branches missed.">        if (reference.contains(&quot;(&quot;) || alternate.contains(&quot;(&quot;)) {</span>
+<span class="nc" id="L321">            return checkSnv(reference, alternate);</span>
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">        } else if (reference.length() != alternate.length()) {</span>
+<span class="nc" id="L323">            return VariantType.INDEL;</span>
+<span class="pc bpc" id="L324" title="1 of 4 branches missed.">        } else if (reference.equals(&quot;-&quot;) || alternate.equals(&quot;-&quot;)) {</span>
+<span class="fc" id="L325">            return VariantType.INDEL;</span>
+        } else {
+<span class="fc" id="L327">            return VariantType.SNV;</span>
+        }
+//
+//        if (reference.length() != alternate.length()) {
+//            return VariantType.INDEL;
+//        } else {
+//            if (reference.equals(&quot;-&quot;) || alternate.equals(&quot;-&quot;)) {
+//                return VariantType.INDEL;
+//            } else if (reference.contains(&quot;(&quot;) || alternate.contains(&quot;(&quot;)) {
+//                return checkSnv(reference, alternate);
+//            } else {
+//                return VariantType.SNV;
+//            }
+//        }
+    }
+
+    private VariantType checkSnv(String reference, String alternate) {
+<span class="nc" id="L344">        Matcher referenceMatcher = cnvPattern.matcher(reference);</span>
+<span class="nc" id="L345">        Matcher alternateMatcher = cnvPattern.matcher(alternate);</span>
+<span class="nc bnc" id="L346" title="All 4 branches missed.">        if (referenceMatcher.matches() &amp;&amp; alternateMatcher.matches()) {</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">            if (referenceMatcher.group(SEQUENCE_GROUP).equals(alternateMatcher.group(SEQUENCE_GROUP))</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">                    &amp;&amp; !referenceMatcher.group(COUNT_GROUP).equals(alternateMatcher.group(COUNT_GROUP))) {</span>
+<span class="nc" id="L349">                return VariantType.CNV;</span>
+            }
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        } else if (referenceMatcher.matches()) {</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">            if (referenceMatcher.group(SEQUENCE_GROUP).equals(alternate)) {</span>
+<span class="nc" id="L353">                return VariantType.CNV;</span>
+            }
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        } else if (alternateMatcher.matches()) {</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            if (alternateMatcher.group(SEQUENCE_GROUP).equals(reference)) {</span>
+<span class="nc" id="L357">                return VariantType.CNV;</span>
+            }
+        }
+<span class="nc" id="L360">        return null;</span>
+    }
+
+    private boolean incorrectStartAndEnd(int start, int end, String reference) {
+<span class="pc bpc" id="L364" title="2 of 6 branches missed.">        return end &lt; start &amp;&amp; !reference.equals(&quot;&quot;) &amp;&amp; !reference.equals(&quot;-&quot;);</span>
+    }
+
+    private List&lt;String&gt; getAlternates(String[] allelesArray) {
+<span class="fc" id="L368">        List&lt;String&gt; alternates = new ArrayList&lt;&gt;(allelesArray.length - 1);</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">        for (int i = 1; i &lt; allelesArray.length; i++) {</span>
+<span class="pc bpc" id="L370" title="2 of 4 branches missed.">            alternates.add((allelesArray[i] != null &amp;&amp; !allelesArray[i].equals(&quot;\\N&quot;)) ? allelesArray[i] : &quot;&quot;);</span>
+        }
+<span class="fc" id="L372">        return alternates;</span>
+    }
+
+    private List&lt;String&gt; getHgvs(List&lt;TranscriptVariation&gt; transcriptVariations) {
+<span class="fc" id="L376">        Set&lt;String&gt; hgvs = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">        for (TranscriptVariation transcriptVariation : transcriptVariations) {</span>
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">            if (transcriptVariation.getHgvsGenomic() != null) {</span>
+<span class="fc" id="L379">                hgvs.add(transcriptVariation.getHgvsGenomic());</span>
+            }
+<span class="fc bfc" id="L381" title="All 2 branches covered.">            if (transcriptVariation.getHgvsTranscript() != null) {</span>
+<span class="fc" id="L382">                hgvs.add(transcriptVariation.getHgvsTranscript());</span>
+            }
+<span class="fc bfc" id="L384" title="All 2 branches covered.">            if (transcriptVariation.getHgvsProtein() != null) {</span>
+<span class="fc" id="L385">                hgvs.add(transcriptVariation.getHgvsProtein());</span>
+            }
+<span class="fc" id="L387">        }</span>
+<span class="fc" id="L388">        return new ArrayList&lt;&gt;(hgvs);</span>
+    }
+
+    private List&lt;ConsequenceType&gt; getConsequenceTypes(List&lt;TranscriptVariation&gt; transcriptVariations) {
+<span class="fc" id="L392">        List&lt;ConsequenceType&gt; consequenceTypes = null;</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">        for (TranscriptVariation transcriptVariation : transcriptVariations) {</span>
+<span class="fc" id="L394">            ProteinVariantAnnotation proteinVariantAnnotation = getProteinVariantAnnotation(transcriptVariation);</span>
+
+<span class="fc" id="L396">            List&lt;SequenceOntologyTerm&gt; soTerms = null;</span>
+            try {
+<span class="fc" id="L398">                soTerms = getSequenceOntologyTerms(transcriptVariation.getConsequenceTypes());</span>
+<span class="nc" id="L399">            } catch (SOTermNotAvailableException e) {</span>
+<span class="nc" id="L400">                logger.warn(e.getMessage());</span>
+<span class="fc" id="L401">            }</span>
+
+<span class="fc bfc" id="L403" title="All 2 branches covered.">            if (consequenceTypes == null) {</span>
+<span class="fc" id="L404">                consequenceTypes = new ArrayList&lt;&gt;();</span>
+            }
+<span class="fc" id="L406">            consequenceTypes.add(new ConsequenceType(null, null, transcriptVariation.getTranscriptId(), null, null,</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">                    null, null, transcriptVariation.getCdnaStart() != 0 ? transcriptVariation.getCdnaStart() : null,</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">                    transcriptVariation.getCdsStart() != 0 ? transcriptVariation.getCdsStart() : null,</span>
+<span class="fc" id="L409">                    transcriptVariation.getCodonAlleleString(), proteinVariantAnnotation, soTerms));</span>
+
+<span class="fc" id="L411">        }</span>
+<span class="fc" id="L412">        return consequenceTypes;</span>
+    }
+
+    private ProteinVariantAnnotation getProteinVariantAnnotation(TranscriptVariation transcriptVariation) {
+<span class="fc" id="L416">        List&lt;Score&gt; substitionScores = getSubstitutionScores(transcriptVariation);</span>
+
+        // get peptide reference and alternate
+<span class="fc" id="L419">        String peptideReference = null,</span>
+<span class="fc" id="L420">                peptideAlternate = null;</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">        if (transcriptVariation.getPeptideAlleleString() != null) {</span>
+<span class="fc" id="L422">            String[] peptideAlleles = transcriptVariation.getPeptideAlleleString().split(&quot;/&quot;);</span>
+<span class="fc" id="L423">            peptideReference = peptideAlleles[0];</span>
+<span class="pc bpc" id="L424" title="1 of 2 branches missed.">            if (peptideAlleles.length == 1) {</span>
+<span class="fc" id="L425">                peptideAlternate = peptideAlleles[0];</span>
+            } else {
+<span class="nc" id="L427">                peptideAlternate = peptideAlleles[1];</span>
+            }
+        }
+
+<span class="fc" id="L431">        ProteinVariantAnnotation proteinVariantAnnotation = null;</span>
+<span class="pc bpc" id="L432" title="2 of 6 branches missed.">        if (peptideAlternate != null || peptideReference != null || substitionScores != null) {</span>
+<span class="fc" id="L433">            proteinVariantAnnotation = new ProteinVariantAnnotation(null, null, 0,</span>
+                    peptideReference, peptideAlternate, null, null, substitionScores, null, null);
+        }
+<span class="fc" id="L436">        return proteinVariantAnnotation;</span>
+    }
+
+    private List&lt;Score&gt; getSubstitutionScores(TranscriptVariation transcriptVariation) {
+<span class="fc" id="L440">        List&lt;Score&gt; substitionScores = null;</span>
+<span class="pc bpc" id="L441" title="1 of 2 branches missed.">        if (transcriptVariation.getPolyphenScore() != null) {</span>
+<span class="nc" id="L442">            substitionScores = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L443">            substitionScores.add(new Score((double) transcriptVariation.getPolyphenScore(), &quot;Polyphen&quot;, null));</span>
+        }
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">        if (transcriptVariation.getSiftScore() != null) {</span>
+<span class="nc bnc" id="L446" title="All 2 branches missed.">            if (substitionScores == null) {</span>
+<span class="nc" id="L447">                substitionScores = new ArrayList&lt;&gt;();</span>
+            }
+<span class="nc" id="L449">            substitionScores.add(new Score((double) transcriptVariation.getSiftScore(), &quot;Sift&quot;, null));</span>
+        }
+<span class="fc" id="L451">        return substitionScores;</span>
+    }
+
+    private String[] getAllelesArray(String[] variationFeatureFields) {
+<span class="fc" id="L455">        String[] allelesArray = null;</span>
+<span class="pc bpc" id="L456" title="2 of 4 branches missed.">        if (variationFeatureFields != null &amp;&amp; variationFeatureFields[6] != null) {</span>
+<span class="fc" id="L457">            allelesArray = variationFeatureFields[6].split(&quot;/&quot;);</span>
+<span class="pc bpc" id="L458" title="2 of 4 branches missed.">            if (allelesArray.length == 1 || allelesArray.length == 0) {</span>
+<span class="nc" id="L459">                allelesArray = null;</span>
+            }
+        }
+<span class="fc" id="L462">        return allelesArray;</span>
+    }
+
+    private Map&lt;String, AdditionalAttribute&gt; getAdditionalAttributes(String[] variationFields, String[] variationFeatureFields) {
+<span class="fc" id="L466">        Map&lt;String, AdditionalAttribute&gt; additionalAttributes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L467">        AdditionalAttribute additionalAttribute = new AdditionalAttribute();</span>
+<span class="fc" id="L468">        additionalAttribute.setAttribute(new HashMap&lt;String, String&gt;());</span>
+
+<span class="pc bpc" id="L470" title="2 of 4 branches missed.">        if ((variationFeatureFields[11] != null &amp;&amp; !variationFeatureFields[11].equals(&quot;\\N&quot;))) {</span>
+<span class="fc" id="L471">            additionalAttribute.getAttribute().put(&quot;ensemblValidationStatus&quot;, variationFeatureFields[11]);</span>
+        }
+
+<span class="fc" id="L474">        additionalAttributes.put(&quot;ensemblAnnotation&quot;, additionalAttribute);</span>
+
+<span class="fc" id="L476">        return additionalAttributes;</span>
+    }
+
+    private List&lt;Xref&gt; getXrefs(Map&lt;String, String&gt; sourceMap, int variationId) throws IOException, SQLException {
+<span class="fc" id="L480">        List&lt;String[]&gt; variationSynonyms = variationSynonymFile.getVariationRelatedLines(variationId);</span>
+<span class="fc" id="L481">        List&lt;Xref&gt; xrefs = null;</span>
+<span class="pc bpc" id="L482" title="1 of 4 branches missed.">        if (variationSynonyms != null &amp;&amp; variationSynonyms.size() &gt; 0) {</span>
+            String[] arr;
+<span class="fc bfc" id="L484" title="All 2 branches covered.">            for (String[] variationSynonymFields : variationSynonyms) {</span>
+                // TODO: use constans to identify the fields
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">                if (sourceMap.get(variationSynonymFields[3]) != null) {</span>
+<span class="fc" id="L487">                    arr = sourceMap.get(variationSynonymFields[3]).split(&quot;,&quot;);</span>
+<span class="fc bfc" id="L488" title="All 2 branches covered.">                    if (xrefs == null) {</span>
+<span class="fc" id="L489">                        xrefs = new ArrayList&lt;&gt;();</span>
+                    }
+<span class="fc" id="L491">                    xrefs.add(new Xref(variationSynonymFields[4], arr[0]));</span>
+                }
+<span class="fc" id="L493">            }</span>
+        }
+<span class="fc" id="L495">        return xrefs;</span>
+    }
+
+    private List&lt;TranscriptVariation&gt; getTranscriptVariations(int variationId, String variationFeatureId) throws IOException, SQLException {
+        // Note the ID used, TranscriptVariation references to VariationFeature no Variation !!!
+<span class="fc" id="L500">        List&lt;TranscriptVariation&gt; transcriptVariation = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L501">        List&lt;String[]&gt; resultTranscriptVariations = variationTranscriptFile.getVariationRelatedLines(variationId);</span>
+        //getVariationTranscripts(variationId, Integer.parseInt(variationFeatureId));
+<span class="pc bpc" id="L503" title="2 of 4 branches missed.">        if (resultTranscriptVariations != null &amp;&amp; resultTranscriptVariations.size() &gt; 0) {</span>
+<span class="fc bfc" id="L504" title="All 2 branches covered.">            for (String[] transcriptVariationFields : resultTranscriptVariations) {</span>
+<span class="pc bpc" id="L505" title="1 of 2 branches missed.">                if (transcriptVariationFields[VARIATION_FEATURE_ID_COLUMN_INDEX_IN_TRANSCRIPT_VARIATION_FILE].equals(variationFeatureId)) {</span>
+<span class="fc" id="L506">                    TranscriptVariation tv = buildTranscriptVariation(transcriptVariationFields);</span>
+<span class="fc" id="L507">                    transcriptVariation.add(tv);</span>
+                }
+<span class="fc" id="L509">            }</span>
+        }
+<span class="fc" id="L511">        return transcriptVariation;</span>
+    }
+
+    private TranscriptVariation buildTranscriptVariation(String[] transVarFields) {
+<span class="pc bpc" id="L515" title="1 of 2 branches missed.">        return new TranscriptVariation(</span>
+<span class="pc bpc" id="L516" title="2 of 4 branches missed.">                (transVarFields[2] != null &amp;&amp; !transVarFields[2].equals(&quot;\\N&quot;)) ? transVarFields[2] : null,</span>
+<span class="pc bpc" id="L517" title="2 of 4 branches missed.">                (transVarFields[3] != null &amp;&amp; !transVarFields[3].equals(&quot;\\N&quot;)) ? transVarFields[3] : null,</span>
+<span class="pc bpc" id="L518" title="1 of 2 branches missed.">                (transVarFields[4] != null &amp;&amp; !transVarFields[4].equals(&quot;\\N&quot;)) ? transVarFields[4] : null,</span>
+<span class="pc bpc" id="L519" title="1 of 2 branches missed.">                Arrays.asList(transVarFields[5].split(&quot;,&quot;)),</span>
+<span class="pc bpc" id="L520" title="1 of 4 branches missed.">                (transVarFields[6] != null &amp;&amp; !transVarFields[6].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[6]) : 0,</span>
+<span class="pc bpc" id="L521" title="1 of 4 branches missed.">                (transVarFields[7] != null &amp;&amp; !transVarFields[7].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[7]) : 0,</span>
+<span class="pc bpc" id="L522" title="1 of 4 branches missed.">                (transVarFields[8] != null &amp;&amp; !transVarFields[8].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[8]) : 0,</span>
+<span class="pc bpc" id="L523" title="1 of 4 branches missed.">                (transVarFields[9] != null &amp;&amp; !transVarFields[9].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[9]) : 0,</span>
+<span class="pc bpc" id="L524" title="1 of 4 branches missed.">                (transVarFields[10] != null &amp;&amp; !transVarFields[10].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[10]) : 0,</span>
+<span class="pc bpc" id="L525" title="1 of 4 branches missed.">                (transVarFields[11] != null &amp;&amp; !transVarFields[11].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[11]) : 0,</span>
+<span class="pc bpc" id="L526" title="2 of 4 branches missed.">                (transVarFields[12] != null &amp;&amp; !transVarFields[12].equals(&quot;\\N&quot;)) ? Integer.parseInt(transVarFields[12]) : 0,</span>
+<span class="pc bpc" id="L527" title="1 of 4 branches missed.">                (transVarFields[13] != null &amp;&amp; !transVarFields[13].equals(&quot;\\N&quot;)) ? transVarFields[13] : null,</span>
+<span class="pc bpc" id="L528" title="1 of 4 branches missed.">                (transVarFields[14] != null &amp;&amp; !transVarFields[14].equals(&quot;\\N&quot;)) ? transVarFields[14] : null,</span>
+<span class="pc bpc" id="L529" title="2 of 4 branches missed.">                (transVarFields[15] != null &amp;&amp; !transVarFields[15].equals(&quot;\\N&quot;)) ? transVarFields[15] : null,</span>
+<span class="pc bpc" id="L530" title="1 of 4 branches missed.">                (transVarFields[16] != null &amp;&amp; !transVarFields[16].equals(&quot;\\N&quot;)) ? transVarFields[16] : null,</span>
+<span class="pc bpc" id="L531" title="1 of 4 branches missed.">                (transVarFields[17] != null &amp;&amp; !transVarFields[17].equals(&quot;\\N&quot;)) ? transVarFields[17] : null,</span>
+<span class="pc bpc" id="L532" title="2 of 4 branches missed.">                (transVarFields[18] != null &amp;&amp; !transVarFields[18].equals(&quot;\\N&quot;)) ? transVarFields[18] : null,</span>
+<span class="pc bpc" id="L533" title="2 of 4 branches missed.">                (transVarFields[19] != null &amp;&amp; !transVarFields[19].equals(&quot;\\N&quot;)) ? Float.parseFloat(transVarFields[19]) : null,</span>
+<span class="pc bpc" id="L534" title="2 of 4 branches missed.">                (transVarFields[20] != null &amp;&amp; !transVarFields[20].equals(&quot;\\N&quot;)) ? transVarFields[20] : null,</span>
+<span class="pc bpc" id="L535" title="1 of 2 branches missed.">                (transVarFields[21] != null &amp;&amp; !transVarFields[21].equals(&quot;\\N&quot;)) ? Float.parseFloat(transVarFields[21]) : null);</span>
+    }
+
+    private void gunzipVariationInputFiles() throws IOException, InterruptedException {
+<span class="fc" id="L539">        logger.info(&quot;Unzipping variation files ...&quot;);</span>
+<span class="fc" id="L540">        Stopwatch stopwatch = Stopwatch.createStarted();</span>
+
+<span class="fc" id="L542">        variationFile.gunzip();</span>
+<span class="fc" id="L543">        variationTranscriptFile.gunzip();</span>
+<span class="fc" id="L544">        variationFeatureFile.gunzip();</span>
+<span class="fc" id="L545">        variationSynonymFile.gunzip();</span>
+
+<span class="fc" id="L547">        logger.info(&quot;Done&quot;);</span>
+<span class="fc" id="L548">        logger.debug(&quot;Elapsed time unzipping files: {}&quot;, stopwatch);</span>
+<span class="fc" id="L549">    }</span>
+
+    private void gzipVariationFiles(Path variationDirectoryPath) throws IOException, InterruptedException {
+<span class="fc" id="L552">        logger.info(&quot;Compressing variation files ...&quot;);</span>
+<span class="fc" id="L553">        Stopwatch stopwatch = Stopwatch.createStarted();</span>
+
+<span class="fc" id="L555">        variationFile.gzip();</span>
+<span class="fc" id="L556">        variationFeatureFile.gzip();</span>
+<span class="fc" id="L557">        variationTranscriptFile.gzip();</span>
+<span class="fc" id="L558">        variationSynonymFile.gzip();</span>
+
+<span class="fc" id="L560">        logger.info(&quot;Files compressed&quot;);</span>
+<span class="fc" id="L561">        logger.debug(&quot;Elapsed time compressing files: {}&quot;, stopwatch);</span>
+<span class="fc" id="L562">    }</span>
+
+    private String getOutputFileName(String chromosome) {
+<span class="fc" id="L565">        String outputFileName = outputFileNames.get(chromosome);</span>
+<span class="fc bfc" id="L566" title="All 2 branches covered.">        if (outputFileName == null) {</span>
+<span class="fc" id="L567">            outputFileName = &quot;variation_chr&quot; + chromosome;</span>
+<span class="fc" id="L568">            outputFileNames.put(chromosome, outputFileName);</span>
+        }
+<span class="fc" id="L570">        return outputFileName;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

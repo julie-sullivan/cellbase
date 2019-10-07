@@ -1,0 +1,800 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantAnnotationCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">VariantAnnotationCommandExecutor.java</span></div><h1>VariantAnnotationCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.beust.jcommander.ParameterException;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import org.apache.commons.lang3.tuple.Pair;
+import org.bson.Document;
+import org.opencb.biodata.formats.variant.annotation.io.JsonAnnotationWriter;
+import org.opencb.biodata.formats.variant.annotation.io.VariantAvroDataWriter;
+import org.opencb.biodata.formats.variant.annotation.io.VepFormatReader;
+import org.opencb.biodata.formats.variant.annotation.io.VepFormatWriter;
+import org.opencb.biodata.formats.variant.io.VariantReader;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.VariantFileMetadata;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.biodata.tools.sequence.FastaIndexManager;
+import org.opencb.biodata.tools.variant.VariantJsonReader;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+import org.opencb.biodata.tools.variant.VariantVcfHtsjdkReader;
+import org.opencb.cellbase.app.cli.variant.annotation.*;
+import org.opencb.cellbase.app.cli.variant.annotation.indexers.CustomAnnotationVariantIndexer;
+import org.opencb.cellbase.app.cli.variant.annotation.indexers.PopulationFrequencyVariantIndexer;
+import org.opencb.cellbase.app.cli.variant.annotation.indexers.VariantIndexer;
+import org.opencb.cellbase.client.config.ClientConfiguration;
+import org.opencb.cellbase.client.rest.CellBaseClient;
+import org.opencb.cellbase.core.api.DBAdaptorFactory;
+import org.opencb.cellbase.core.api.GenomeDBAdaptor;
+import org.opencb.cellbase.core.variant.annotation.CellBaseNormalizerSequenceAdaptor;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationCalculator;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.cellbase.lib.impl.MongoDBAdaptorFactory;
+import org.opencb.commons.ProgressLogger;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.io.DataReader;
+import org.opencb.commons.io.DataWriter;
+import org.opencb.commons.run.ParallelTaskRunner;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static java.nio.file.StandardOpenOption.APPEND;
+
+/**
+ * Created by fjlopez on 18/03/15.
+ */
+public class VariantAnnotationCommandExecutor extends CommandExecutor {
+
+<span class="pc" id="L80">    public enum FileFormat {VCF, JSON, AVRO, VEP};</span>
+
+    private CliOptionsParser.VariantAnnotationCommandOptions variantAnnotationCommandOptions;
+
+    private Path input;
+    private Path output;
+    private String url;
+    private boolean local;
+    private boolean cellBaseAnnotation;
+    private boolean benchmark;
+    private Path referenceFasta;
+    private boolean normalize;
+    private boolean decompose;
+    private boolean leftAlign;
+    private List&lt;String&gt; chromosomeList;
+    private int port;
+    private String species;
+    private String assembly;
+    private int numThreads;
+    private int batchSize;
+    private List&lt;Path&gt; customFiles;
+<span class="fc" id="L101">    private Path populationFrequenciesFile = null;</span>
+    private Boolean completeInputPopulation;
+    private List&lt;VariantIndexer&gt; variantIndexerList;
+    private List&lt;String&gt; customFileIds;
+    private List&lt;List&lt;String&gt;&gt; customFileFields;
+<span class="fc" id="L106">    private int maxOpenFiles = -1;</span>
+    private FileFormat inputFormat;
+    private FileFormat outputFormat;
+
+    // Only options meant to be sent to the server should be included in this serverQueryOptions
+    private QueryOptions serverQueryOptions;
+
+<span class="fc" id="L113">    private DBAdaptorFactory dbAdaptorFactory = null;</span>
+
+<span class="fc" id="L115">    private final int QUEUE_CAPACITY = 10;</span>
+<span class="fc" id="L116">    private final String TMP_DIR = &quot;/tmp/&quot;;</span>
+    private static final String VARIATION_ANNOTATION_FILE_PREFIX = &quot;variation_annotation_&quot;;
+
+    public VariantAnnotationCommandExecutor(CliOptionsParser.VariantAnnotationCommandOptions variantAnnotationCommandOptions) {
+<span class="fc" id="L120">        super(variantAnnotationCommandOptions.commonOptions.logLevel, variantAnnotationCommandOptions.commonOptions.verbose,</span>
+                variantAnnotationCommandOptions.commonOptions.conf);
+
+<span class="fc" id="L123">        this.variantAnnotationCommandOptions = variantAnnotationCommandOptions;</span>
+<span class="fc" id="L124">        this.serverQueryOptions = new QueryOptions();</span>
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.input != null) {</span>
+<span class="fc" id="L127">            input = Paths.get(variantAnnotationCommandOptions.input);</span>
+        }
+
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.output != null) {</span>
+<span class="fc" id="L131">            output = Paths.get(variantAnnotationCommandOptions.output);</span>
+        }
+<span class="fc" id="L133">    }</span>
+
+    @Override
+    public void execute() {
+
+        try {
+<span class="fc" id="L139">            checkParameters();</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            if (benchmark) {</span>
+<span class="nc" id="L141">                runBenchmark();</span>
+            } else {
+<span class="fc" id="L143">                runAnnotation();</span>
+            }
+<span class="fc" id="L145">            logger.info(&quot;Finished&quot;);</span>
+<span class="nc" id="L146">        } catch (Exception e) {</span>
+<span class="nc" id="L147">            e.printStackTrace();</span>
+<span class="nc" id="L148">            System.exit(1);</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">    }</span>
+
+    private void runBenchmark() {
+        try {
+
+<span class="nc" id="L155">            FastaIndexManager fastaIndexManager = getFastaIndexManger();</span>
+<span class="nc" id="L156">            DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(input, entry -&gt; {</span>
+<span class="nc" id="L157">                return entry.getFileName().toString().endsWith(&quot;.vep&quot;);</span>
+            });
+
+<span class="nc" id="L160">            DataWriter&lt;Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;&gt; dataWriter = new BenchmarkDataWriter(&quot;VEP&quot;, &quot;CellBase&quot;, output);</span>
+<span class="nc" id="L161">            ParallelTaskRunner.Config config = new ParallelTaskRunner.Config(numThreads, batchSize, QUEUE_CAPACITY, false);</span>
+            List&lt;ParallelTaskRunner.TaskWithException&lt;VariantAnnotation, Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;, Exception&gt;&gt;
+<span class="nc" id="L163">                    variantAnnotatorTaskList = getBenchmarkTaskList(fastaIndexManager);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            for (Path entry : stream) {</span>
+<span class="nc" id="L165">                logger.info(&quot;Processing file '{}'&quot;, entry.toString());</span>
+<span class="nc" id="L166">                DataReader dataReader = new VepFormatReader(input.resolve(entry.getFileName()).toString());</span>
+<span class="nc" id="L167">                ParallelTaskRunner&lt;VariantAnnotation, Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;&gt; runner</span>
+                        = new ParallelTaskRunner&lt;&gt;(dataReader, variantAnnotatorTaskList, dataWriter, config);
+<span class="nc" id="L169">                runner.run();</span>
+<span class="nc" id="L170">            }</span>
+<span class="nc" id="L171">        } catch (Exception e) {</span>
+<span class="nc" id="L172">            e.printStackTrace();</span>
+<span class="nc" id="L173">        }</span>
+<span class="nc" id="L174">    }</span>
+
+    private FastaIndexManager getFastaIndexManger() {
+        // Preparing the fasta file for fast accessing
+<span class="nc" id="L178">        FastaIndexManager fastaIndexManager = null;</span>
+        try {
+<span class="nc" id="L180">            fastaIndexManager = new FastaIndexManager(referenceFasta, true);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (!fastaIndexManager.isConnected()) {</span>
+<span class="nc" id="L182">                fastaIndexManager.index();</span>
+            }
+<span class="nc" id="L184">        } catch (Exception e) {</span>
+<span class="nc" id="L185">            e.printStackTrace();</span>
+<span class="nc" id="L186">        }</span>
+
+<span class="nc" id="L188">        return fastaIndexManager;</span>
+    }
+
+    private List&lt;ParallelTaskRunner.TaskWithException&lt;VariantAnnotation, Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;, Exception&gt;&gt;
+    getBenchmarkTaskList(FastaIndexManager fastaIndexManager) throws IOException {
+        List&lt;ParallelTaskRunner.TaskWithException&lt;VariantAnnotation, Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;, Exception&gt;&gt;
+<span class="nc" id="L194">                benchmarkTaskList = new ArrayList&lt;&gt;(numThreads);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        for (int i = 0; i &lt; numThreads; i++) {</span>
+            // Benchmark variants are read from a VEP file, must not normalize
+<span class="nc" id="L197">            benchmarkTaskList.add(new BenchmarkTask(createCellBaseAnnotator(), fastaIndexManager));</span>
+        }
+<span class="nc" id="L199">        return benchmarkTaskList;</span>
+    }
+
+    private boolean runAnnotation() throws Exception {
+
+        // Build indexes for custom files and/or population frequencies file
+<span class="fc" id="L205">        getIndexes();</span>
+        try {
+<span class="pc bpc" id="L207" title="3 of 4 branches missed.">            if (variantAnnotationCommandOptions.variant != null &amp;&amp; !variantAnnotationCommandOptions.variant.isEmpty()) {</span>
+<span class="nc" id="L208">                List&lt;Variant&gt; variants = Variant.parseVariants(variantAnnotationCommandOptions.variant);</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                if (local) {</span>
+<span class="nc" id="L210">                    DBAdaptorFactory dbAdaptorFactory = new MongoDBAdaptorFactory(configuration);</span>
+<span class="nc" id="L211">                    VariantAnnotationCalculator variantAnnotationCalculator =</span>
+                            new VariantAnnotationCalculator(this.species, this.assembly, dbAdaptorFactory);
+<span class="nc" id="L213">                    List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; annotationByVariantList =</span>
+<span class="nc" id="L214">                            variantAnnotationCalculator.getAnnotationByVariantList(variants, serverQueryOptions);</span>
+
+<span class="nc" id="L216">                    ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L217">                    jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="nc" id="L218">                    jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="nc" id="L219">                    ObjectWriter objectWriter = jsonObjectMapper.writer();</span>
+
+<span class="nc" id="L221">                    Path outPath = Paths.get(variantAnnotationCommandOptions.output);</span>
+<span class="nc" id="L222">                    FileUtils.checkDirectory(outPath.getParent());</span>
+<span class="nc" id="L223">                    BufferedWriter bufferedWriter = FileUtils.newBufferedWriter(outPath);</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">                    for (QueryResult queryResult : annotationByVariantList) {</span>
+<span class="nc" id="L225">                        bufferedWriter.write(objectWriter.writeValueAsString(queryResult.getResult()));</span>
+<span class="nc" id="L226">                        bufferedWriter.newLine();</span>
+<span class="nc" id="L227">                    }</span>
+<span class="nc" id="L228">                    bufferedWriter.close();</span>
+                }
+<span class="nc" id="L230">                return true;</span>
+            }
+
+            // If a variant file is provided then we annotate it. Lines in the input file can be computationally
+            // expensive to parse, i.e.: multisample vcf with thousands of samples. A specific task is created to enable
+            // parallel parsing of these lines
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">            if (input != null) {</span>
+<span class="fc" id="L237">                VariantReader variantReader = getVariantReader(input);</span>
+<span class="fc" id="L238">                List&lt;ParallelTaskRunner.TaskWithException&lt;Variant, Variant, Exception&gt;&gt; variantAnnotatorTaskList</span>
+<span class="fc" id="L239">                        = getVariantAnnotatorTaskList();</span>
+<span class="fc" id="L240">                DataWriter&lt;Variant&gt; dataWriter = getVariantDataWriter(output.toString());</span>
+
+<span class="fc" id="L242">                ParallelTaskRunner.Config config = new ParallelTaskRunner.Config(numThreads, batchSize, QUEUE_CAPACITY, false);</span>
+<span class="fc" id="L243">                ParallelTaskRunner&lt;Variant, Variant&gt; runner =</span>
+                        new ParallelTaskRunner&lt;Variant, Variant&gt;(variantReader, variantAnnotatorTaskList, dataWriter, config);
+<span class="fc" id="L245">                runner.run();</span>
+                // For internal use only - will only be run when -Dpopulation-frequencies is activated
+<span class="fc" id="L247">                writeRemainingPopFrequencies();</span>
+<span class="fc" id="L248">            } else {</span>
+                // This will annotate the CellBase Variation collection
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                if (cellBaseAnnotation) {</span>
+                    // TODO: enable this query in the parseQuery method within VariantMongoDBAdaptor
+//                    Query query = new Query(&quot;$match&quot;,
+//                            new Document(&quot;annotation.consequenceTypes&quot;, new Document(&quot;$exists&quot;, 0)));
+//                    Query query = new Query();
+<span class="nc" id="L255">                    QueryOptions options = new QueryOptions(&quot;include&quot;, &quot;chromosome,start,reference,alternate,type&quot;);</span>
+<span class="nc" id="L256">                    List&lt;ParallelTaskRunner.TaskWithException&lt;Variant, Variant, Exception&gt;&gt; variantAnnotatorTaskList</span>
+<span class="nc" id="L257">                            = getVariantAnnotatorTaskList();</span>
+<span class="nc" id="L258">                    ParallelTaskRunner.Config config = new ParallelTaskRunner.Config(numThreads, batchSize, QUEUE_CAPACITY, false);</span>
+
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                    for (String chromosome : chromosomeList) {</span>
+<span class="nc" id="L261">                        logger.info(&quot;Annotating chromosome {}&quot;, chromosome);</span>
+<span class="nc" id="L262">                        Query query = new Query(&quot;chromosome&quot;, chromosome);</span>
+<span class="nc" id="L263">                        DataReader&lt;Variant&gt; dataReader =</span>
+<span class="nc" id="L264">                                new VariationDataReader(dbAdaptorFactory.getVariationDBAdaptor(species), query, options);</span>
+<span class="nc" id="L265">                        DataWriter&lt;Variant&gt; dataWriter = getVariantDataWriter(output.toString() + &quot;/&quot;</span>
+                                + VARIATION_ANNOTATION_FILE_PREFIX + chromosome + &quot;.json.gz&quot;);
+<span class="nc" id="L267">                        ParallelTaskRunner&lt;Variant, Variant&gt; runner =</span>
+                                new ParallelTaskRunner&lt;Variant, Variant&gt;(dataReader, variantAnnotatorTaskList, dataWriter, config);
+<span class="nc" id="L269">                        runner.run();</span>
+<span class="nc" id="L270">                    }</span>
+                }
+            }
+        } finally {
+<span class="pc bpc" id="L274" title="9 of 12 branches missed.">            if (customFiles != null || populationFrequenciesFile != null) {</span>
+<span class="pc" id="L275">                closeIndexes();</span>
+            }
+<span class="pc bpc" id="L277" title="5 of 6 branches missed.">            if (dbAdaptorFactory != null) {</span>
+<span class="pc" id="L278">                dbAdaptorFactory.close();</span>
+            }
+<span class="nc" id="L280">        }</span>
+
+<span class="fc" id="L282">        logger.info(&quot;Variant annotation finished.&quot;);</span>
+<span class="fc" id="L283">        return false;</span>
+    }
+
+    private VariantReader getVariantReader(Path input) throws IOException {
+<span class="fc" id="L287">        return getVariantReader(input, serverQueryOptions.getBoolean(&quot;ignorePhase&quot;));</span>
+    }
+
+    private VariantReader getVariantReader(Path input, boolean ignorePhase) throws IOException {
+        // Leaving variantNormalizer = null if CLI indicates to skip normalisation. If no normalizer is provided to
+        // the readers they will NOT perform normalisation
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">        VariantNormalizer variantNormalizer = normalize ? new VariantNormalizer(getNormalizerConfig()) : null;</span>
+
+<span class="pc bpc" id="L295" title="1 of 3 branches missed.">        switch (getFileFormat(input)) {</span>
+            case VCF:
+<span class="fc" id="L297">                logger.info(&quot;Using HTSJDK to read variants.&quot;);</span>
+<span class="fc" id="L298">                return (new VariantVcfHtsjdkReader(input,</span>
+<span class="fc" id="L299">                        new VariantFileMetadata(input.getFileName().toString(),</span>
+<span class="fc" id="L300">                                input.toAbsolutePath().toString()).toVariantStudyMetadata(input.getFileName()</span>
+<span class="fc" id="L301">                                .toString()), variantNormalizer)).setIgnorePhaseSet(ignorePhase);</span>
+            case JSON:
+<span class="fc" id="L303">                logger.info(&quot;Using a JSON parser to read variants...&quot;);</span>
+<span class="fc" id="L304">                return new VariantJsonReader(input, variantNormalizer);</span>
+            default:
+<span class="nc" id="L306">                throw new ParameterException(&quot;Only VCF and JSON formats are currently accepted. Please provide a &quot;</span>
+                        + &quot;valid .vcf, .vcf.gz, json or .json.gz file&quot;);
+        }
+    }
+
+    private void writeRemainingPopFrequencies() throws IOException {
+        // For internal use only - will only be run when -Dpopulation-frequencies is activated
+<span class="fc bfc" id="L313" title="All 2 branches covered.">        if (populationFrequenciesFile != null) {</span>
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">            if (completeInputPopulation) {</span>
+<span class="fc" id="L315">                DataWriter dataWriter = new JsonAnnotationWriter(output.toString(), APPEND);</span>
+<span class="fc" id="L316">                dataWriter.open();</span>
+<span class="fc" id="L317">                dataWriter.pre();</span>
+
+                // Population frequencies rocks db will always be the last one in the list. DO NOT change the name of the
+                // rocksIterator variable - for some unexplainable reason Java VM crashes if it's named &quot;iterator&quot;
+<span class="fc" id="L321">                RocksIterator rocksIterator = variantIndexerList.get(variantIndexerList.size() - 1)</span>
+<span class="fc" id="L322">                        .getDbIndex()</span>
+<span class="fc" id="L323">                        .newIterator();</span>
+
+<span class="fc" id="L325">                ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L326">                logger.info(&quot;Writing variants with frequencies that were not found within the input file {} to {}&quot;,</span>
+<span class="fc" id="L327">                        populationFrequenciesFile.toString(), output.toString());</span>
+<span class="fc" id="L328">                int counter = 0;</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">                for (rocksIterator.seekToFirst(); rocksIterator.isValid(); rocksIterator.next()) {</span>
+<span class="fc" id="L330">                    Variant variant = mapper.readValue(rocksIterator.value(), Variant.class);</span>
+                    // The additional attributes field initialized with an empty map is used as the flag to indicate that
+                    // this variant was not visited during the annotation process
+<span class="fc bfc" id="L333" title="All 2 branches covered.">                    if (variant.getAnnotation().getAdditionalAttributes() == null) {</span>
+<span class="fc" id="L334">                        dataWriter.write(variant);</span>
+                    }
+
+<span class="fc" id="L337">                    counter++;</span>
+<span class="pc bpc" id="L338" title="1 of 2 branches missed.">                    if (counter % 10000 == 0) {</span>
+<span class="nc" id="L339">                        logger.info(&quot;{} written&quot;, counter);</span>
+                    }
+                }
+<span class="fc" id="L342">                dataWriter.post();</span>
+<span class="fc" id="L343">                dataWriter.close();</span>
+<span class="fc" id="L344">                logger.info(&quot;Done.&quot;);</span>
+<span class="fc" id="L345">            } else {</span>
+<span class="nc" id="L346">                logger.warn(&quot;complete-input-population set to false, variants in population frequencies file {} not in &quot;</span>
+                        + &quot;input file {} will not be appended to output file.&quot;, populationFrequenciesFile, input);
+            }
+        }
+<span class="fc" id="L350">    }</span>
+
+    private void setChromosomeList() {
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        if (variantAnnotationCommandOptions.chromosomeList != null</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">                &amp;&amp; !variantAnnotationCommandOptions.chromosomeList.isEmpty()) {</span>
+<span class="nc" id="L356">            chromosomeList = Arrays.asList(variantAnnotationCommandOptions.chromosomeList.split(&quot;,&quot;));</span>
+<span class="nc" id="L357">            logger.info(&quot;Setting chromosomes {} for variant annotation&quot;, chromosomeList.toString());</span>
+        // If the user does not provide any chromosome, fill chromosomeList with all available chromosomes in the
+        // database
+        } else {
+<span class="nc" id="L361">            logger.info(&quot;Getting full list of chromosome names in the database&quot;);</span>
+<span class="nc" id="L362">            dbAdaptorFactory = new MongoDBAdaptorFactory(configuration);</span>
+<span class="nc" id="L363">            GenomeDBAdaptor genomeDBAdaptor = dbAdaptorFactory.getGenomeDBAdaptor(species, assembly);</span>
+<span class="nc" id="L364">            QueryResult queryResult = genomeDBAdaptor.getGenomeInfo(new QueryOptions(&quot;include&quot;, &quot;chromosomes.name&quot;));</span>
+
+<span class="nc" id="L366">            List&lt;Document&gt; chromosomeDocumentList = (List&lt;Document&gt;) ((List&lt;Document&gt;) queryResult.getResult()).get(0).get(&quot;chromosomes&quot;);</span>
+<span class="nc" id="L367">            chromosomeList = new ArrayList&lt;&gt;(chromosomeDocumentList.size());</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            for (Document chromosomeDocument : chromosomeDocumentList) {</span>
+<span class="nc" id="L369">                chromosomeList.add((String) chromosomeDocument.get(&quot;name&quot;));</span>
+<span class="nc" id="L370">            }</span>
+<span class="nc" id="L371">            logger.info(&quot;Available chromosomes: {}&quot;, chromosomeList.toString());</span>
+        }
+<span class="nc" id="L373">    }</span>
+
+    private DataWriter&lt;Variant&gt; getVariantDataWriter(String filename) {
+<span class="fc" id="L376">        DataWriter&lt;Variant&gt; dataWriter = null;</span>
+<span class="pc bpc" id="L377" title="1 of 2 branches missed.">        if (outputFormat.equals(FileFormat.JSON)) {</span>
+<span class="fc" id="L378">            dataWriter = new JsonAnnotationWriter(filename);</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">        } else if (outputFormat.equals(FileFormat.AVRO)) {</span>
+<span class="nc" id="L380">            ProgressLogger progressLogger = new ProgressLogger(&quot;Num written variants:&quot;);</span>
+<span class="nc" id="L381">            dataWriter = new VariantAvroDataWriter(Paths.get(filename), true)</span>
+<span class="nc" id="L382">                    .setProgressLogger(progressLogger);</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">        } else if (outputFormat.equals(FileFormat.VEP)) {</span>
+<span class="nc" id="L384">            dataWriter = new VepFormatWriter(filename);</span>
+        }
+
+<span class="fc" id="L387">        return dataWriter;</span>
+    }
+
+    private List&lt;ParallelTaskRunner.TaskWithException&lt;Variant, Variant, Exception&gt;&gt; getVariantAnnotatorTaskList() throws IOException {
+<span class="fc" id="L391">        List&lt;ParallelTaskRunner.TaskWithException&lt;Variant, Variant, Exception&gt;&gt; variantAnnotatorTaskList = new ArrayList&lt;&gt;(numThreads);</span>
+
+<span class="fc bfc" id="L393" title="All 2 branches covered.">        for (int i = 0; i &lt; numThreads; i++) {</span>
+<span class="fc" id="L394">            List&lt;VariantAnnotator&gt; variantAnnotatorList = createAnnotators();</span>
+<span class="fc" id="L395">            variantAnnotatorTaskList.add(new VariantAnnotatorTask(variantAnnotatorList));</span>
+        }
+<span class="fc" id="L397">        return variantAnnotatorTaskList;</span>
+    }
+
+    private VariantNormalizer.VariantNormalizerConfig getNormalizerConfig() throws IOException {
+<span class="fc" id="L401">        VariantNormalizer.VariantNormalizerConfig variantNormalizerConfig = (new VariantNormalizer.VariantNormalizerConfig())</span>
+<span class="fc" id="L402">                .setReuseVariants(true)</span>
+<span class="fc" id="L403">                .setNormalizeAlleles(false)</span>
+<span class="fc" id="L404">                .setDecomposeMNVs(decompose);</span>
+
+        // Enable left align
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">        if (leftAlign) {</span>
+            // WARN: If --reference-fasta is present will override CellBase reference genome even if --local was present
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">            if (referenceFasta != null) {</span>
+<span class="fc" id="L410">                return variantNormalizerConfig.enableLeftAlign(referenceFasta.toString());</span>
+            } else {
+                // dbAdaptorFactory may have been already initialized while creating CellBase annotators or at execute if
+                // annotating CellBase variation collection
+<span class="nc bnc" id="L414" title="All 2 branches missed.">                if (dbAdaptorFactory == null) {</span>
+<span class="nc" id="L415">                    dbAdaptorFactory = new MongoDBAdaptorFactory(configuration);</span>
+                }
+<span class="nc" id="L417">                return variantNormalizerConfig</span>
+<span class="nc" id="L418">                        .enableLeftAlign(new CellBaseNormalizerSequenceAdaptor(dbAdaptorFactory</span>
+<span class="nc" id="L419">                                .getGenomeDBAdaptor(species, assembly)));</span>
+            }
+        }
+<span class="nc" id="L422">        return variantNormalizerConfig;</span>
+    }
+
+    private void closeIndexes() throws IOException {
+<span class="fc bfc" id="L426" title="All 2 branches covered.">        for (VariantIndexer variantIndexer : variantIndexerList) {</span>
+<span class="fc" id="L427">            variantIndexer.close();</span>
+<span class="fc" id="L428">        }</span>
+
+<span class="fc bfc" id="L430" title="All 2 branches covered.">        if (populationFrequenciesFile != null) {</span>
+            // Rocks db indexer for population frequencies  is always the last in the list
+<span class="fc" id="L432">            org.apache.commons.io.FileUtils</span>
+<span class="fc" id="L433">                    .deleteDirectory(new File(variantIndexerList.get(variantIndexerList.size() - 1).getDbLocation()));</span>
+        }
+<span class="fc" id="L435">    }</span>
+
+    private List&lt;VariantAnnotator&gt; createAnnotators() {
+        List&lt;VariantAnnotator&gt; variantAnnotatorList;
+<span class="fc" id="L439">        variantAnnotatorList = new ArrayList&lt;&gt;();</span>
+
+        // CellBase annotator is always called
+<span class="fc" id="L442">        variantAnnotatorList.add(createCellBaseAnnotator());</span>
+
+        // Include custom annotators if required
+<span class="fc bfc" id="L445" title="All 2 branches covered.">        if (customFiles != null) {</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">            for (int i = 0; i &lt; customFiles.size(); i++) {</span>
+<span class="pc bpc" id="L447" title="2 of 4 branches missed.">                if (customFiles.get(i).toString().endsWith(&quot;.vcf&quot;) || customFiles.get(i).toString().endsWith(&quot;.vcf.gz&quot;)) {</span>
+<span class="fc" id="L448">                    variantAnnotatorList.add(new VcfVariantAnnotator(customFiles.get(i).toString(),</span>
+<span class="fc" id="L449">                            variantIndexerList.get(i).getDbIndex(),</span>
+<span class="fc" id="L450">                            customFileIds.get(i),</span>
+                            serverQueryOptions));
+                }
+            }
+        }
+
+        // Include population-frequencies file if required
+<span class="fc bfc" id="L457" title="All 2 branches covered.">        if (populationFrequenciesFile != null) {</span>
+            // Rocks db indexer for population frequencies  is always the last in the list
+<span class="fc" id="L459">            int i = variantIndexerList.size() - 1;</span>
+<span class="fc" id="L460">            variantAnnotatorList.add(new PopulationFrequenciesAnnotator(populationFrequenciesFile.toString(),</span>
+<span class="fc" id="L461">                    variantIndexerList.get(i).getDbIndex(), serverQueryOptions));</span>
+
+        }
+
+<span class="fc" id="L465">        return variantAnnotatorList;</span>
+    }
+
+    private VariantAnnotator createCellBaseAnnotator() {
+        // Assume annotation of CellBase variation collection will always be carried out from a local installation
+<span class="pc bpc" id="L470" title="3 of 4 branches missed.">        if (local || cellBaseAnnotation) {</span>
+            // dbAdaptorFactory may have been already initialized at execute if annotating CellBase variation collection
+<span class="fc bfc" id="L472" title="All 2 branches covered.">            if (dbAdaptorFactory == null) {</span>
+<span class="fc" id="L473">                dbAdaptorFactory = new MongoDBAdaptorFactory(configuration);</span>
+            }
+            // Normalization should just be performed in one place: before calling the annotation calculator - within the
+            // corresponding *AnnotatorTask since the AnnotatorTasks need that the number of sent variants coincides
+            // equals the number of returned annotations
+<span class="fc" id="L478">            return new CellBaseLocalVariantAnnotator(new VariantAnnotationCalculator(species, assembly,</span>
+                    dbAdaptorFactory), serverQueryOptions);
+        } else {
+            try {
+<span class="nc" id="L482">                ClientConfiguration clientConfiguration = ClientConfiguration.load(getClass()</span>
+<span class="nc" id="L483">                        .getResourceAsStream(&quot;/client-configuration.yml&quot;));</span>
+<span class="nc bnc" id="L484" title="All 2 branches missed.">                if (url != null) {</span>
+<span class="nc" id="L485">                    clientConfiguration.getRest().setHosts(Collections.singletonList(url));</span>
+                }
+<span class="nc" id="L487">                clientConfiguration.setDefaultSpecies(species);</span>
+                CellBaseClient cellBaseClient;
+<span class="nc" id="L489">                cellBaseClient = new CellBaseClient(clientConfiguration);</span>
+<span class="nc" id="L490">                logger.debug(&quot;URL set to: {}&quot;, url);</span>
+
+                // TODO: normalization must be carried out in the client - phase set must be sent together with the
+                // TODO: variant string to the server for proper phase annotation by REST
+<span class="nc" id="L494">                return new CellBaseWSVariantAnnotator(cellBaseClient.getVariantClient(), serverQueryOptions);</span>
+<span class="nc" id="L495">            } catch (IOException e) {</span>
+<span class="nc" id="L496">                e.printStackTrace();</span>
+            }
+        }
+
+<span class="nc" id="L500">        return null;</span>
+
+    }
+
+    private void getIndexes() throws IOException, RocksDBException {
+<span class="fc" id="L505">        variantIndexerList = new ArrayList&lt;&gt;();</span>
+
+        // Index custom files if provided
+<span class="fc bfc" id="L508" title="All 2 branches covered.">        if (customFiles != null) {</span>
+<span class="fc bfc" id="L509" title="All 2 branches covered.">            for (int i = 0; i &lt; customFiles.size(); i++) {</span>
+                // Setting ignorePhase=true since the reader for the custom annotation indexer does not care
+                // about batches splitting phase sets
+<span class="fc" id="L512">                VariantIndexer variantIndexer</span>
+<span class="fc" id="L513">                        = new CustomAnnotationVariantIndexer(getVariantReader(customFiles.get(i), true),</span>
+                        maxOpenFiles,
+<span class="fc" id="L515">                        customFileFields.get(i));</span>
+<span class="fc" id="L516">                variantIndexer.open();</span>
+<span class="fc" id="L517">                variantIndexer.run();</span>
+<span class="fc" id="L518">                variantIndexerList.add(variantIndexer);</span>
+            }
+        }
+
+        // Index population frequencies file if provided
+<span class="fc bfc" id="L523" title="All 2 branches covered.">        if (populationFrequenciesFile != null) {</span>
+<span class="fc" id="L524">            VariantReader variantReader = getVariantReader(populationFrequenciesFile);</span>
+
+            // We force the creation of a new index even if there was one already - Annotation of frequencies from
+            // these files implies deletions on the RocksDB database. Whatever is already there will probably be wrong
+<span class="fc" id="L528">            VariantIndexer variantIndexer = new PopulationFrequencyVariantIndexer(variantReader,</span>
+                    maxOpenFiles,
+                    true);
+<span class="fc" id="L531">            variantIndexer.open();</span>
+<span class="fc" id="L532">            variantIndexer.run();</span>
+<span class="fc" id="L533">            variantIndexerList.add(variantIndexer);</span>
+        }
+<span class="fc" id="L535">    }</span>
+
+    private void checkParameters() throws IOException {
+
+        // Get reference genome
+<span class="pc bpc" id="L540" title="1 of 2 branches missed.">        if (org.apache.commons.lang.StringUtils.isNotBlank(variantAnnotationCommandOptions.referenceFasta)) {</span>
+<span class="fc" id="L541">            referenceFasta = Paths.get(variantAnnotationCommandOptions.referenceFasta);</span>
+<span class="fc" id="L542">            FileUtils.checkFile(referenceFasta);</span>
+        }
+
+        // Run benchmark
+<span class="fc" id="L546">        benchmark = variantAnnotationCommandOptions.benchmark;</span>
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">        if (benchmark) {</span>
+<span class="nc bnc" id="L548" title="All 2 branches missed.">            if (referenceFasta == null) {</span>
+<span class="nc" id="L549">                throw new ParameterException(&quot;Reference genome must be provided for running the benchmark. Please, &quot;</span>
+                        + &quot;provide a valid path to a fasta file with the reference genome sequence by using the &quot;
+                        + &quot;--reference-fasta parameter.&quot;);
+            }
+        }
+
+        // input file
+<span class="pc bpc" id="L556" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.input != null) {</span>
+<span class="fc" id="L557">            input = Paths.get(variantAnnotationCommandOptions.input);</span>
+<span class="pc bpc" id="L558" title="1 of 2 branches missed.">            if (benchmark) {</span>
+<span class="nc" id="L559">                FileUtils.checkDirectory(input);</span>
+<span class="nc" id="L560">                normalize = false;</span>
+            } else {
+<span class="pc bpc" id="L562" title="1 of 2 branches missed.">                normalize =  !variantAnnotationCommandOptions.skipNormalize;</span>
+<span class="fc" id="L563">                FileUtils.checkFile(input);</span>
+<span class="fc" id="L564">                inputFormat = getFileFormat(input);</span>
+            }
+        // Expected to read from variation collection - normalization must be avoided
+        } else {
+<span class="nc" id="L568">            normalize = false;</span>
+        }
+
+<span class="fc" id="L571">        parsePhaseConfiguration();</span>
+<span class="fc bfc" id="L572" title="All 2 branches covered.">        decompose = !variantAnnotationCommandOptions.skipDecompose;</span>
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">        leftAlign = !variantAnnotationCommandOptions.skipLeftAlign;</span>
+
+        // output file
+<span class="pc bpc" id="L576" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.output != null) {</span>
+<span class="fc" id="L577">            output = Paths.get(variantAnnotationCommandOptions.output);</span>
+            // output.getParent may be null if for example the output is specified with no path at all, i.e
+            // -o test.vcf rather than -o ./test.vcf
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">            if (output.getParent() != null) {</span>
+                try {
+<span class="fc" id="L582">                    FileUtils.checkDirectory(output.getParent());</span>
+<span class="nc" id="L583">                } catch (IOException e) {</span>
+<span class="nc" id="L584">                    throw new ParameterException(e);</span>
+<span class="fc" id="L585">                }</span>
+            }
+//            if (!outputDir.toFile().exists()) {
+//                throw new ParameterException(&quot;Output directory &quot; + outputDir + &quot; doesn't exist&quot;);
+//            } else if (output.toFile().isDirectory()) {
+//                throw new ParameterException(&quot;Output file cannot be a directory: &quot; + output);
+//            }
+        } else {
+<span class="nc" id="L593">            throw new ParameterException(&quot;Please check command line sintax. Provide a valid output file name.&quot;);</span>
+        }
+
+<span class="pc bpc" id="L596" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.outputFormat != null) {</span>
+<span class="pc bpc" id="L597" title="11 of 14 branches missed.">            switch (variantAnnotationCommandOptions.outputFormat.toLowerCase()) {</span>
+                case &quot;json&quot;:
+<span class="fc" id="L599">                    outputFormat = FileFormat.JSON;</span>
+<span class="fc" id="L600">                    break;</span>
+                case &quot;avro&quot;:
+<span class="nc" id="L602">                    outputFormat = FileFormat.AVRO;</span>
+<span class="nc" id="L603">                    break;</span>
+                case &quot;vep&quot;:
+<span class="nc" id="L605">                    outputFormat = FileFormat.VEP;</span>
+<span class="nc" id="L606">                    break;</span>
+                default:
+<span class="nc" id="L608">                    throw  new ParameterException(&quot;Only JSON and VEP output formats are currently available. Please, select one of them.&quot;);</span>
+            }
+
+        }
+
+        // Normalisation nor decomposition are NEVER performed on the server. This QueryOptions is meant to be sent
+        // to the server. Actual normalization and decomposition options are set and processed here in the server code
+        // using this.decompose and this.normalize fields.
+<span class="fc" id="L616">        serverQueryOptions.add(&quot;normalize&quot;, false);</span>
+<span class="fc" id="L617">        serverQueryOptions.add(&quot;skipDecompose&quot;, true);</span>
+
+<span class="pc bpc" id="L619" title="2 of 4 branches missed.">        if (variantAnnotationCommandOptions.include != null &amp;&amp; !variantAnnotationCommandOptions.include.isEmpty()) {</span>
+<span class="fc" id="L620">            serverQueryOptions.add(&quot;include&quot;, variantAnnotationCommandOptions.include);</span>
+        }
+
+<span class="pc bpc" id="L623" title="3 of 4 branches missed.">        if (variantAnnotationCommandOptions.exclude != null &amp;&amp; !variantAnnotationCommandOptions.exclude.isEmpty()) {</span>
+<span class="nc" id="L624">            serverQueryOptions.add(&quot;exclude&quot;, variantAnnotationCommandOptions.exclude);</span>
+        }
+
+        // Num threads
+<span class="pc bpc" id="L628" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.numThreads &gt; 1) {</span>
+<span class="nc" id="L629">            numThreads = variantAnnotationCommandOptions.numThreads;</span>
+        } else {
+<span class="fc" id="L631">            numThreads = 1;</span>
+<span class="fc" id="L632">            logger.warn(&quot;Incorrect number of numThreads, it must be a positive value. This has been reset to '{}'&quot;, numThreads);</span>
+        }
+
+        // Batch size
+<span class="pc bpc" id="L636" title="2 of 4 branches missed.">        if (variantAnnotationCommandOptions.batchSize &gt;= 1 &amp;&amp; variantAnnotationCommandOptions.batchSize &lt;= 2000) {</span>
+<span class="fc" id="L637">            batchSize = variantAnnotationCommandOptions.batchSize;</span>
+        } else {
+<span class="nc" id="L639">            batchSize = 1;</span>
+<span class="nc" id="L640">            logger.warn(&quot;Incorrect size of batch size, it must be a positive value between 1-1000. This has been set to '{}'&quot;, batchSize);</span>
+        }
+
+        // Direct connection to local MongoDB
+<span class="fc" id="L644">        local = variantAnnotationCommandOptions.local;</span>
+<span class="pc bpc" id="L645" title="1 of 2 branches missed.">        if (!variantAnnotationCommandOptions.local) {</span>
+            // Url
+<span class="nc bnc" id="L647" title="All 2 branches missed.">            if (variantAnnotationCommandOptions.url != null) {</span>
+<span class="nc" id="L648">                url = variantAnnotationCommandOptions.url;</span>
+            } else {
+<span class="nc" id="L650">                throw new ParameterException(&quot;Please check command line sintax. Provide a valid URL to access CellBase web services.&quot;);</span>
+            }
+            // Left align in remote mode can only be enabled if a reference fasta is provided
+<span class="nc bnc" id="L653" title="All 2 branches missed.">            if (leftAlign) {</span>
+<span class="nc bnc" id="L654" title="All 2 branches missed.">                if (referenceFasta == null) {</span>
+<span class="nc" id="L655">                    throw new ParameterException(&quot;Please provide a valid reference fasta file. Left align when annotating&quot;</span>
+                            + &quot; in remote mode (--local flag NOT present) can only be enabled if a fasta file with&quot;
+                            + &quot; the reference genome sequence is provided within --reference-fasta. Alternatively&quot;
+                            + &quot; you can disable left align by using --skip-left-align.&quot;);
+                }
+            }
+        // --local flag enabled
+        // Use of --reference-fasta and --local together will cause --reference-fasta to override the reference genome
+        // in CellBase database (DISCOURAGED!)
+<span class="pc bpc" id="L664" title="2 of 4 branches missed.">        } else if (leftAlign &amp;&amp; referenceFasta != null) {</span>
+<span class="fc" id="L665">            logger.warn(&quot;--reference-fasta and --local parameters found together. This is strongly discouraged. Please&quot;</span>
+                    + &quot; NOTE: the sequence within the fasta file will override CellBase reference sequence.&quot;);
+        }
+
+        // Species
+<span class="pc bpc" id="L670" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.species != null) {</span>
+<span class="fc" id="L671">            species = variantAnnotationCommandOptions.species;</span>
+        } else {
+<span class="nc" id="L673">            throw new ParameterException(&quot;Please check command line syntax. Provide a valid species name.&quot;);</span>
+        }
+
+        // Assembly
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.assembly != null) {</span>
+<span class="fc" id="L678">            assembly = variantAnnotationCommandOptions.assembly;</span>
+            // In case annotation is made through WS assembly must be set in the serverQueryOptions
+<span class="fc" id="L680">            serverQueryOptions.put(&quot;assembly&quot;, variantAnnotationCommandOptions.assembly);</span>
+        } else {
+<span class="nc" id="L682">            assembly = null;</span>
+<span class="nc" id="L683">            logger.warn(&quot;No assembly provided. Using default assembly for {}&quot;, species);</span>
+        }
+
+        // Custom files
+<span class="fc bfc" id="L687" title="All 2 branches covered.">        if (variantAnnotationCommandOptions.customFiles != null) {</span>
+<span class="fc" id="L688">            String[] customFileStrings = variantAnnotationCommandOptions.customFiles.split(&quot;,&quot;);</span>
+<span class="fc" id="L689">            customFiles = new ArrayList&lt;&gt;(customFileStrings.length);</span>
+<span class="fc bfc" id="L690" title="All 2 branches covered.">            for (String customFile : customFileStrings) {</span>
+<span class="fc" id="L691">                Path customFilePath = Paths.get(customFile);</span>
+<span class="fc" id="L692">                FileUtils.checkFile(customFilePath);</span>
+<span class="pc bpc" id="L693" title="2 of 4 branches missed.">                if (!(customFilePath.toString().endsWith(&quot;.vcf&quot;) || customFilePath.toString().endsWith(&quot;.vcf.gz&quot;))) {</span>
+<span class="nc" id="L694">                    throw new ParameterException(&quot;Only VCF format is currently accepted for custom annotation files.&quot;);</span>
+                }
+<span class="fc" id="L696">                customFiles.add(customFilePath);</span>
+            }
+<span class="pc bpc" id="L698" title="1 of 2 branches missed.">            if (variantAnnotationCommandOptions.customFileIds == null) {</span>
+<span class="nc" id="L699">                throw new ParameterException(&quot;Parameter --custom-file-ids missing. Please, provide one short id for each custom file in &quot;</span>
+                        + &quot;a comma separated list (no spaces in betwen).&quot;);
+            }
+<span class="fc" id="L702">            customFileIds = Arrays.asList(variantAnnotationCommandOptions.customFileIds.split(&quot;,&quot;));</span>
+<span class="pc bpc" id="L703" title="1 of 2 branches missed.">            if (customFileIds.size() != customFiles.size()) {</span>
+<span class="nc" id="L704">                throw new ParameterException(&quot;Different number of custom files and custom file ids. Please, &quot;</span>
+                        + &quot;provide one short id for each custom file in a comma separated list (no spaces in between).&quot;);
+            }
+<span class="pc bpc" id="L707" title="1 of 2 branches missed.">            if (variantAnnotationCommandOptions.customFileFields == null) {</span>
+<span class="nc" id="L708">                throw new ParameterException(&quot;Parameter --custom-file-fields missing. Please, provide one list of fields for each &quot;</span>
+                        + &quot;custom file in a colon separated list (no spaces in betwen).&quot;);
+            }
+<span class="fc" id="L711">            String[] customFileFieldStrings = variantAnnotationCommandOptions.customFileFields.split(&quot;:&quot;);</span>
+<span class="pc bpc" id="L712" title="1 of 2 branches missed.">            if (customFileFieldStrings.length != customFiles.size()) {</span>
+<span class="nc" id="L713">                throw new ParameterException(&quot;Different number of custom files and lists of custom file fields. &quot;</span>
+                        + &quot;Please, provide one list of fields for each custom file in a colon separated list (no spaces in between).&quot;);
+            }
+<span class="fc" id="L716">            customFileFields = new ArrayList&lt;&gt;(customFileStrings.length);</span>
+<span class="fc bfc" id="L717" title="All 2 branches covered.">            for (String fieldString : customFileFieldStrings) {</span>
+<span class="fc" id="L718">                customFileFields.add(Arrays.asList(fieldString.split(&quot;,&quot;)));</span>
+            }
+            // MaxOpenFiles parameter for RocksDB indexation of custom files
+<span class="fc" id="L721">            maxOpenFiles = variantAnnotationCommandOptions.maxOpenFiles;</span>
+        }
+
+        // Semi-private build parameter for us to build the variation collection including population frequencies
+<span class="fc bfc" id="L725" title="All 2 branches covered.">        if (variantAnnotationCommandOptions.buildParams.get(&quot;population-frequencies&quot;) != null) {</span>
+<span class="fc" id="L726">            populationFrequenciesFile = Paths.get(variantAnnotationCommandOptions.buildParams.get(&quot;population-frequencies&quot;));</span>
+<span class="fc" id="L727">            FileUtils.checkFile(populationFrequenciesFile);</span>
+<span class="pc bpc" id="L728" title="1 of 2 branches missed.">            if (!(populationFrequenciesFile.toString().endsWith(&quot;.json&quot;)</span>
+<span class="pc bpc" id="L729" title="1 of 2 branches missed.">                    || populationFrequenciesFile.toString().endsWith(&quot;.json.gz&quot;))) {</span>
+<span class="nc" id="L730">                throw new ParameterException(&quot;Population frequencies file must be a .json (.json.gz) file containing&quot;</span>
+                        + &quot; Variant objects.&quot;);
+            }
+<span class="fc" id="L733">            completeInputPopulation = Boolean.valueOf(variantAnnotationCommandOptions.buildParams.get(&quot;complete-input-population&quot;));</span>
+        }
+
+        // Enable/Disable imprecise annotation
+<span class="pc bpc" id="L737" title="1 of 2 branches missed.">        serverQueryOptions.put(&quot;imprecise&quot;, !variantAnnotationCommandOptions.noImprecision);</span>
+
+        // Parameter not expected to be very used - provide extra padding (bp) to be used for structural variant annotation
+<span class="pc bpc" id="L740" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.buildParams.get(&quot;sv-extra-padding&quot;) != null) {</span>
+<span class="nc" id="L741">            Integer svExtraPadding = Integer.valueOf(variantAnnotationCommandOptions.buildParams.get(&quot;sv-extra-padding&quot;));</span>
+<span class="nc bnc" id="L742" title="All 2 branches missed.">            if (svExtraPadding &lt; 0) {</span>
+<span class="nc" id="L743">                throw new ParameterException(&quot;Extra padding for SV annotation cannot be &lt; 0, value provided: &quot;</span>
+                        + svExtraPadding + &quot;. Please provide a value &gt;= 0&quot;);
+            }
+<span class="nc" id="L746">            serverQueryOptions.put(&quot;svExtraPadding&quot;, svExtraPadding);</span>
+        }
+
+        // Parameter not expected to be very used - provide extra padding (bp) to be used for CNV annotation
+<span class="pc bpc" id="L750" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.buildParams.get(&quot;cnv-extra-padding&quot;) != null) {</span>
+<span class="nc" id="L751">            Integer cnvExtraPadding = Integer.valueOf(variantAnnotationCommandOptions.buildParams.get(&quot;cnv-extra-padding&quot;));</span>
+<span class="nc bnc" id="L752" title="All 2 branches missed.">            if (cnvExtraPadding &lt; 0) {</span>
+<span class="nc" id="L753">                throw new ParameterException(&quot;Extra padding for CNV annotation cannot be &lt; 0, value provided: &quot;</span>
+                        + cnvExtraPadding + &quot;. Please provide a value &gt;= 0&quot;);
+            }
+<span class="nc" id="L756">            serverQueryOptions.put(&quot;cnvExtraPadding&quot;, cnvExtraPadding);</span>
+        }
+
+        // Annotate variation collection in CellBase
+<span class="fc" id="L760">        cellBaseAnnotation = variantAnnotationCommandOptions.cellBaseAnnotation;</span>
+
+        // The list of chromosomes will only be used if annotating the variation collection
+<span class="pc bpc" id="L763" title="1 of 2 branches missed.">        if (cellBaseAnnotation) {</span>
+            // This will set chromosomeList with the list of chromosomes to annotate
+<span class="nc" id="L765">            setChromosomeList();</span>
+        }
+
+<span class="fc" id="L768">    }</span>
+
+    private void parsePhaseConfiguration() {
+        // TODO: remove &quot;phased&quot; CLI parameter in next release. Default behavior from here onwards should be
+        //  ignorePhase = false
+        // If ignorePhase (new parameter) is present, then overrides presence of &quot;phased&quot;
+<span class="pc bpc" id="L774" title="1 of 2 branches missed.">        if (variantAnnotationCommandOptions.ignorePhase != null) {</span>
+<span class="nc" id="L775">            serverQueryOptions.put(&quot;ignorePhase&quot;, variantAnnotationCommandOptions.ignorePhase);</span>
+        // If the new parameter (ignorePhase) is not present but old one (&quot;phased&quot;) is, then follow old one - probably
+        // someone who has not moved to the new parameter yet
+<span class="pc bpc" id="L778" title="1 of 2 branches missed.">        } else if (variantAnnotationCommandOptions.phased != null) {</span>
+<span class="pc bpc" id="L779" title="1 of 2 branches missed.">            serverQueryOptions.put(&quot;ignorePhase&quot;, !variantAnnotationCommandOptions.phased);</span>
+        // Default behavior is to perform phased annotation
+        } else {
+<span class="nc" id="L782">            serverQueryOptions.put(&quot;ignorePhase&quot;, false);</span>
+        }
+<span class="fc" id="L784">    }</span>
+
+    private FileFormat getFileFormat(Path path) {
+<span class="fc" id="L787">        String fileName = path.toFile().getName();</span>
+<span class="pc bpc" id="L788" title="1 of 4 branches missed.">        if (fileName.endsWith(&quot;.vcf&quot;) || fileName.endsWith(&quot;.vcf.gz&quot;)) {</span>
+<span class="fc" id="L789">            return FileFormat.VCF;</span>
+<span class="pc bpc" id="L790" title="2 of 4 branches missed.">        } else if (fileName.endsWith(&quot;.json&quot;) || fileName.endsWith(&quot;.json.gz&quot;)) {</span>
+<span class="fc" id="L791">            return FileFormat.JSON;</span>
+        } else {
+<span class="nc" id="L793">            throw new ParameterException(&quot;Only VCF and JSON formats are currently accepted. Please provide a &quot;</span>
+                    + &quot;valid .vcf, .vcf.gz, json or .json.gz file&quot;);
+        }
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

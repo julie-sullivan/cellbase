@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>XRefMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">XRefMongoDBAdaptor.java</span></div><h1>XRefMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Xref;
+import org.opencb.cellbase.core.api.XRefDBAdaptor;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+
+/**
+ * Created by imedina on 07/12/15.
+ */
+public class XRefMongoDBAdaptor extends MongoDBAdaptor implements XRefDBAdaptor&lt;Xref&gt; {
+
+    public XRefMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L44">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L45">        mongoDBCollection = mongoDataStore.getCollection(&quot;gene&quot;);</span>
+
+<span class="fc" id="L47">        logger.debug(&quot;XRefMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L48">    }</span>
+
+
+    @Override
+    public QueryResult startsWith(String id, QueryOptions options) {
+<span class="nc" id="L53">        Bson regex = Filters.regex(&quot;transcripts.xrefs.id&quot;, Pattern.compile(&quot;^&quot; + id));</span>
+<span class="nc" id="L54">        Bson include = Projections.include(&quot;id&quot;, &quot;name&quot;, &quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;);</span>
+<span class="nc" id="L55">        return mongoDBCollection.find(regex, include, options);</span>
+    }
+
+    @Override
+    public QueryResult contains(String id, QueryOptions options) {
+<span class="fc" id="L60">        Bson regex = Filters.regex(&quot;transcripts.xrefs.id&quot;, Pattern.compile(&quot;\\w*&quot; + id + &quot;\\w*&quot;));</span>
+<span class="fc" id="L61">        Bson include = Projections.include(&quot;id&quot;, &quot;name&quot;, &quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;);</span>
+<span class="fc" id="L62">        return mongoDBCollection.find(regex, include, options);</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L67">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L72">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L73">        return mongoDBCollection.count(bson);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L78">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L79">        return mongoDBCollection.distinct(field, bson);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L84">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Xref&gt; get(Query query, QueryOptions options) {
+<span class="nc" id="L89">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="nc" id="L94">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L95">        Bson match = Aggregates.match(bson);</span>
+
+<span class="nc" id="L97">        Bson project = Aggregates.project(Projections.include(&quot;transcripts.xrefs&quot;));</span>
+<span class="nc" id="L98">        Bson unwind = Aggregates.unwind(&quot;$transcripts&quot;);</span>
+<span class="nc" id="L99">        Bson unwind2 = Aggregates.unwind(&quot;$transcripts.xrefs&quot;);</span>
+
+        // This project the three fields of Xref to the top of the object
+<span class="nc" id="L102">        Document document = new Document(&quot;id&quot;, &quot;$transcripts.xrefs.id&quot;);</span>
+<span class="nc" id="L103">        document.put(&quot;dbName&quot;, &quot;$transcripts.xrefs.dbName&quot;);</span>
+<span class="nc" id="L104">        document.put(&quot;dbDisplayName&quot;, &quot;$transcripts.xrefs.dbDisplayName&quot;);</span>
+<span class="nc" id="L105">        Bson project1 = Aggregates.project(document);</span>
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (query.containsKey(QueryParams.DBNAME.key())) {</span>
+<span class="nc" id="L108">            Bson bson2 = parseQuery(new Query(QueryParams.DBNAME.key(), query.get(QueryParams.DBNAME.key())));</span>
+<span class="nc" id="L109">            Bson match2 = Aggregates.match(bson2);</span>
+<span class="nc" id="L110">            return mongoDBCollection.aggregate(Arrays.asList(match, project, unwind, unwind2, match2, project1), options);</span>
+        }
+<span class="nc" id="L112">        return mongoDBCollection.aggregate(Arrays.asList(match, project, unwind, unwind2, project1), options);</span>
+    }
+
+    @Override
+    public Iterator&lt;Xref&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L117">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L122">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L123">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L128">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L133">        return groupBy(parseQuery(query), field, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+<span class="nc" id="L138">        return groupBy(parseQuery(query), fields, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+
+<span class="nc" id="L144">    }</span>
+
+    private Bson parseQuery(Query query) {
+<span class="nc" id="L147">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L148">        createOrQuery(query, XRefDBAdaptor.QueryParams.ID.key(), &quot;transcripts.xrefs.id&quot;, andBsonList);</span>
+<span class="nc" id="L149">        createOrQuery(query, XRefDBAdaptor.QueryParams.DBNAME.key(), &quot;transcripts.xrefs.dbName&quot;, andBsonList);</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="nc" id="L152">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L154">            return new Document();</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

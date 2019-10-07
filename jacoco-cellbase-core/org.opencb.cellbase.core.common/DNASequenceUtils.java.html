@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DNASequenceUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common</a> &gt; <span class="el_source">DNASequenceUtils.java</span></div><h1>DNASequenceUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common;
+
+import java.util.HashMap;
+import java.util.Map;
+
+<span class="nc" id="L22">public class DNASequenceUtils {</span>
+
+<span class="nc" id="L24">    public static final Map&lt;Character, Character&gt; COMPLEMENT = new HashMap&lt;&gt;();</span>
+
+<span class="nc" id="L26">    public static final Map&lt;String, String&gt; CODON_TO_AMINOACID = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L27">    public static final Map&lt;String, String&gt; CODON_TO_AMINOACID_SHORT = new HashMap&lt;&gt;();</span>
+
+    static {
+<span class="nc" id="L30">        COMPLEMENT.put('A', 'T');</span>
+<span class="nc" id="L31">        COMPLEMENT.put('T', 'A');</span>
+<span class="nc" id="L32">        COMPLEMENT.put('C', 'G');</span>
+<span class="nc" id="L33">        COMPLEMENT.put('G', 'C');</span>
+<span class="nc" id="L34">        COMPLEMENT.put('N', 'N');</span>
+    }
+
+    static {
+<span class="nc" id="L38">        CODON_TO_AMINOACID.put(&quot;UUU&quot;, &quot;Phe&quot;);</span>
+<span class="nc" id="L39">        CODON_TO_AMINOACID.put(&quot;UUC&quot;, &quot;Phe&quot;);</span>
+<span class="nc" id="L40">        CODON_TO_AMINOACID.put(&quot;UUA&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L41">        CODON_TO_AMINOACID.put(&quot;UUG&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L42">        CODON_TO_AMINOACID.put(&quot;UCU&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L43">        CODON_TO_AMINOACID.put(&quot;UCC&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L44">        CODON_TO_AMINOACID.put(&quot;UCA&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L45">        CODON_TO_AMINOACID.put(&quot;UCG&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L46">        CODON_TO_AMINOACID.put(&quot;UAU&quot;, &quot;Tyr&quot;);</span>
+<span class="nc" id="L47">        CODON_TO_AMINOACID.put(&quot;UAC&quot;, &quot;Tyr&quot;);</span>
+<span class="nc" id="L48">        CODON_TO_AMINOACID.put(&quot;UAA&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L49">        CODON_TO_AMINOACID.put(&quot;UAG&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L50">        CODON_TO_AMINOACID.put(&quot;UGU&quot;, &quot;Cys&quot;);</span>
+<span class="nc" id="L51">        CODON_TO_AMINOACID.put(&quot;UGC&quot;, &quot;Cys&quot;);</span>
+<span class="nc" id="L52">        CODON_TO_AMINOACID.put(&quot;UGA&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L53">        CODON_TO_AMINOACID.put(&quot;UGG&quot;, &quot;Trp&quot;);</span>
+<span class="nc" id="L54">        CODON_TO_AMINOACID.put(&quot;CUU&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L55">        CODON_TO_AMINOACID.put(&quot;CUC&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L56">        CODON_TO_AMINOACID.put(&quot;CUA&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L57">        CODON_TO_AMINOACID.put(&quot;CUG&quot;, &quot;Leu&quot;);</span>
+<span class="nc" id="L58">        CODON_TO_AMINOACID.put(&quot;CCU&quot;, &quot;Pro&quot;);</span>
+<span class="nc" id="L59">        CODON_TO_AMINOACID.put(&quot;CCC&quot;, &quot;Pro&quot;);</span>
+<span class="nc" id="L60">        CODON_TO_AMINOACID.put(&quot;CCA&quot;, &quot;Pro&quot;);</span>
+<span class="nc" id="L61">        CODON_TO_AMINOACID.put(&quot;CCG&quot;, &quot;Pro&quot;);</span>
+<span class="nc" id="L62">        CODON_TO_AMINOACID.put(&quot;CAU&quot;, &quot;His&quot;);</span>
+<span class="nc" id="L63">        CODON_TO_AMINOACID.put(&quot;CAC&quot;, &quot;His&quot;);</span>
+<span class="nc" id="L64">        CODON_TO_AMINOACID.put(&quot;CAA&quot;, &quot;Gln&quot;);</span>
+<span class="nc" id="L65">        CODON_TO_AMINOACID.put(&quot;CAG&quot;, &quot;Gln&quot;);</span>
+<span class="nc" id="L66">        CODON_TO_AMINOACID.put(&quot;CGU&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L67">        CODON_TO_AMINOACID.put(&quot;CGC&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L68">        CODON_TO_AMINOACID.put(&quot;CGA&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L69">        CODON_TO_AMINOACID.put(&quot;CGG&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L70">        CODON_TO_AMINOACID.put(&quot;AUU&quot;, &quot;Ile&quot;);</span>
+<span class="nc" id="L71">        CODON_TO_AMINOACID.put(&quot;AUC&quot;, &quot;Ile&quot;);</span>
+<span class="nc" id="L72">        CODON_TO_AMINOACID.put(&quot;AUA&quot;, &quot;Ile&quot;);</span>
+<span class="nc" id="L73">        CODON_TO_AMINOACID.put(&quot;AUG&quot;, &quot;Met&quot;);</span>
+<span class="nc" id="L74">        CODON_TO_AMINOACID.put(&quot;ACU&quot;, &quot;Thr&quot;);</span>
+<span class="nc" id="L75">        CODON_TO_AMINOACID.put(&quot;ACC&quot;, &quot;Thr&quot;);</span>
+<span class="nc" id="L76">        CODON_TO_AMINOACID.put(&quot;ACA&quot;, &quot;Thr&quot;);</span>
+<span class="nc" id="L77">        CODON_TO_AMINOACID.put(&quot;ACG&quot;, &quot;Thr&quot;);</span>
+<span class="nc" id="L78">        CODON_TO_AMINOACID.put(&quot;AAU&quot;, &quot;Asn&quot;);</span>
+<span class="nc" id="L79">        CODON_TO_AMINOACID.put(&quot;AAC&quot;, &quot;Asn&quot;);</span>
+<span class="nc" id="L80">        CODON_TO_AMINOACID.put(&quot;AAA&quot;, &quot;Lys&quot;);</span>
+<span class="nc" id="L81">        CODON_TO_AMINOACID.put(&quot;AAG&quot;, &quot;Lys&quot;);</span>
+<span class="nc" id="L82">        CODON_TO_AMINOACID.put(&quot;AGU&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L83">        CODON_TO_AMINOACID.put(&quot;AGC&quot;, &quot;Ser&quot;);</span>
+<span class="nc" id="L84">        CODON_TO_AMINOACID.put(&quot;AGA&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L85">        CODON_TO_AMINOACID.put(&quot;AGG&quot;, &quot;Arg&quot;);</span>
+<span class="nc" id="L86">        CODON_TO_AMINOACID.put(&quot;GUU&quot;, &quot;Val&quot;);</span>
+<span class="nc" id="L87">        CODON_TO_AMINOACID.put(&quot;GUC&quot;, &quot;Val&quot;);</span>
+<span class="nc" id="L88">        CODON_TO_AMINOACID.put(&quot;GUA&quot;, &quot;Val&quot;);</span>
+<span class="nc" id="L89">        CODON_TO_AMINOACID.put(&quot;GUG&quot;, &quot;Val&quot;);</span>
+<span class="nc" id="L90">        CODON_TO_AMINOACID.put(&quot;GCU&quot;, &quot;Ala&quot;);</span>
+<span class="nc" id="L91">        CODON_TO_AMINOACID.put(&quot;GCC&quot;, &quot;Ala&quot;);</span>
+<span class="nc" id="L92">        CODON_TO_AMINOACID.put(&quot;GCA&quot;, &quot;Ala&quot;);</span>
+<span class="nc" id="L93">        CODON_TO_AMINOACID.put(&quot;GCG&quot;, &quot;Ala&quot;);</span>
+<span class="nc" id="L94">        CODON_TO_AMINOACID.put(&quot;GAU&quot;, &quot;Asp&quot;);</span>
+<span class="nc" id="L95">        CODON_TO_AMINOACID.put(&quot;GAC&quot;, &quot;Asp&quot;);</span>
+<span class="nc" id="L96">        CODON_TO_AMINOACID.put(&quot;GAA&quot;, &quot;Glu&quot;);</span>
+<span class="nc" id="L97">        CODON_TO_AMINOACID.put(&quot;GAG&quot;, &quot;Glu&quot;);</span>
+<span class="nc" id="L98">        CODON_TO_AMINOACID.put(&quot;GGU&quot;, &quot;Gly&quot;);</span>
+<span class="nc" id="L99">        CODON_TO_AMINOACID.put(&quot;GGC&quot;, &quot;Gly&quot;);</span>
+<span class="nc" id="L100">        CODON_TO_AMINOACID.put(&quot;GGA&quot;, &quot;Gly&quot;);</span>
+<span class="nc" id="L101">        CODON_TO_AMINOACID.put(&quot;GGG&quot;, &quot;Gly&quot;);</span>
+    }
+
+    static {
+<span class="nc" id="L105">        CODON_TO_AMINOACID_SHORT.put(&quot;UUU&quot;, &quot;F&quot;);</span>
+<span class="nc" id="L106">        CODON_TO_AMINOACID_SHORT.put(&quot;UUC&quot;, &quot;F&quot;);</span>
+<span class="nc" id="L107">        CODON_TO_AMINOACID_SHORT.put(&quot;UUA&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L108">        CODON_TO_AMINOACID_SHORT.put(&quot;UUG&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L109">        CODON_TO_AMINOACID_SHORT.put(&quot;UCU&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L110">        CODON_TO_AMINOACID_SHORT.put(&quot;UCC&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L111">        CODON_TO_AMINOACID_SHORT.put(&quot;UCA&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L112">        CODON_TO_AMINOACID_SHORT.put(&quot;UCG&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L113">        CODON_TO_AMINOACID_SHORT.put(&quot;UAU&quot;, &quot;Y&quot;);</span>
+<span class="nc" id="L114">        CODON_TO_AMINOACID_SHORT.put(&quot;UAC&quot;, &quot;Y&quot;);</span>
+<span class="nc" id="L115">        CODON_TO_AMINOACID_SHORT.put(&quot;UAA&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L116">        CODON_TO_AMINOACID_SHORT.put(&quot;UAG&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L117">        CODON_TO_AMINOACID_SHORT.put(&quot;UGU&quot;, &quot;C&quot;);</span>
+<span class="nc" id="L118">        CODON_TO_AMINOACID_SHORT.put(&quot;UGC&quot;, &quot;C&quot;);</span>
+<span class="nc" id="L119">        CODON_TO_AMINOACID_SHORT.put(&quot;UGA&quot;, &quot;Stop&quot;);</span>
+<span class="nc" id="L120">        CODON_TO_AMINOACID_SHORT.put(&quot;UGG&quot;, &quot;W&quot;);</span>
+
+<span class="nc" id="L122">        CODON_TO_AMINOACID_SHORT.put(&quot;CUU&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L123">        CODON_TO_AMINOACID_SHORT.put(&quot;CUC&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L124">        CODON_TO_AMINOACID_SHORT.put(&quot;CUA&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L125">        CODON_TO_AMINOACID_SHORT.put(&quot;CUG&quot;, &quot;L&quot;);</span>
+<span class="nc" id="L126">        CODON_TO_AMINOACID_SHORT.put(&quot;CCU&quot;, &quot;P&quot;);</span>
+<span class="nc" id="L127">        CODON_TO_AMINOACID_SHORT.put(&quot;CCC&quot;, &quot;P&quot;);</span>
+<span class="nc" id="L128">        CODON_TO_AMINOACID_SHORT.put(&quot;CCA&quot;, &quot;P&quot;);</span>
+<span class="nc" id="L129">        CODON_TO_AMINOACID_SHORT.put(&quot;CCG&quot;, &quot;P&quot;);</span>
+<span class="nc" id="L130">        CODON_TO_AMINOACID_SHORT.put(&quot;CAU&quot;, &quot;H&quot;);</span>
+<span class="nc" id="L131">        CODON_TO_AMINOACID_SHORT.put(&quot;CAC&quot;, &quot;H&quot;);</span>
+<span class="nc" id="L132">        CODON_TO_AMINOACID_SHORT.put(&quot;CAA&quot;, &quot;Q&quot;);</span>
+<span class="nc" id="L133">        CODON_TO_AMINOACID_SHORT.put(&quot;CAG&quot;, &quot;Q&quot;);</span>
+<span class="nc" id="L134">        CODON_TO_AMINOACID_SHORT.put(&quot;CGU&quot;, &quot;R&quot;);</span>
+<span class="nc" id="L135">        CODON_TO_AMINOACID_SHORT.put(&quot;CGC&quot;, &quot;R&quot;);</span>
+<span class="nc" id="L136">        CODON_TO_AMINOACID_SHORT.put(&quot;CGA&quot;, &quot;R&quot;);</span>
+<span class="nc" id="L137">        CODON_TO_AMINOACID_SHORT.put(&quot;CGG&quot;, &quot;R&quot;);</span>
+
+<span class="nc" id="L139">        CODON_TO_AMINOACID_SHORT.put(&quot;AUU&quot;, &quot;I&quot;);</span>
+<span class="nc" id="L140">        CODON_TO_AMINOACID_SHORT.put(&quot;AUC&quot;, &quot;I&quot;);</span>
+<span class="nc" id="L141">        CODON_TO_AMINOACID_SHORT.put(&quot;AUA&quot;, &quot;I&quot;);</span>
+<span class="nc" id="L142">        CODON_TO_AMINOACID_SHORT.put(&quot;AUG&quot;, &quot;M&quot;);</span>
+<span class="nc" id="L143">        CODON_TO_AMINOACID_SHORT.put(&quot;ACU&quot;, &quot;T&quot;);</span>
+<span class="nc" id="L144">        CODON_TO_AMINOACID_SHORT.put(&quot;ACC&quot;, &quot;T&quot;);</span>
+<span class="nc" id="L145">        CODON_TO_AMINOACID_SHORT.put(&quot;ACA&quot;, &quot;T&quot;);</span>
+<span class="nc" id="L146">        CODON_TO_AMINOACID_SHORT.put(&quot;ACG&quot;, &quot;T&quot;);</span>
+<span class="nc" id="L147">        CODON_TO_AMINOACID_SHORT.put(&quot;AAU&quot;, &quot;N&quot;);</span>
+<span class="nc" id="L148">        CODON_TO_AMINOACID_SHORT.put(&quot;AAC&quot;, &quot;N&quot;);</span>
+<span class="nc" id="L149">        CODON_TO_AMINOACID_SHORT.put(&quot;AAA&quot;, &quot;K&quot;);</span>
+<span class="nc" id="L150">        CODON_TO_AMINOACID_SHORT.put(&quot;AAG&quot;, &quot;K&quot;);</span>
+<span class="nc" id="L151">        CODON_TO_AMINOACID_SHORT.put(&quot;AGU&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L152">        CODON_TO_AMINOACID_SHORT.put(&quot;AGC&quot;, &quot;S&quot;);</span>
+<span class="nc" id="L153">        CODON_TO_AMINOACID_SHORT.put(&quot;AGA&quot;, &quot;R&quot;);</span>
+<span class="nc" id="L154">        CODON_TO_AMINOACID_SHORT.put(&quot;AGG&quot;, &quot;R&quot;);</span>
+
+<span class="nc" id="L156">        CODON_TO_AMINOACID_SHORT.put(&quot;GUU&quot;, &quot;V&quot;);</span>
+<span class="nc" id="L157">        CODON_TO_AMINOACID_SHORT.put(&quot;GUC&quot;, &quot;V&quot;);</span>
+<span class="nc" id="L158">        CODON_TO_AMINOACID_SHORT.put(&quot;GUA&quot;, &quot;V&quot;);</span>
+<span class="nc" id="L159">        CODON_TO_AMINOACID_SHORT.put(&quot;GUG&quot;, &quot;V&quot;);</span>
+<span class="nc" id="L160">        CODON_TO_AMINOACID_SHORT.put(&quot;GCU&quot;, &quot;A&quot;);</span>
+<span class="nc" id="L161">        CODON_TO_AMINOACID_SHORT.put(&quot;GCC&quot;, &quot;A&quot;);</span>
+<span class="nc" id="L162">        CODON_TO_AMINOACID_SHORT.put(&quot;GCA&quot;, &quot;A&quot;);</span>
+<span class="nc" id="L163">        CODON_TO_AMINOACID_SHORT.put(&quot;GCG&quot;, &quot;A&quot;);</span>
+<span class="nc" id="L164">        CODON_TO_AMINOACID_SHORT.put(&quot;GAU&quot;, &quot;D&quot;);</span>
+<span class="nc" id="L165">        CODON_TO_AMINOACID_SHORT.put(&quot;GAC&quot;, &quot;D&quot;);</span>
+<span class="nc" id="L166">        CODON_TO_AMINOACID_SHORT.put(&quot;GAA&quot;, &quot;E&quot;);</span>
+<span class="nc" id="L167">        CODON_TO_AMINOACID_SHORT.put(&quot;GAG&quot;, &quot;E&quot;);</span>
+<span class="nc" id="L168">        CODON_TO_AMINOACID_SHORT.put(&quot;GGU&quot;, &quot;G&quot;);</span>
+<span class="nc" id="L169">        CODON_TO_AMINOACID_SHORT.put(&quot;GGC&quot;, &quot;G&quot;);</span>
+<span class="nc" id="L170">        CODON_TO_AMINOACID_SHORT.put(&quot;GGA&quot;, &quot;G&quot;);</span>
+<span class="nc" id="L171">        CODON_TO_AMINOACID_SHORT.put(&quot;GGG&quot;, &quot;G&quot;);</span>
+<span class="nc" id="L172">    }</span>
+
+
+    public static String translate(String dnaSequence) {
+<span class="nc" id="L176">        return translate(dnaSequence, &quot;-&quot;);</span>
+    }
+
+    public static String translate(String dnaSequence, String separator) {
+<span class="nc" id="L180">        StringBuilder aaSequence = new StringBuilder();</span>
+<span class="nc" id="L181">        dnaSequence = dnaSequence.toUpperCase();</span>
+<span class="nc" id="L182">        dnaSequence.replaceAll(&quot;T&quot;, &quot;U&quot;);</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        for (int i = 0; i &lt; dnaSequence.length(); i += 3) {</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (i + 2 &lt; dnaSequence.length()) {</span>
+<span class="nc" id="L185">                aaSequence.append(CODON_TO_AMINOACID.get(dnaSequence.charAt(i) + dnaSequence.charAt(i + 1) + dnaSequence.charAt(i + 2)));</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (i + 3 &lt; dnaSequence.length()) {</span>
+<span class="nc" id="L187">                    aaSequence.append(separator);</span>
+                }
+            }
+        }
+<span class="nc" id="L191">        return aaSequence.toString();</span>
+    }
+
+    public static String reverseComplement(String dnaSequence) {
+<span class="nc" id="L195">        StringBuilder revComplSequence = new StringBuilder(dnaSequence.length());</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">        for (int i = dnaSequence.length() - 1; i &gt;= 0; i--) {</span>
+<span class="nc" id="L197">            revComplSequence.append(COMPLEMENT.get(dnaSequence.charAt(i)));</span>
+        }
+<span class="nc" id="L199">        return revComplSequence.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

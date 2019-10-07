@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PopulationFrequencyVariantIndexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation.indexers</a> &gt; <span class="el_source">PopulationFrequencyVariantIndexer.java</span></div><h1>PopulationFrequencyVariantIndexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation.indexers;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.opencb.biodata.formats.variant.io.VariantReader;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.PopulationFrequency;
+import org.opencb.cellbase.core.variant.AnnotationBasedPhasedQueryManager;
+import org.rocksdb.RocksDBException;
+
+import java.io.IOException;
+import java.util.List;
+
+public class PopulationFrequencyVariantIndexer extends VariantIndexer {
+    private static final String EMPTY_ALLELE_STRING = &quot;&quot;;
+    private static final char SHIFTED_POSITION_CHARACTER = '-';
+    private static final char UKNOWN_NUCLEOTIDE = 'n';
+
+    public PopulationFrequencyVariantIndexer(VariantReader variantReader, int maxOpenFiles, boolean forceCreate) {
+<span class="fc" id="L21">        super(variantReader, maxOpenFiles, forceCreate);</span>
+<span class="fc" id="L22">    }</span>
+
+    @Override
+    protected void updateIndex(List&lt;Variant&gt; variantList) throws IOException, RocksDBException {
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        for (Variant variant : variantList) {</span>
+            // If MNV then edit alternate allele to include a string tha represents all variants forming the MNV
+<span class="fc" id="L28">            String haplotypeString = AnnotationBasedPhasedQueryManager.getSampleAttribute(variant,</span>
+                    AnnotationBasedPhasedQueryManager.PHASE_SET_TAG);
+<span class="fc bfc" id="L30" title="All 2 branches covered.">            if (StringUtils.isNotBlank(haplotypeString)) {</span>
+<span class="fc" id="L31">                Pair&lt;String, String&gt; alleleAlignment = getAlleleAlignment(haplotypeString, variant);</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">                for (PopulationFrequency populationFrequency : variant.getAnnotation().getPopulationFrequencies()) {</span>
+<span class="fc" id="L33">                    populationFrequency.setRefAllele(alleleAlignment.getLeft());</span>
+<span class="fc" id="L34">                    populationFrequency.setAltAllele(alleleAlignment.getRight());</span>
+<span class="fc" id="L35">                }</span>
+            }
+
+<span class="fc" id="L38">            byte[] dbContent = dbIndex.get(variant.toString().getBytes());</span>
+            Variant variantToIndex;
+
+<span class="fc bfc" id="L41" title="All 2 branches covered.">            if (dbContent == null) {</span>
+<span class="fc" id="L42">                variantToIndex = variant;</span>
+            } else {
+<span class="fc" id="L44">                variantToIndex = jsonObjectMapper.readValue(dbContent, Variant.class);</span>
+
+                // Add all pop frequencies from current variant
+<span class="fc" id="L47">                variantToIndex</span>
+<span class="fc" id="L48">                        .getAnnotation()</span>
+<span class="fc" id="L49">                        .getPopulationFrequencies().addAll(variant.getAnnotation().getPopulationFrequencies());</span>
+            }
+
+<span class="fc" id="L52">            dbIndex.put(variantToIndex.toString().getBytes(), jsonObjectWriter.writeValueAsBytes(variantToIndex));</span>
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">    }</span>
+
+    private Pair&lt;String, String&gt; getAlleleAlignment(String haplotypeString, Variant variant) {
+<span class="fc" id="L57">        List&lt;Variant&gt; variantList = Variant.parseVariants(haplotypeString);</span>
+<span class="fc" id="L58">        StringBuilder referenceBuilder = new StringBuilder();</span>
+<span class="fc" id="L59">        StringBuilder alternateBuilder = new StringBuilder();</span>
+
+        // Assumming variantList has at least 1 element because it's checked in the code upstream
+<span class="fc" id="L62">        int currentGenomicPosition = variantList.get(0).getStart();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        for (Variant variant1 : variantList) {</span>
+
+            // Fill with 'n's positions that correspond to matches, e.g in alignment AATT--
+            //                                                                       --TTGG
+            // since we are just iterating variants the T&gt;T T&gt;T changes would not be taken into consideration otherwise
+<span class="fc" id="L68">            int matchSpaceSize = variant1.getStart() - currentGenomicPosition;</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            for (int i = 0; i &lt; (matchSpaceSize); i++) {</span>
+<span class="fc" id="L70">                referenceBuilder.append(UKNOWN_NUCLEOTIDE);</span>
+<span class="fc" id="L71">                alternateBuilder.append(UKNOWN_NUCLEOTIDE);</span>
+<span class="fc" id="L72">                currentGenomicPosition++;</span>
+            }
+
+            // Assuming only simple variants can (and will) make it to this point
+<span class="fc" id="L76">            boolean sameVariant = isSameVariant(variant, variant1);</span>
+            // Insertions
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (EMPTY_ALLELE_STRING.equals(variant1.getReference())) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                for (char nucleotide : variant1.getAlternate().toCharArray()) {</span>
+<span class="fc" id="L80">                    referenceBuilder.append(SHIFTED_POSITION_CHARACTER);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">                    alternateBuilder.append(sameVariant ? nucleotide : Character.toLowerCase(nucleotide));</span>
+<span class="fc" id="L82">                    currentGenomicPosition++;</span>
+                }
+            // Deletions
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            } else if (EMPTY_ALLELE_STRING.equals(variant1.getAlternate())) {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">                for (char nucleotide : variant1.getReference().toCharArray()) {</span>
+<span class="fc" id="L87">                    alternateBuilder.append(SHIFTED_POSITION_CHARACTER);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                    referenceBuilder.append(sameVariant ? nucleotide : Character.toLowerCase(nucleotide));</span>
+<span class="fc" id="L89">                    currentGenomicPosition++;</span>
+                }
+            // SNVs
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            } else if (variant1.getReference().length() == variant1.getAlternate().length()) {</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">                referenceBuilder.append(sameVariant ? variant1.getReference() : variant1.getReference().toLowerCase());</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">                alternateBuilder.append(sameVariant ? variant1.getAlternate() : variant1.getAlternate().toLowerCase());</span>
+<span class="fc" id="L95">                currentGenomicPosition++;</span>
+            } else {
+<span class="nc" id="L97">                throw new IllegalArgumentException(&quot;Unexpected variant type when processing haplotype &quot;</span>
+<span class="nc" id="L98">                        + haplotypeString + &quot;. Trying to parse variant &quot; + variant1.toString() + &quot; into alignment.&quot;);</span>
+            }
+
+<span class="fc" id="L101">        }</span>
+
+<span class="fc" id="L103">        return new ImmutablePair&lt;&gt;(referenceBuilder.toString(), alternateBuilder.toString());</span>
+    }
+
+    private boolean isSameVariant(Variant variant, Variant variant1) {
+        // In the context of this class can safely assume chromosome is always the same
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        return variant.getStart().equals(variant1.getStart())</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">                &amp;&amp; variant.getEnd().equals(variant1.getEnd())</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">                &amp;&amp; variant.getReference().equals(variant1.getReference())</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                &amp;&amp; variant.getAlternate().equals(variant1.getAlternate());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantAnnotationServiceGrpc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.grpc.service</a> &gt; <span class="el_source">VariantAnnotationServiceGrpc.java</span></div><h1>VariantAnnotationServiceGrpc.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.grpc.service;
+
+import static io.grpc.stub.ClientCalls.asyncUnaryCall;
+import static io.grpc.stub.ClientCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ClientCalls.blockingUnaryCall;
+import static io.grpc.stub.ClientCalls.blockingServerStreamingCall;
+import static io.grpc.stub.ClientCalls.futureUnaryCall;
+import static io.grpc.MethodDescriptor.generateFullMethodName;
+import static io.grpc.stub.ServerCalls.asyncUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall;
+
+/**
+ */
+@javax.annotation.Generated(
+    value = &quot;by gRPC proto compiler (version 1.0.1)&quot;,
+    comments = &quot;Source: protobuf/opencb/service/variant_annotation_service.proto&quot;)
+public class VariantAnnotationServiceGrpc {
+
+<span class="nc" id="L25">  private VariantAnnotationServiceGrpc() {}</span>
+
+  public static final String SERVICE_NAME = &quot;protobuf.opencb.service.VariantAnnotationService&quot;;
+
+  // Static method descriptors that strictly reflect the proto.
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L32">      org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt; METHOD_GET =</span>
+<span class="nc" id="L33">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L35">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantAnnotationService&quot;, &quot;get&quot;),
+<span class="nc" id="L37">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L38">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L41">      org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt; METHOD_GET_CADD =</span>
+<span class="nc" id="L42">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L44">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantAnnotationService&quot;, &quot;getCadd&quot;),
+<span class="nc" id="L46">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L47">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score.getDefaultInstance()));</span>
+
+  /**
+   * Creates a new async stub that supports all call types for the service
+   */
+  public static VariantAnnotationServiceStub newStub(io.grpc.Channel channel) {
+<span class="nc" id="L53">    return new VariantAnnotationServiceStub(channel);</span>
+  }
+
+  /**
+   * Creates a new blocking-style stub that supports unary and streaming output calls on the service
+   */
+  public static VariantAnnotationServiceBlockingStub newBlockingStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L61">    return new VariantAnnotationServiceBlockingStub(channel);</span>
+  }
+
+  /**
+   * Creates a new ListenableFuture-style stub that supports unary and streaming output calls on the service
+   */
+  public static VariantAnnotationServiceFutureStub newFutureStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L69">    return new VariantAnnotationServiceFutureStub(channel);</span>
+  }
+
+  /**
+   */
+<span class="nc" id="L74">  public static abstract class VariantAnnotationServiceImplBase implements io.grpc.BindableService {</span>
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt; responseObserver) {
+<span class="nc" id="L80">      asyncUnimplementedUnaryCall(METHOD_GET, responseObserver);</span>
+<span class="nc" id="L81">    }</span>
+
+    /**
+     */
+    public void getCadd(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt; responseObserver) {
+<span class="nc" id="L87">      asyncUnimplementedUnaryCall(METHOD_GET_CADD, responseObserver);</span>
+<span class="nc" id="L88">    }</span>
+
+    @java.lang.Override public io.grpc.ServerServiceDefinition bindService() {
+<span class="nc" id="L91">      return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())</span>
+<span class="nc" id="L92">          .addMethod(</span>
+            METHOD_GET,
+<span class="nc" id="L94">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt;(
+                  this, METHODID_GET)))
+<span class="nc" id="L99">          .addMethod(</span>
+            METHOD_GET_CADD,
+<span class="nc" id="L101">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt;(
+                  this, METHODID_GET_CADD)))
+<span class="nc" id="L106">          .build();</span>
+    }
+  }
+
+  /**
+   */
+  public static final class VariantAnnotationServiceStub extends io.grpc.stub.AbstractStub&lt;VariantAnnotationServiceStub&gt; {
+    private VariantAnnotationServiceStub(io.grpc.Channel channel) {
+<span class="nc" id="L114">      super(channel);</span>
+<span class="nc" id="L115">    }</span>
+
+    private VariantAnnotationServiceStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L119">      super(channel, callOptions);</span>
+<span class="nc" id="L120">    }</span>
+
+    @java.lang.Override
+    protected VariantAnnotationServiceStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L125">      return new VariantAnnotationServiceStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt; responseObserver) {
+<span class="nc" id="L132">      asyncServerStreamingCall(</span>
+<span class="nc" id="L133">          getChannel().newCall(METHOD_GET, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L134">    }</span>
+
+    /**
+     */
+    public void getCadd(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt; responseObserver) {
+<span class="nc" id="L140">      asyncServerStreamingCall(</span>
+<span class="nc" id="L141">          getChannel().newCall(METHOD_GET_CADD, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L142">    }</span>
+  }
+
+  /**
+   */
+  public static final class VariantAnnotationServiceBlockingStub extends io.grpc.stub.AbstractStub&lt;VariantAnnotationServiceBlockingStub&gt; {
+    private VariantAnnotationServiceBlockingStub(io.grpc.Channel channel) {
+<span class="nc" id="L149">      super(channel);</span>
+<span class="nc" id="L150">    }</span>
+
+    private VariantAnnotationServiceBlockingStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L154">      super(channel, callOptions);</span>
+<span class="nc" id="L155">    }</span>
+
+    @java.lang.Override
+    protected VariantAnnotationServiceBlockingStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L160">      return new VariantAnnotationServiceBlockingStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt; get(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L167">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L168">          getChannel(), METHOD_GET, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt; getCadd(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L175">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L176">          getChannel(), METHOD_GET_CADD, getCallOptions(), request);</span>
+    }
+  }
+
+  /**
+   */
+  public static final class VariantAnnotationServiceFutureStub extends io.grpc.stub.AbstractStub&lt;VariantAnnotationServiceFutureStub&gt; {
+    private VariantAnnotationServiceFutureStub(io.grpc.Channel channel) {
+<span class="nc" id="L184">      super(channel);</span>
+<span class="nc" id="L185">    }</span>
+
+    private VariantAnnotationServiceFutureStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L189">      super(channel, callOptions);</span>
+<span class="nc" id="L190">    }</span>
+
+    @java.lang.Override
+    protected VariantAnnotationServiceFutureStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L195">      return new VariantAnnotationServiceFutureStub(channel, callOptions);</span>
+    }
+  }
+
+  private static final int METHODID_GET = 0;
+  private static final int METHODID_GET_CADD = 1;
+
+  private static class MethodHandlers&lt;Req, Resp&gt; implements
+      io.grpc.stub.ServerCalls.UnaryMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ServerStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ClientStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.BidiStreamingMethod&lt;Req, Resp&gt; {
+    private final VariantAnnotationServiceImplBase serviceImpl;
+    private final int methodId;
+
+<span class="nc" id="L210">    public MethodHandlers(VariantAnnotationServiceImplBase serviceImpl, int methodId) {</span>
+<span class="nc" id="L211">      this.serviceImpl = serviceImpl;</span>
+<span class="nc" id="L212">      this.methodId = methodId;</span>
+<span class="nc" id="L213">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public void invoke(Req request, io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc bnc" id="L218" title="All 3 branches missed.">      switch (methodId) {</span>
+        case METHODID_GET:
+<span class="nc" id="L220">          serviceImpl.get((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.VariantAnnotation&gt;) responseObserver);
+<span class="nc" id="L222">          break;</span>
+        case METHODID_GET_CADD:
+<span class="nc" id="L224">          serviceImpl.getCadd((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto.Score&gt;) responseObserver);
+<span class="nc" id="L226">          break;</span>
+        default:
+<span class="nc" id="L228">          throw new AssertionError();</span>
+      }
+<span class="nc" id="L230">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public io.grpc.stub.StreamObserver&lt;Req&gt; invoke(
+        io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc" id="L236">      switch (methodId) {</span>
+        default:
+<span class="nc" id="L238">          throw new AssertionError();</span>
+      }
+    }
+  }
+
+  public static io.grpc.ServiceDescriptor getServiceDescriptor() {
+<span class="nc" id="L244">    return new io.grpc.ServiceDescriptor(SERVICE_NAME,</span>
+        METHOD_GET,
+        METHOD_GET_CADD);
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

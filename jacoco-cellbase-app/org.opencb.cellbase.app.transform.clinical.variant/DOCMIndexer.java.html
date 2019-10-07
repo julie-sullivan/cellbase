@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DOCMIndexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">DOCMIndexer.java</span></div><h1>DOCMIndexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.collections.map.HashedMap;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static org.opencb.biodata.models.variant.protobuf.EvidenceEntryProto.FeatureTypes.gene;
+
+/**
+ * Created by fjlopez on 29/03/17.
+ */
+public class DOCMIndexer extends ClinicalIndexer {
+    private static final String REFERENCE_VERSION = &quot;reference_version&quot;;
+    private static final String CHROMOSOME = &quot;chromosome&quot;;
+    private static final String START = &quot;start&quot;;
+    private static final String REFERENCE = &quot;reference&quot;;
+    private static final String VARIANT = &quot;variant&quot;;
+    private static final String DISEASES = &quot;diseases&quot;;
+    private static final String DISEASE = &quot;disease&quot;;
+    private static final String SOURCE_PUBMED_ID = &quot;source_pubmed_id&quot;;
+    private static final String PMID = &quot;PMID:&quot;;
+    private static final String URL_PREFIX = &quot;http://docm.genome.wustl.edu/variants/&quot;;
+    private static final String HGVS = &quot;hgvs&quot;;
+    private static final String GENE = &quot;gene&quot;;
+    private static final String TRANSCRIPT = &quot;transcript&quot;;
+    private static final String ENST = &quot;ENST&quot;;
+    private static final String SYMBOL = &quot;symbol&quot;;
+    private static final String TAGS = &quot;tags&quot;;
+    private static final String TAGS_IN_SOURCE_FILE = &quot;tags_in_source_file&quot;;
+    private static final String META = &quot;meta&quot;;
+    private static final String DRUG_INTERACTION_DATA = &quot;Drug Interaction Data&quot;;
+    private static final String FIELDS = &quot;fields&quot;;
+    private static final String ROWS = &quot;rows&quot;;
+    private static final String THERAPEUTIC_CONTEXT = &quot;Therapeutic Context&quot;;
+    private static final String PATHWAY = &quot;Pathway&quot;;
+    private static final String EFFECT = &quot;Effect&quot;;
+    private static final String ASSOCIATION = &quot;Association&quot;;
+    private static final String STATUS = &quot;Status&quot;;
+    private static final String EVIDENCE = &quot;Evidence&quot;;
+    private static final String SOURCE = &quot;Source&quot;;
+    private static final String NAME = &quot;name&quot;;
+    private final Path docmFile;
+    private final String assembly;
+
+    public DOCMIndexer(Path docmFile, boolean normalize, Path genomeSequenceFilePath, String assembly, RocksDB rdb)
+            throws IOException {
+<span class="fc" id="L58">        super(genomeSequenceFilePath);</span>
+<span class="fc" id="L59">        this.rdb = rdb;</span>
+<span class="fc" id="L60">        this.assembly = assembly;</span>
+<span class="fc" id="L61">        this.docmFile = docmFile;</span>
+<span class="fc" id="L62">        this.normalize = normalize;</span>
+<span class="fc" id="L63">    }</span>
+
+    public void index() throws RocksDBException {
+<span class="fc" id="L66">        logger.info(&quot;Parsing DOCM file ...&quot;);</span>
+
+        try {
+<span class="fc" id="L69">            BufferedReader bufferedReader = FileUtils.newBufferedReader(docmFile);</span>
+<span class="fc" id="L70">            String line = bufferedReader.readLine();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            while (line != null) {</span>
+<span class="fc" id="L72">                Variant variant = parseVariant(line);</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                if (variant != null) {</span>
+<span class="fc" id="L74">                    boolean success = updateRocksDB(variant);</span>
+                    // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                    if (success) {</span>
+<span class="fc" id="L77">                        numberIndexedRecords++;</span>
+                    }
+                }
+<span class="fc" id="L80">                line = bufferedReader.readLine();</span>
+<span class="fc" id="L81">            }</span>
+<span class="fc" id="L82">            totalNumberRecords++;</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">            if (totalNumberRecords % 1000 == 0) {</span>
+<span class="nc" id="L84">                logger.info(&quot;{} records parsed&quot;, totalNumberRecords);</span>
+            }
+
+<span class="nc" id="L87">        } catch (RocksDBException e) {</span>
+<span class="nc" id="L88">            logger.error(&quot;Error reading/writing from/to the RocksDB index while indexing Cosmic&quot;);</span>
+<span class="nc" id="L89">            throw e;</span>
+<span class="nc" id="L90">        } catch (IOException ex) {</span>
+<span class="nc" id="L91">            ex.printStackTrace();</span>
+        } finally {
+<span class="pc" id="L93">            logger.info(&quot;Done&quot;);</span>
+//            this.printSummary();
+<span class="pc" id="L95">        }</span>
+
+<span class="fc" id="L97">    }</span>
+
+    private boolean updateRocksDB(Variant variant) throws RocksDBException, IOException {
+        // More than one variant being returned from the normalisation process would mean it's and MNV which has been
+        // decomposed
+<span class="fc" id="L102">        List&lt;String&gt; normalisedVariantStringList = getNormalisedVariantString(variant.getChromosome(),</span>
+<span class="fc" id="L103">                variant.getStart(),</span>
+<span class="fc" id="L104">                variant.getReference(),</span>
+<span class="fc" id="L105">                variant.getAlternate());</span>
+
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (normalisedVariantStringList != null) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            for (String normalisedVariantString : normalisedVariantStringList) {</span>
+<span class="fc" id="L109">                VariantAnnotation variantAnnotation = getVariantAnnotation(normalisedVariantString.getBytes());</span>
+
+                // Add haplotype property to all EvidenceEntry objects in variant if there are more than 1 variants in
+                // normalisedVariantStringList, i.e. if this variant is part of an MNV (haplotype)
+<span class="fc" id="L113">                addHaplotypeProperty(variant.getAnnotation().getTraitAssociation(), normalisedVariantStringList);</span>
+
+                // Add EvidenceEntry objects
+<span class="fc" id="L116">                variantAnnotation.getTraitAssociation().addAll(variant.getAnnotation().getTraitAssociation());</span>
+
+                // Check if drug info is available
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">                if (variant.getAnnotation().getDrugs() != null &amp;&amp; !variant.getAnnotation().getDrugs().isEmpty()) {</span>
+                    // Drug info is stored at the VariantAnnotation root
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">                    if (variantAnnotation.getDrugs() == null) {</span>
+<span class="fc" id="L122">                        variantAnnotation.setDrugs(variant.getAnnotation().getDrugs());</span>
+                    } else {
+<span class="nc" id="L124">                        variantAnnotation.getDrugs().addAll(variant.getAnnotation().getDrugs());</span>
+                    }
+
+                }
+
+<span class="fc" id="L129">                rdb.put(normalisedVariantString.getBytes(), jsonObjectWriter.writeValueAsBytes(variantAnnotation));</span>
+<span class="fc" id="L130">            }</span>
+
+<span class="fc" id="L132">            return true;</span>
+        }
+<span class="nc" id="L134">        return false;</span>
+    }
+
+    private Variant parseVariant(String line) throws IOException {
+<span class="fc" id="L138">        Map&lt;String, Object&gt; map = (HashMap&lt;String, Object&gt;) new ObjectMapper().readValue(line, HashMap.class);</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (assembly.equalsIgnoreCase((String) map.get(REFERENCE_VERSION))) {</span>
+<span class="fc" id="L140">            Variant variant = new Variant((String) map.get(CHROMOSOME), (Integer) map.get(START),</span>
+<span class="fc" id="L141">                    (String) map.get(REFERENCE), (String) map.get(VARIANT));</span>
+
+<span class="fc" id="L143">            VariantAnnotation variantAnnotation = parseVariantAnnotation(map);</span>
+<span class="fc" id="L144">            variant.setAnnotation(variantAnnotation);</span>
+
+<span class="fc" id="L146">            return variant;</span>
+        } else {
+<span class="nc" id="L148">            return null;</span>
+        }
+    }
+
+    private VariantAnnotation parseVariantAnnotation(Map&lt;String, Object&gt; map) {
+        // The list diseases in map.get(DISEASES) may contain multiple elements for the same disease but with different
+        // pubmed ids
+<span class="fc" id="L155">        Map&lt;String, EvidenceEntry&gt; evidenceEntryMap = new HashedMap(((List) map.get(DISEASES)).size());</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        for (Map diseaseMap : ((List&lt;Map&gt;) map.get(DISEASES))) {</span>
+            EvidenceEntry evidenceEntry;
+            // An object with current disease string has already been parsed for this variant
+<span class="fc bfc" id="L159" title="All 2 branches covered.">            if (evidenceEntryMap.containsKey(diseaseMap.get(DISEASE))</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">                    &amp;&amp; diseaseMap.containsKey(SOURCE_PUBMED_ID)) {</span>
+<span class="fc" id="L161">                evidenceEntry = evidenceEntryMap.get(diseaseMap.get(DISEASE));</span>
+<span class="fc" id="L162">                List&lt;String&gt; bibliography = getBibliography(evidenceEntry);</span>
+<span class="fc" id="L163">                bibliography.add(PMID + diseaseMap.get(SOURCE_PUBMED_ID));</span>
+<span class="fc" id="L164">            } else {</span>
+<span class="fc" id="L165">                EvidenceSource evidenceSource = new EvidenceSource(EtlCommons.DOCM_DATA, null, null);</span>
+<span class="fc" id="L166">                HeritableTrait heritableTrait = new HeritableTrait((String) diseaseMap.get(DISEASE), null);</span>
+
+<span class="fc" id="L168">                List&lt;GenomicFeature&gt; genomicFeatureList = getGenomicFeature(map);</span>
+
+<span class="fc" id="L170">                VariantClassification variantClassification = getVariantClassification((List&lt;String&gt;) diseaseMap.get(TAGS));</span>
+
+<span class="fc" id="L172">                Property property = new Property(null, TAGS_IN_SOURCE_FILE,</span>
+<span class="fc" id="L173">                        String.join(&quot;,&quot;, (List&lt;String&gt;) diseaseMap.get(TAGS)));</span>
+<span class="fc" id="L174">                List&lt;Property&gt; additionalProperties = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L175">                additionalProperties.add(property);</span>
+
+<span class="fc" id="L177">                List&lt;String&gt; bibliography = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L178">                bibliography.add(PMID + String.valueOf(diseaseMap.get(SOURCE_PUBMED_ID)));</span>
+<span class="fc" id="L179">                evidenceEntry = new EvidenceEntry(evidenceSource, null, null, URL_PREFIX + (String) map.get(HGVS),</span>
+<span class="fc" id="L180">                        null, null, null, Collections.singletonList(heritableTrait), genomicFeatureList,</span>
+                        variantClassification, null, null, null, null, null, null, null,
+                        additionalProperties,
+                        bibliography);
+
+<span class="fc" id="L185">                evidenceEntryMap.put((String) diseaseMap.get(DISEASE), evidenceEntry);</span>
+            }
+<span class="fc" id="L187">        }</span>
+
+<span class="fc" id="L189">        List&lt;Drug&gt; drugList = null;</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        if (map.containsKey(META)) {</span>
+<span class="fc" id="L191">            drugList = new ArrayList&lt;&gt;(((List&lt;Map&gt;) map.get(META)).size());</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">            for (Map metaMap : ((List&lt;Map&gt;) map.get(META))) {</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">                if (metaMap.containsKey(DRUG_INTERACTION_DATA)</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">                        &amp;&amp; ((Map) metaMap.get(DRUG_INTERACTION_DATA)).containsKey(FIELDS)</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">                        &amp;&amp; ((Map) metaMap.get(DRUG_INTERACTION_DATA)).containsKey(ROWS)) {</span>
+<span class="fc" id="L196">                    List&lt;String&gt; fields = (List&lt;String&gt;) ((Map) metaMap.get(DRUG_INTERACTION_DATA)).get(FIELDS);</span>
+
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">                    if (fields.size() &gt; 7) {</span>
+<span class="nc" id="L199">                        logger.warn(&quot;More fields than expected found within Drug Interaction info. Please, check:&quot;);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                        for (String field : fields) {</span>
+<span class="nc" id="L201">                            logger.warn(&quot;{}&quot;, field);</span>
+<span class="nc" id="L202">                        }</span>
+                    }
+
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                    for (List&lt;String&gt; drugInfoList : (List&lt;List&lt;String&gt;&gt;) ((Map) metaMap.get(DRUG_INTERACTION_DATA)).get(ROWS)) {</span>
+<span class="fc" id="L206">                        Drug drug = new Drug();</span>
+<span class="fc" id="L207">                        int idx = fields.indexOf(THERAPEUTIC_CONTEXT);</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L209">                            drug.setTherapeuticContext(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L211">                        idx = fields.indexOf(PATHWAY);</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L213">                            drug.setPathway(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L215">                        idx = fields.indexOf(EFFECT);</span>
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L217">                            drug.setEffect(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L219">                        idx = fields.indexOf(ASSOCIATION);</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L221">                            drug.setAssociation(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L223">                        idx = fields.indexOf(STATUS);</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L225">                            drug.setStatus(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L227">                        idx = fields.indexOf(EVIDENCE);</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L229">                            drug.setEvidence(drugInfoList.get(idx));</span>
+                        }
+<span class="fc" id="L231">                        idx = fields.indexOf(SOURCE);</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">                        if (idx &gt; -1) {</span>
+<span class="fc" id="L233">                            drug.setBibliography(Collections.singletonList(PMID + drugInfoList.get(idx)));</span>
+                        }
+<span class="fc" id="L235">                        drugList.add(drug);</span>
+<span class="fc" id="L236">                    }</span>
+<span class="fc" id="L237">                } else {</span>
+<span class="nc" id="L238">                    logger.warn(&quot;Meta field found but no drug interaction data&quot;);</span>
+<span class="nc" id="L239">                    logger.warn(&quot;Variant: {}:{}:{}:{}&quot;, map.get(&quot;chromosome&quot;), map.get(&quot;start&quot;), map.get(&quot;reference&quot;),</span>
+<span class="nc" id="L240">                            map.get(&quot;alternate&quot;));</span>
+                }
+
+<span class="fc" id="L243">            }</span>
+        }
+
+<span class="fc" id="L246">        VariantAnnotation variantAnnotation = new VariantAnnotation();</span>
+<span class="fc" id="L247">        variantAnnotation.setDrugs(drugList);</span>
+<span class="fc" id="L248">        variantAnnotation.setTraitAssociation(evidenceEntryMap</span>
+<span class="fc" id="L249">                .keySet()</span>
+<span class="fc" id="L250">                .stream()</span>
+<span class="fc" id="L251">                .map((diseaseName) -&gt; evidenceEntryMap.get(diseaseName))</span>
+<span class="fc" id="L252">                .collect(Collectors.toList()));</span>
+
+<span class="fc" id="L254">        return variantAnnotation;</span>
+
+    }
+
+    private List&lt;String&gt; getBibliography(EvidenceEntry evidenceEntry) {
+
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if (evidenceEntry.getBibliography() == null) {</span>
+<span class="nc" id="L261">            List&lt;String&gt; bibliography = new ArrayList&lt;&gt;(1);</span>
+<span class="nc" id="L262">            evidenceEntry.setBibliography(bibliography);</span>
+        }
+
+<span class="fc" id="L265">        return evidenceEntry.getBibliography();</span>
+
+    }
+
+    private List&lt;GenomicFeature&gt; getGenomicFeature(Map&lt;String, Object&gt; map) {
+<span class="fc" id="L270">        List&lt;GenomicFeature&gt; genomicFeatureList = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">        if (map.containsKey(GENE)) {</span>
+<span class="fc" id="L272">            genomicFeatureList.add(createGeneGenomicFeature((String) map.get(GENE)));</span>
+        }
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        if (map.containsKey(TRANSCRIPT)) {</span>
+<span class="fc" id="L275">            String symbol = (String) ((Map) map.get(TRANSCRIPT)).get(NAME);</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">            if (symbol.startsWith(ENST)) {</span>
+<span class="fc" id="L277">                genomicFeatureList.add(new GenomicFeature(FeatureTypes.transcript, symbol, null));</span>
+            } else {
+<span class="nc" id="L279">                Map&lt;String, String&gt; transcriptMap = new HashMap&lt;&gt;(1);</span>
+<span class="nc" id="L280">                map.put(SYMBOL, gene);</span>
+<span class="nc" id="L281">                genomicFeatureList.add(new GenomicFeature(FeatureTypes.transcript, null, transcriptMap));</span>
+            }
+        }
+<span class="fc" id="L284">        return genomicFeatureList;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

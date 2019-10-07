@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinicalVariation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.model</a> &gt; <span class="el_source">ClinicalVariation.java</span></div><h1>ClinicalVariation.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.model;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.opencb.cellbase.core.common.clinical.ClinvarPublicSet;
+import org.opencb.cellbase.core.common.clinical.Cosmic;
+import org.opencb.cellbase.core.common.clinical.gwas.Gwas;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by parce on 10/31/14.
+ */
+@Deprecated
+public class ClinicalVariation {
+
+    private String chromosome;
+    private int start;
+    private int end;
+    private String reference;
+    private String alternate;
+    @JsonIgnoreProperties({&quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;, &quot;reference&quot;, &quot;alternate&quot;})
+    private List&lt;ClinvarPublicSet&gt; clinvarList;
+    @JsonIgnoreProperties({&quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;, &quot;reference&quot;, &quot;alternate&quot;})
+    private List&lt;Cosmic&gt; cosmicList;
+    @JsonIgnoreProperties({&quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;, &quot;reference&quot;, &quot;alternate&quot;})
+    private List&lt;Gwas&gt; gwasList;
+
+<span class="nc" id="L45">    public ClinicalVariation(String chromosome, int start, int end, String reference, String alternate) {</span>
+<span class="nc" id="L46">        this.chromosome = chromosome;</span>
+<span class="nc" id="L47">        this.start = start;</span>
+<span class="nc" id="L48">        this.end = end;</span>
+<span class="nc" id="L49">        this.reference = reference;</span>
+<span class="nc" id="L50">        this.alternate = alternate;</span>
+<span class="nc" id="L51">    }</span>
+
+    public ClinicalVariation(ClinvarPublicSet clinvarSet) {
+<span class="nc" id="L54">        this(clinvarSet.getChromosome(), clinvarSet.getStart(), clinvarSet.getEnd(), clinvarSet.getReference(), clinvarSet.getAlternate());</span>
+<span class="nc" id="L55">        this.addClinvar(clinvarSet);</span>
+<span class="nc" id="L56">    }</span>
+
+    public ClinicalVariation(Cosmic cosmic) {
+<span class="nc" id="L59">        this(cosmic.getChromosome(), cosmic.getStart(), cosmic.getEnd(), cosmic.getReference(), cosmic.getAlternate());</span>
+<span class="nc" id="L60">        this.addCosmic(cosmic);</span>
+<span class="nc" id="L61">    }</span>
+
+    public ClinicalVariation(Gwas gwas) {
+<span class="nc" id="L64">        this(gwas.getChromosome(), gwas.getStart(), gwas.getEnd(), gwas.getReference(), gwas.getAlternate());</span>
+<span class="nc" id="L65">        this.addGwas(gwas);</span>
+<span class="nc" id="L66">    }</span>
+
+
+    public String getChromosome() {
+<span class="nc" id="L70">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L74">        this.chromosome = chromosome;</span>
+<span class="nc" id="L75">    }</span>
+
+    public int getStart() {
+<span class="nc" id="L78">        return start;</span>
+    }
+
+    public void setStart(int start) {
+<span class="nc" id="L82">        this.start = start;</span>
+<span class="nc" id="L83">    }</span>
+
+    public int getEnd() {
+<span class="nc" id="L86">        return end;</span>
+    }
+
+    public void setEnd(int end) {
+<span class="nc" id="L90">        this.end = end;</span>
+<span class="nc" id="L91">    }</span>
+
+    public String getReference() {
+<span class="nc" id="L94">        return reference;</span>
+    }
+
+    public void setReference(String reference) {
+<span class="nc" id="L98">        this.reference = reference;</span>
+<span class="nc" id="L99">    }</span>
+
+    public String getAlternate() {
+<span class="nc" id="L102">        return alternate;</span>
+    }
+
+    public void setAlternate(String alternate) {
+<span class="nc" id="L106">        this.alternate = alternate;</span>
+<span class="nc" id="L107">    }</span>
+
+    public void addClinvar(ClinvarPublicSet clinvar) {
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (clinvarList == null) {</span>
+<span class="nc" id="L111">            clinvarList = new ArrayList&lt;&gt;();</span>
+        }
+<span class="nc" id="L113">        clinvarList.add(clinvar);</span>
+<span class="nc" id="L114">    }</span>
+
+    public void addCosmic(Cosmic cosmic) {
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (cosmicList == null) {</span>
+<span class="nc" id="L118">            cosmicList = new ArrayList&lt;&gt;();</span>
+        }
+<span class="nc" id="L120">        cosmicList.add(cosmic);</span>
+<span class="nc" id="L121">    }</span>
+
+    public void addGwas(Gwas gwas) {
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (gwasList == null) {</span>
+<span class="nc" id="L125">            gwasList = new ArrayList&lt;&gt;();</span>
+        }
+<span class="nc" id="L127">        gwasList.add(gwas);</span>
+<span class="nc" id="L128">    }</span>
+
+    public List&lt;ClinvarPublicSet&gt; getClinvarList() {
+<span class="nc" id="L131">        return clinvarList;</span>
+    }
+
+    public void setClinvarList(List&lt;ClinvarPublicSet&gt; clinvarList) {
+<span class="nc" id="L135">        this.clinvarList = clinvarList;</span>
+<span class="nc" id="L136">    }</span>
+
+    public List&lt;Cosmic&gt; getCosmicList() {
+<span class="nc" id="L139">        return cosmicList;</span>
+    }
+
+    public void setCosmicList(List&lt;Cosmic&gt; cosmicList) {
+<span class="nc" id="L143">        this.cosmicList = cosmicList;</span>
+<span class="nc" id="L144">    }</span>
+
+    public List&lt;Gwas&gt; getGwasList() {
+<span class="nc" id="L147">        return gwasList;</span>
+    }
+
+    public void setGwasList(List&lt;Gwas&gt; gwasList) {
+<span class="nc" id="L151">        this.gwasList = gwasList;</span>
+<span class="nc" id="L152">    }</span>
+
+    public String getVariantString() {
+<span class="nc" id="L155">        return chromosome + &quot;:&quot; + start + &quot;-&quot; + end + &quot;:&quot; + reference + &quot;-&gt;&quot; + alternate;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

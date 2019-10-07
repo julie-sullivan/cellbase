@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellBaseDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.api</a> &gt; <span class="el_source">CellBaseDBAdaptor.java</span></div><h1>CellBaseDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.api;
+
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+
+/**
+ * Created by imedina on 25/11/15.
+ */
+public interface CellBaseDBAdaptor&lt;T&gt; extends Iterable&lt;T&gt; {
+
+
+//    int insert(List objectList);
+
+    QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields);
+
+//    QueryResult&lt;Long&gt; update(Query query, ObjectMap parameters);
+
+
+    default QueryResult&lt;Long&gt; count() {
+<span class="nc" id="L43">        return count(new Query());</span>
+    }
+
+    QueryResult&lt;Long&gt; count(Query query);
+
+
+    default QueryResult&lt;String&gt; distinct(String field) {
+<span class="nc" id="L50">        return distinct(new Query(), field);</span>
+    }
+
+    QueryResult&lt;String&gt; distinct(Query query, String field);
+
+
+    default QueryResult stats() {
+<span class="nc" id="L57">        return stats(new Query());</span>
+    }
+
+    QueryResult stats(Query query);
+
+
+    /*
+     Main methods to query.
+     */
+    QueryResult&lt;T&gt; get(Query query, QueryOptions options);
+
+    default List&lt;QueryResult&lt;T&gt;&gt; get(List&lt;Query&gt; queries, QueryOptions options) {
+<span class="nc" id="L69">        Objects.requireNonNull(queries);</span>
+<span class="nc" id="L70">        List&lt;QueryResult&lt;T&gt;&gt; queryResults = new ArrayList&lt;&gt;(queries.size());</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        for (Query query : queries) {</span>
+<span class="nc" id="L72">            queryResults.add(get(query, options));</span>
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">        return queryResults;</span>
+    }
+
+    QueryResult nativeGet(Query query, QueryOptions options);
+
+    default List&lt;QueryResult&gt; nativeGet(List&lt;Query&gt; queries, QueryOptions options) {
+<span class="nc" id="L80">        Objects.requireNonNull(queries);</span>
+<span class="nc" id="L81">        List&lt;QueryResult&gt; queryResults = new ArrayList&lt;&gt;(queries.size());</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        for (Query query : queries) {</span>
+<span class="nc" id="L83">            queryResults.add(nativeGet(query, options));</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">        return queryResults;</span>
+    }
+
+
+
+    @Override
+    default Iterator&lt;T&gt; iterator() {
+<span class="nc" id="L92">        return iterator(new Query(), new QueryOptions());</span>
+    }
+
+    default Iterator nativeIterator() {
+<span class="nc" id="L96">        return nativeIterator(new Query(), new QueryOptions());</span>
+    }
+
+    Iterator&lt;T&gt; iterator(Query query, QueryOptions options);
+
+    Iterator nativeIterator(Query query, QueryOptions options);
+
+
+
+    QueryResult rank(Query query, String field, int numResults, boolean asc);
+
+    QueryResult groupBy(Query query, String field, QueryOptions options);
+
+    QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options);
+
+
+
+    @Override
+    default void forEach(Consumer action) {
+<span class="nc" id="L115">        forEach(new Query(), action, new QueryOptions());</span>
+<span class="nc" id="L116">    }</span>
+
+    void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

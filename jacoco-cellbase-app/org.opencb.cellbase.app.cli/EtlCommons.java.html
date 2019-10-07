@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EtlCommons.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">EtlCommons.java</span></div><h1>EtlCommons.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.opencb.commons.utils.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 03/06/16.
+ */
+<span class="nc" id="L21">public class EtlCommons {</span>
+
+    public static final String GENOME_DATA = &quot;genome&quot;;
+    public static final String GENE_DATA = &quot;gene&quot;;
+    public static final String GENE_DISEASE_ASSOCIATION_DATA = &quot;gene_disease_association&quot;;
+    public static final String VARIATION_DATA = &quot;variation&quot;;
+    public static final String VARIATION_FUNCTIONAL_SCORE_DATA = &quot;variation_functional_score&quot;;
+    public static final String REGULATION_DATA = &quot;regulation&quot;;
+    public static final String PROTEIN_DATA = &quot;protein&quot;;
+    public static final String CONSERVATION_DATA = &quot;conservation&quot;;
+    public static final String CLINICAL_VARIANTS_DATA = &quot;clinical_variants&quot;;
+
+    public static final String CLINICAL_VARIANTS_FOLDER = &quot;clinicalVariant&quot;;
+    public static final String CLINVAR_XML_FILE = &quot;ClinVarFullRelease_2019-06.xml.gz&quot;;
+    public static final String CLINVAR_EFO_FILE = &quot;ClinVar_Traits_EFO_Names.csv&quot;;
+    public static final String CLINVAR_SUMMARY_FILE = &quot;variant_summary.txt.gz&quot;;
+    public static final String CLINVAR_VARIATION_ALLELE_FILE = &quot;variation_allele.txt.gz&quot;;
+    public static final String IARCTP53_FILE = &quot;IARC-TP53.zip&quot;;
+    public static final String GWAS_FILE = &quot;gwas_catalog.tsv&quot;;
+    public static final String COSMIC_FILE = &quot;CosmicMutantExport.tsv.gz&quot;;
+    public static final String DBSNP_FILE = &quot;All.vcf.gz&quot;;
+
+    public static final String STRUCTURAL_VARIANTS_DATA = &quot;svs&quot;;
+    public static final String REPEATS_DATA = &quot;repeats&quot;;
+
+    // Build specific data options
+    public static final String GENOME_INFO_DATA = &quot;genome_info&quot;;
+    public static final String DISGENET_DATA = &quot;disgenet&quot;;
+    public static final String HPO_DATA = &quot;hpo&quot;;
+    public static final String CADD_DATA = &quot;cadd&quot;;
+    public static final String PPI_DATA = &quot;ppi&quot;;
+    public static final String DRUG_DATA = &quot;drug&quot;;
+    public static final String CLINVAR_DATA = &quot;clinvar&quot;;
+    public static final String DOCM_DATA = &quot;docm&quot;;
+    public static final String COSMIC_DATA = &quot;cosmic&quot;;
+    public static final String GWAS_DATA = &quot;gwas&quot;;
+    public static final String IARCTP53_GERMLINE_FILE = &quot;germlineMutationDataIARC TP53 Database, R18.txt&quot;;
+    public static final String IARCTP53_GERMLINE_REFERENCES_FILE = &quot;germlineMutationReferenceIARC TP53 Database, R18.txt&quot;;
+    public static final String IARCTP53_SOMATIC_FILE = &quot;somaticMutationDataIARC TP53 Database, R18.txt&quot;;
+    public static final String IARCTP53_SOMATIC_REFERENCES_FILE = &quot;somaticMutationReferenceIARC TP53 Database, R18.txt&quot;;
+
+    // Load specific data options
+    public static final String PROTEIN_FUNCTIONAL_PREDICTION_DATA = &quot;protein_functional_prediction&quot;;
+
+    // Path and file names
+    public static final String GERP_SUBDIRECTORY = &quot;gerp&quot;;
+    public static final String GERP_FILE = &quot;hg19.GERP_scores.tar.gz&quot;;
+    public static final String CLINICAL_VARIANTS_JSON_FILE = &quot;clinical_variants.json.gz&quot;;
+    public static final String CLINICAL_VARIANTS_ANNOTATED_JSON_FILE = &quot;clinical_variants.full.json.gz&quot;;
+    public static final String DOCM_FILE = &quot;docm.json.gz&quot;;
+    public static final String DOCM_NAME = &quot;DOCM&quot;;
+    public static final String STRUCTURAL_VARIANTS_FOLDER = &quot;structuralVariants&quot;;
+    public static final String DGV_FILE = &quot;dgv.txt&quot;;
+    public static final String DGV_VERSION_FILE = &quot;dgvVersion.json&quot;;
+    public static final String STRUCTURAL_VARIANTS_JSON = &quot;structuralVariants&quot;;
+    public static final String TRF_FILE = &quot;simpleRepeat.txt.gz&quot;;
+    public static final String TRF_VERSION_FILE = &quot;simpleRepeat.json&quot;;
+    public static final String GSD_FILE = &quot;genomicSuperDups.txt.gz&quot;;
+    public static final String GSD_VERSION_FILE = &quot;genomicSuperDups.json&quot;;
+    public static final String WM_FILE = &quot;windowMasker.txt.gz&quot;;
+    public static final String WM_VERSION_FILE = &quot;windowMasker.json&quot;;
+    public static final String REPEATS_FOLDER = &quot;repeats&quot;;
+    public static final String REPEATS_JSON = &quot;repeats&quot;;
+    public static final String REGULATORY_FEATURES_FILE = &quot;Regulatory_Build.regulatory_features.gff.gz&quot;;
+    public static final String MOTIF_FEATURES_FILE = &quot;motiffeatures.gff.gz&quot;;
+
+    public static boolean runCommandLineProcess(File workingDirectory, String binPath, List&lt;String&gt; args, String logFilePath)
+            throws IOException, InterruptedException {
+        // This small hack allow to configure the appropriate Logger level from the command line, this is done
+        // by setting the DEFAULT_LOG_LEVEL_KEY before the logger object is created.
+<span class="nc" id="L91">        org.apache.log4j.Logger rootLogger = LogManager.getRootLogger();</span>
+<span class="nc" id="L92">        ConsoleAppender stderr = (ConsoleAppender) rootLogger.getAppender(&quot;stderr&quot;);</span>
+<span class="nc" id="L93">        stderr.setThreshold(Level.toLevel(&quot;debug&quot;));</span>
+<span class="nc" id="L94">        Logger logger = LoggerFactory.getLogger(&quot;EtlCommons&quot;);</span>
+
+<span class="nc" id="L96">        ProcessBuilder builder = getProcessBuilder(workingDirectory, binPath, args, logFilePath);</span>
+
+<span class="nc" id="L98">        logger.debug(&quot;Executing command: &quot; + StringUtils.join(builder.command(), &quot; &quot;));</span>
+<span class="nc" id="L99">        Process process = builder.start();</span>
+<span class="nc" id="L100">        process.waitFor();</span>
+
+        // Check process output
+<span class="nc" id="L103">        boolean executedWithoutErrors = true;</span>
+<span class="nc" id="L104">        int genomeInfoExitValue = process.exitValue();</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if (genomeInfoExitValue != 0) {</span>
+<span class="nc" id="L106">            logger.warn(&quot;Error executing {}, error code: {}. More info in log file: {}&quot;, binPath, genomeInfoExitValue, logFilePath);</span>
+<span class="nc" id="L107">            executedWithoutErrors = false;</span>
+        }
+<span class="nc" id="L109">        return executedWithoutErrors;</span>
+    }
+
+    private static ProcessBuilder getProcessBuilder(File workingDirectory, String binPath, List&lt;String&gt; args, String logFilePath) {
+<span class="nc" id="L113">        List&lt;String&gt; commandArgs = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L114">        commandArgs.add(binPath);</span>
+<span class="nc" id="L115">        commandArgs.addAll(args);</span>
+<span class="nc" id="L116">        ProcessBuilder builder = new ProcessBuilder(commandArgs);</span>
+
+        // working directoy and error and output log outputs
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (workingDirectory != null) {</span>
+<span class="nc" id="L120">            builder.directory(workingDirectory);</span>
+        }
+<span class="nc" id="L122">        builder.redirectErrorStream(true);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (logFilePath != null) {</span>
+<span class="nc" id="L124">            builder.redirectOutput(ProcessBuilder.Redirect.appendTo(new File(logFilePath)));</span>
+        }
+
+<span class="nc" id="L127">        return builder;</span>
+    }
+
+    public static boolean isMissing(String string) {
+<span class="pc bpc" id="L131" title="1 of 4 branches missed.">        return !((string != null) &amp;&amp; !string.isEmpty()</span>
+<span class="fc" id="L132">                &amp;&amp; !string.replace(&quot; &quot;, &quot;&quot;)</span>
+<span class="fc" id="L133">                .replace(&quot;not specified&quot;, &quot;&quot;)</span>
+<span class="fc" id="L134">                .replace(&quot;NS&quot;, &quot;&quot;)</span>
+<span class="fc" id="L135">                .replace(&quot;NA&quot;, &quot;&quot;)</span>
+<span class="fc" id="L136">                .replace(&quot;na&quot;, &quot;&quot;)</span>
+<span class="fc" id="L137">                .replace(&quot;NULL&quot;, &quot;&quot;)</span>
+<span class="fc" id="L138">                .replace(&quot;null&quot;, &quot;&quot;)</span>
+<span class="fc" id="L139">                .replace(&quot;\t&quot;, &quot;&quot;)</span>
+<span class="fc" id="L140">                .replace(&quot;.&quot;, &quot;&quot;)</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                .replace(&quot;-&quot;, &quot;&quot;).isEmpty());</span>
+    }
+
+    public static Long countFileLines(Path filePath) throws IOException {
+<span class="pc" id="L145">        try (BufferedReader bufferedReader1 = FileUtils.newBufferedReader(filePath)) {</span>
+<span class="fc" id="L146">            long nLines = 0;</span>
+<span class="fc" id="L147">            String line1 = bufferedReader1.readLine();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            while (line1 != null) {</span>
+<span class="fc" id="L149">                nLines++;</span>
+<span class="fc" id="L150">                line1 = bufferedReader1.readLine();</span>
+            }
+<span class="fc" id="L152">            return nLines;</span>
+<span class="pc bpc" id="L153" title="6 of 8 branches missed.">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

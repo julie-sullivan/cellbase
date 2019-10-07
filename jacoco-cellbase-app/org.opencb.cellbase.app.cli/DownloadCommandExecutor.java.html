@@ -1,0 +1,1183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DownloadCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">DownloadCommandExecutor.java</span></div><h1>DownloadCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.beust.jcommander.ParameterException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import org.apache.commons.collections.map.HashedMap;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
+import org.opencb.cellbase.core.config.Species;
+import org.opencb.commons.utils.FileUtils;
+
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.WebTarget;
+import java.io.*;
+import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+/**
+ * Created by imedina on 03/02/15.
+ */
+public class DownloadCommandExecutor extends CommandExecutor {
+
+    private CliOptionsParser.DownloadCommandOptions downloadCommandOptions;
+
+<span class="nc" id="L52">    private Path output = null;</span>
+<span class="nc" id="L53">    private Path common = null;</span>
+
+    private File ensemblScriptsFolder;
+    private String ensemblVersion;
+    private String ensemblRelease;
+
+    private Species species;
+
+<span class="nc" id="L61">    private static final String[] VARIATION_FILES = {&quot;variation.txt.gz&quot;, &quot;variation_feature.txt.gz&quot;,</span>
+            &quot;transcript_variation.txt.gz&quot;, &quot;variation_synonym.txt.gz&quot;, &quot;seq_region.txt.gz&quot;, &quot;source.txt.gz&quot;,
+            &quot;attrib.txt.gz&quot;, &quot;attrib_type.txt.gz&quot;, &quot;seq_region.txt.gz&quot;, &quot;structural_variation_feature.txt.gz&quot;,
+            &quot;study.txt.gz&quot;, &quot;phenotype.txt.gz&quot;, &quot;phenotype_feature.txt.gz&quot;, &quot;phenotype_feature_attrib.txt.gz&quot;,
+            &quot;motif_feature_variation.txt.gz&quot;, &quot;genotype_code.txt.gz&quot;, &quot;allele_code.txt.gz&quot;,
+            &quot;population_genotype.txt.gz&quot;, &quot;population.txt.gz&quot;, &quot;allele.txt.gz&quot;, };
+
+    @Deprecated
+<span class="nc" id="L69">    private static final String[] DEPRECATED_REGULATION_FILES = {&quot;AnnotatedFeatures.gff.gz&quot;, &quot;MotifFeatures.gff.gz&quot;,</span>
+            &quot;RegulatoryFeatures_MultiCell.gff.gz&quot;, };
+
+<span class="nc" id="L72">    private static final Map&lt;String, String&gt; GENE_UNIPROT_XREF_FILES = new HashMap() {</span>
+        {
+<span class="nc" id="L74">            put(&quot;Homo sapiens&quot;, &quot;HUMAN_9606_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L75">            put(&quot;Mus musculus&quot;, &quot;MOUSE_10090_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L76">            put(&quot;Rattus norvegicus&quot;, &quot;RAT_10116_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L77">            put(&quot;Danio rerio&quot;, &quot;DANRE_7955_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L78">            put(&quot;Drosophila melanogaster&quot;, &quot;DROME_7227_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L79">            put(&quot;Saccharomyces cerevisiae&quot;, &quot;YEAST_559292_idmapping_selected.tab.gz&quot;);</span>
+<span class="nc" id="L80">        }</span>
+    };
+
+    private static final String ENSEMBL_NAME = &quot;ENSEMBL&quot;;
+    private static final String GENE_EXPRESSION_ATLAS_NAME = &quot;Gene Expression Atlas&quot;;
+    private static final String HPO_NAME = &quot;HPO&quot;;
+    private static final String DISGENET_NAME = &quot;DisGeNET&quot;;
+    private static final String DGIDB_NAME = &quot;DGIdb&quot;;
+    private static final String UNIPROT_NAME = &quot;UniProt&quot;;
+    private static final String CADD_NAME = &quot;CADD&quot;;
+    private static final String MIRBASE_NAME = &quot;miRBase&quot;;
+    private static final String MIRTARBASE_NAME = &quot;miRTarBase&quot;;
+    private static final String TARGETSCAN_NAME = &quot;TargetScan&quot;;
+    private static final String INTACT_NAME = &quot;IntAct&quot;;
+    private static final String INTERPRO_NAME = &quot;InterPro&quot;;
+    private static final String GERP_NAME = &quot;GERP++&quot;;
+    private static final String PHASTCONS_NAME = &quot;PhastCons&quot;;
+    private static final String PHYLOP_NAME = &quot;PhyloP&quot;;
+    private static final String CLINVAR_NAME = &quot;ClinVar&quot;;
+    private static final String IARCTP53_NAME = &quot;IARC TP53 Database&quot;;
+    private static final String DGV_NAME = &quot;DGV&quot;;
+    private static final String GWAS_NAME = &quot;Gwas Catalog&quot;;
+    private static final String DBSNP_NAME = &quot;dbSNP&quot;;
+    private static final String REACTOME_NAME = &quot;Reactome&quot;;
+    private static final String TRF_NAME = &quot;Tandem repeats finder&quot;;
+    private static final String GSD_NAME = &quot;Genomic super duplications&quot;;
+    private static final String WM_NAME = &quot;WindowMasker&quot;;
+
+    public DownloadCommandExecutor(CliOptionsParser.DownloadCommandOptions downloadCommandOptions) {
+<span class="nc" id="L109">        super(downloadCommandOptions.commonOptions.logLevel, downloadCommandOptions.commonOptions.verbose,</span>
+                downloadCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L112">        this.downloadCommandOptions = downloadCommandOptions;</span>
+
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (downloadCommandOptions.output != null) {</span>
+<span class="nc" id="L115">            output = Paths.get(downloadCommandOptions.output);</span>
+        }
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (downloadCommandOptions.common != null) {</span>
+<span class="nc" id="L118">            common = Paths.get(downloadCommandOptions.common);</span>
+        } else {
+<span class="nc" id="L120">            common = output.resolve(&quot;common&quot;);</span>
+        }
+
+<span class="nc" id="L123">        this.ensemblScriptsFolder = new File(System.getProperty(&quot;basedir&quot;) + &quot;/bin/ensembl-scripts/&quot;);</span>
+<span class="nc" id="L124">    }</span>
+
+
+    /**
+     * Execute specific 'download' command options.
+     */
+    public void execute() {
+        try {
+<span class="nc bnc" id="L132" title="All 4 branches missed.">            if (downloadCommandOptions.species != null &amp;&amp; !downloadCommandOptions.species.isEmpty()) {</span>
+                // We need to get the Species object from the CLI name
+                // This can be the scientific or common name, or the ID
+                //            Species speciesToDownload = null;
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                for (Species sp : configuration.getAllSpecies()) {</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                    if (downloadCommandOptions.species.equalsIgnoreCase(sp.getScientificName())</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                            || downloadCommandOptions.species.equalsIgnoreCase(sp.getCommonName())</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                            || downloadCommandOptions.species.equalsIgnoreCase(sp.getId())) {</span>
+<span class="nc" id="L140">                        species = sp;</span>
+<span class="nc" id="L141">                        break;</span>
+                    }
+<span class="nc" id="L143">                }</span>
+
+                // If everything is right we launch the download
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                if (species != null) {</span>
+<span class="nc" id="L147">                    processSpecies(species);</span>
+                } else {
+<span class="nc" id="L149">                    logger.error(&quot;Species '{}' not valid&quot;, downloadCommandOptions.species);</span>
+                }
+            } else {
+<span class="nc" id="L152">                logger.error(&quot;--species parameter '{}' not valid&quot;, downloadCommandOptions.species);</span>
+            }
+<span class="nc" id="L154">        } catch (ParameterException e) {</span>
+<span class="nc" id="L155">            logger.error(&quot;Error in 'download' command line: &quot; + e.getMessage());</span>
+<span class="nc" id="L156">        } catch (IOException | InterruptedException e) {</span>
+<span class="nc" id="L157">            logger.error(&quot;Error downloading '&quot; + downloadCommandOptions.species + &quot;' files: &quot; + e.getMessage());</span>
+<span class="nc" id="L158">        }</span>
+
+<span class="nc" id="L160">    }</span>
+
+    private void processSpecies(Species sp) throws IOException, InterruptedException {
+<span class="nc" id="L163">        logger.info(&quot;Processing species &quot; + sp.getScientificName());</span>
+
+        // We need to find which is the correct Ensembl host URL.
+        // This can different depending on if is a vertebrate species.
+        String ensemblHostUrl;
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        if (configuration.getSpecies().getVertebrates().contains(sp)) {</span>
+<span class="nc" id="L169">            ensemblHostUrl = configuration.getDownload().getEnsembl().getUrl().getHost();</span>
+        } else {
+<span class="nc" id="L171">            ensemblHostUrl = configuration.getDownload().getEnsemblGenomes().getUrl().getHost();</span>
+        }
+
+        // Getting the assembly.
+        // By default the first assembly in the configuration.json
+<span class="nc" id="L176">        Species.Assembly assembly = null;</span>
+<span class="nc bnc" id="L177" title="All 4 branches missed.">        if (downloadCommandOptions.assembly == null || downloadCommandOptions.assembly.isEmpty()) {</span>
+<span class="nc" id="L178">            assembly = sp.getAssemblies().get(0);</span>
+        } else {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            for (Species.Assembly assembly1 : sp.getAssemblies()) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">                if (downloadCommandOptions.assembly.equalsIgnoreCase(assembly1.getName())) {</span>
+<span class="nc" id="L182">                    assembly = assembly1;</span>
+<span class="nc" id="L183">                    break;</span>
+                }
+<span class="nc" id="L185">            }</span>
+        }
+
+        // Checking that the species and assembly are correct
+<span class="nc bnc" id="L189" title="All 4 branches missed.">        if (ensemblHostUrl == null || assembly == null) {</span>
+<span class="nc" id="L190">            logger.error(&quot;Something is not correct, check the species '{}' or the assembly '{}'&quot;,</span>
+                    downloadCommandOptions.species, downloadCommandOptions.assembly);
+<span class="nc" id="L192">            return;</span>
+        }
+
+        // Output folder creation
+<span class="nc" id="L196">        String spShortName = sp.getScientificName().toLowerCase()</span>
+<span class="nc" id="L197">                .replaceAll(&quot;\\.&quot;, &quot;&quot;)</span>
+<span class="nc" id="L198">                .replaceAll(&quot;\\)&quot;, &quot;&quot;)</span>
+<span class="nc" id="L199">                .replaceAll(&quot;\\(&quot;, &quot;&quot;)</span>
+<span class="nc" id="L200">                .replaceAll(&quot;[-/]&quot;, &quot; &quot;)</span>
+<span class="nc" id="L201">                .replaceAll(&quot;\\s+&quot;, &quot;_&quot;);</span>
+<span class="nc" id="L202">        String spAssembly = assembly.getName().toLowerCase();</span>
+<span class="nc" id="L203">        Path spFolder = output.resolve(spShortName + &quot;_&quot; + spAssembly);</span>
+<span class="nc" id="L204">        makeDir(spFolder);</span>
+<span class="nc" id="L205">        makeDir(common);</span>
+
+<span class="nc" id="L207">        ensemblVersion = assembly.getEnsemblVersion();</span>
+<span class="nc" id="L208">        ensemblRelease = &quot;release-&quot; + ensemblVersion.split(&quot;_&quot;)[0];</span>
+
+<span class="nc bnc" id="L210" title="All 4 branches missed.">        if (downloadCommandOptions.data != null &amp;&amp; !downloadCommandOptions.data.isEmpty()) {</span>
+            List&lt;String&gt; dataList;
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (downloadCommandOptions.data.equals(&quot;all&quot;)) {</span>
+<span class="nc" id="L213">                dataList = sp.getData();</span>
+            } else {
+<span class="nc" id="L215">                dataList = Arrays.asList(downloadCommandOptions.data.split(&quot;,&quot;));</span>
+            }
+
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            for (String data : dataList) {</span>
+<span class="nc bnc" id="L219" title="All 42 branches missed.">                switch (data) {</span>
+                    case EtlCommons.GENOME_DATA:
+<span class="nc" id="L221">                        downloadReferenceGenome(sp, spShortName, assembly.getName(), spFolder, ensemblHostUrl);</span>
+<span class="nc" id="L222">                        break;</span>
+                    case EtlCommons.GENE_DATA:
+<span class="nc" id="L224">                        downloadEnsemblGene(sp, spShortName, assembly.getName(), spFolder, ensemblHostUrl);</span>
+<span class="nc" id="L225">                        break;</span>
+                    case EtlCommons.VARIATION_DATA:
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;variation&quot;)) {</span>
+<span class="nc" id="L228">                            downloadVariation(sp, spShortName, spFolder, ensemblHostUrl);</span>
+                        }
+                        break;
+                    case EtlCommons.VARIATION_FUNCTIONAL_SCORE_DATA:
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;variation_functional_score&quot;)) {</span>
+<span class="nc" id="L233">                            downloadCaddScores(sp, assembly.getName(), spFolder);</span>
+                        }
+                        break;
+                    case EtlCommons.REGULATION_DATA:
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;regulation&quot;)) {</span>
+<span class="nc" id="L238">                            downloadRegulation(sp, spShortName, assembly.getName(), spFolder, ensemblHostUrl);</span>
+                        }
+                        break;
+                    case EtlCommons.PROTEIN_DATA:
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;protein&quot;)) {</span>
+<span class="nc" id="L243">                            downloadProtein();</span>
+                        }
+                        break;
+                    case EtlCommons.CONSERVATION_DATA:
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;conservation&quot;)) {</span>
+<span class="nc" id="L248">                            downloadConservation(sp, assembly.getName(), spFolder);</span>
+                        }
+                        break;
+                    case EtlCommons.CLINICAL_VARIANTS_DATA:
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;clinical_variants&quot;)) {</span>
+<span class="nc" id="L253">                            downloadClinical(sp, assembly.getName(), spFolder);</span>
+                        }
+                        break;
+                    case EtlCommons.STRUCTURAL_VARIANTS_DATA:
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;svs&quot;)) {</span>
+<span class="nc" id="L258">                            downloadStructuralVariants(sp, assembly.getName(), spFolder);</span>
+                        }
+                        break;
+                    case EtlCommons.REPEATS_DATA:
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                        if (speciesHasInfoToDownload(sp, &quot;repeats&quot;)) {</span>
+<span class="nc" id="L263">                            downloadRepeats(sp, assembly.getName(), spFolder);</span>
+                        }
+                        break;
+                    default:
+<span class="nc" id="L267">                        System.out.println(&quot;Value \&quot;&quot; + data + &quot;\&quot; is not allowed for the data parameter. Allowed values&quot;</span>
+                                + &quot; are: {genome, gene, gene_disease_association, variation, variation_functional_score,&quot;
+                                + &quot; regulation, protein, conservation, clinical_variants}&quot;);
+                        break;
+                }
+<span class="nc" id="L272">            }</span>
+        }
+<span class="nc" id="L274">    }</span>
+
+    private void downloadStructuralVariants(Species species, String assembly, Path speciesFolder) throws IOException, InterruptedException {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc" id="L278">            logger.info(&quot;Downloading DGV data ...&quot;);</span>
+
+<span class="nc" id="L280">            Path structuralVariantsFolder = speciesFolder.resolve(EtlCommons.STRUCTURAL_VARIANTS_FOLDER);</span>
+<span class="nc" id="L281">            makeDir(structuralVariantsFolder);</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            String sourceFilename = (assembly.equalsIgnoreCase(&quot;grch37&quot;) ? &quot;GRCh37_hg19&quot; : &quot;GRCh38_hg38&quot;)</span>
+                    + &quot;_variants_2016-05-15.txt&quot;;
+<span class="nc" id="L284">            String url = configuration.getDownload().getDgv().getHost() + &quot;/&quot; + sourceFilename;</span>
+<span class="nc" id="L285">            downloadFile(url, structuralVariantsFolder.resolve(EtlCommons.DGV_FILE).toString());</span>
+
+<span class="nc" id="L287">            saveVersionData(EtlCommons.STRUCTURAL_VARIANTS_DATA, DGV_NAME, getDGVVersion(sourceFilename), getTimeStamp(),</span>
+<span class="nc" id="L288">                    Collections.singletonList(url), structuralVariantsFolder.resolve(EtlCommons.DGV_VERSION_FILE));</span>
+
+        }
+<span class="nc" id="L291">    }</span>
+
+    private String getDGVVersion(String sourceFilename) {
+<span class="nc" id="L294">        return sourceFilename.split(&quot;\\.&quot;)[0].split(&quot;_&quot;)[3];</span>
+    }
+
+
+    private boolean speciesHasInfoToDownload(Species sp, String info) {
+<span class="nc" id="L299">        boolean hasInfo = true;</span>
+<span class="nc bnc" id="L300" title="All 4 branches missed.">        if (sp.getData() == null || !sp.getData().contains(info)) {</span>
+<span class="nc" id="L301">            logger.warn(&quot;Species '{}' has no '{}' information available to download&quot;, sp.getScientificName(), info);</span>
+<span class="nc" id="L302">            hasInfo = false;</span>
+        }
+<span class="nc" id="L304">        return hasInfo;</span>
+    }
+
+    private String getPhylo(Species sp) {
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (configuration.getSpecies().getVertebrates().contains(sp)) {</span>
+<span class="nc" id="L309">            return &quot;vertebrates&quot;;</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        } else if (configuration.getSpecies().getMetazoa().contains(sp)) {</span>
+<span class="nc" id="L311">            return &quot;metazoa&quot;;</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">        } else if (configuration.getSpecies().getFungi().contains(sp)) {</span>
+<span class="nc" id="L313">            return &quot;fungi&quot;;</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">        } else if (configuration.getSpecies().getProtist().contains(sp)) {</span>
+<span class="nc" id="L315">            return &quot;protists&quot;;</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">        } else if (configuration.getSpecies().getPlants().contains(sp)) {</span>
+<span class="nc" id="L317">            return &quot;plants&quot;;</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        } else if (configuration.getSpecies().getVirus().contains(sp)) {</span>
+<span class="nc" id="L319">            return &quot;virus&quot;;</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        } else if (configuration.getSpecies().getBacteria().contains(sp)) {</span>
+<span class="nc" id="L321">            return &quot;bacteria&quot;;</span>
+        } else {
+<span class="nc" id="L323">            throw new ParameterException(&quot;Species &quot; + sp.getScientificName() + &quot; not associated to any phylo in the configuration file&quot;);</span>
+        }
+    }
+
+    private void downloadReferenceGenome(Species sp, String shortName, String assembly, Path spFolder, String host)
+            throws IOException, InterruptedException {
+<span class="nc" id="L329">        logger.info(&quot;Downloading genome information ...&quot;);</span>
+<span class="nc" id="L330">        Path sequenceFolder = spFolder.resolve(&quot;genome&quot;);</span>
+<span class="nc" id="L331">        makeDir(sequenceFolder);</span>
+
+        /**
+         * Reference genome sequences are downloaded from Ensembl
+         */
+<span class="nc" id="L336">        String url = host + &quot;/&quot; + ensemblRelease;</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        if (sp.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+            // New Homo sapiens assemblies contain too many ALT regions,
+            // so we download 'primary_assembly' file
+<span class="nc" id="L340">            url = url + &quot;/fasta/&quot; + shortName + &quot;/dna/*.dna.primary_assembly.fa.gz&quot;;</span>
+        } else {
+<span class="nc bnc" id="L342" title="All 2 branches missed.">            if (!configuration.getSpecies().getVertebrates().contains(sp)) {</span>
+<span class="nc" id="L343">                url = host + &quot;/&quot; + ensemblRelease + &quot;/&quot; + getPhylo(sp);</span>
+            }
+<span class="nc" id="L345">            url = url + &quot;/fasta/&quot;;</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            if (configuration.getSpecies().getBacteria().contains(sp)) {</span>
+                // WARN: assuming there's just one assembly
+<span class="nc" id="L348">                url = url + sp.getAssemblies().get(0).getEnsemblCollection() + &quot;/&quot;;</span>
+            }
+<span class="nc" id="L350">            url = url + shortName + &quot;/dna/*.dna.toplevel.fa.gz&quot;;</span>
+        }
+
+<span class="nc" id="L353">        String outputFileName = StringUtils.capitalize(shortName) + &quot;.&quot; + assembly + &quot;.fa.gz&quot;;</span>
+<span class="nc" id="L354">        Path outputPath = sequenceFolder.resolve(outputFileName);</span>
+<span class="nc" id="L355">        downloadFile(url, outputPath.toString());</span>
+<span class="nc" id="L356">        logger.info(&quot;Saving reference genome version data at {}&quot;, sequenceFolder.resolve(&quot;genomeVersion.json&quot;));</span>
+<span class="nc" id="L357">        saveVersionData(EtlCommons.GENOME_DATA, ENSEMBL_NAME, ensemblVersion, getTimeStamp(),</span>
+<span class="nc" id="L358">                Collections.singletonList(url), sequenceFolder.resolve(&quot;genomeVersion.json&quot;));</span>
+<span class="nc" id="L359">    }</span>
+
+    private String getTimeStamp() {
+<span class="nc" id="L362">        return new SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;).format(Calendar.getInstance().getTime());</span>
+    }
+
+    private void saveVersionData(String data, String source, String version, String date, List&lt;String&gt; url,
+                                 Path outputFilePath) {
+<span class="nc" id="L367">        Map versionData = new HashedMap();</span>
+<span class="nc" id="L368">        versionData.put(&quot;data&quot;, data);</span>
+<span class="nc" id="L369">        versionData.put(&quot;source&quot;, source);</span>
+<span class="nc" id="L370">        versionData.put(&quot;version&quot;, version);</span>
+<span class="nc" id="L371">        versionData.put(&quot;downloadDate&quot;, date);</span>
+<span class="nc" id="L372">        versionData.put(&quot;uRL&quot;, url);</span>
+<span class="nc" id="L373">        writeVersionDataFile(versionData, outputFilePath);</span>
+<span class="nc" id="L374">    }</span>
+
+    private void writeVersionDataFile(Map versionData, Path outputFilePath) {
+        try {
+<span class="nc" id="L378">            OutputStream os = Files.newOutputStream(outputFilePath);</span>
+<span class="nc" id="L379">            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+<span class="nc" id="L380">            ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L381">            ObjectWriter jsonObjectWriter = jsonObjectMapper.writer();</span>
+<span class="nc" id="L382">            bw.write(jsonObjectWriter.writeValueAsString(versionData) + &quot;\n&quot;);</span>
+<span class="nc" id="L383">            bw.close();</span>
+<span class="nc" id="L384">        } catch (IOException e) {</span>
+<span class="nc" id="L385">            e.printStackTrace();</span>
+<span class="nc" id="L386">        }</span>
+
+<span class="nc" id="L388">    }</span>
+
+    private void downloadEnsemblGene(Species sp, String spShortName, String assembly, Path speciesFolder, String host)
+            throws IOException, InterruptedException {
+<span class="nc" id="L392">        logger.info(&quot;Downloading gene information ...&quot;);</span>
+<span class="nc" id="L393">        Path geneFolder = speciesFolder.resolve(&quot;gene&quot;);</span>
+<span class="nc" id="L394">        makeDir(geneFolder);</span>
+
+<span class="nc" id="L396">        downloadEnsemblData(sp, spShortName, geneFolder, host);</span>
+<span class="nc" id="L397">        downloadDrugData(sp, speciesFolder);</span>
+<span class="nc" id="L398">        downloadGeneUniprotXref(sp, geneFolder);</span>
+<span class="nc" id="L399">        downloadGeneExpressionAtlas();</span>
+<span class="nc" id="L400">        downloadGeneDiseaseAnnotation(geneFolder);</span>
+<span class="nc" id="L401">        runGeneExtraInfo(sp, assembly, geneFolder);</span>
+<span class="nc" id="L402">    }</span>
+
+    private void downloadDrugData(Species species, Path speciesFolder) throws IOException, InterruptedException {
+
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc" id="L407">            logger.info(&quot;Downloading drug-gene data...&quot;);</span>
+
+<span class="nc" id="L409">            Path geneDrugFolder = speciesFolder.resolve(&quot;gene/geneDrug&quot;);</span>
+<span class="nc" id="L410">            makeDir(geneDrugFolder);</span>
+<span class="nc" id="L411">            String url = configuration.getDownload().getDgidb().getHost();</span>
+<span class="nc" id="L412">            downloadFile(url, geneDrugFolder.resolve(&quot;dgidb.tsv&quot;).toString());</span>
+
+<span class="nc" id="L414">            saveVersionData(EtlCommons.GENE_DATA, DGIDB_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L415">                    geneDrugFolder.resolve(&quot;dgidbVersion.json&quot;));</span>
+
+        }
+<span class="nc" id="L418">    }</span>
+
+    private void downloadEnsemblData(Species sp, String spShortName, Path geneFolder, String host)
+            throws IOException, InterruptedException {
+<span class="nc" id="L422">        logger.info(&quot;Downloading gene Ensembl data (gtf, pep, cdna, motifs) ...&quot;);</span>
+<span class="nc" id="L423">        List&lt;String&gt; downloadedUrls = new ArrayList&lt;&gt;(4);</span>
+
+<span class="nc" id="L425">        String ensemblHost = host + &quot;/&quot; + ensemblRelease;</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">        if (!configuration.getSpecies().getVertebrates().contains(sp)) {</span>
+<span class="nc" id="L427">            ensemblHost = host + &quot;/&quot; + ensemblRelease + &quot;/&quot; + getPhylo(sp);</span>
+        }
+
+<span class="nc" id="L430">        String bacteriaCollectionPath = &quot;&quot;;</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">        if (configuration.getSpecies().getBacteria().contains(sp)) {</span>
+            // WARN: assuming there's just one assembly
+<span class="nc" id="L433">            bacteriaCollectionPath =  sp.getAssemblies().get(0).getEnsemblCollection() + &quot;/&quot;;</span>
+        }
+
+        // Ensembl leaves now several GTF files in the FTP folder, we need to build a more accurate URL
+        // to download the correct GTF file.
+<span class="nc" id="L438">        String version = ensemblRelease.split(&quot;-&quot;)[1];</span>
+<span class="nc" id="L439">        String url = ensemblHost + &quot;/gtf/&quot; + bacteriaCollectionPath + spShortName + &quot;/*&quot; + version + &quot;.gtf.gz&quot;;</span>
+<span class="nc" id="L440">        String fileName = geneFolder.resolve(spShortName + &quot;.gtf.gz&quot;).toString();</span>
+<span class="nc" id="L441">        downloadFile(url, fileName);</span>
+<span class="nc" id="L442">        downloadedUrls.add(url);</span>
+
+<span class="nc" id="L444">        url = ensemblHost + &quot;/fasta/&quot; + bacteriaCollectionPath + spShortName + &quot;/pep/*.pep.all.fa.gz&quot;;</span>
+<span class="nc" id="L445">        fileName = geneFolder.resolve(spShortName + &quot;.pep.all.fa.gz&quot;).toString();</span>
+<span class="nc" id="L446">        downloadFile(url, fileName);</span>
+<span class="nc" id="L447">        downloadedUrls.add(url);</span>
+
+<span class="nc" id="L449">        url = ensemblHost + &quot;/fasta/&quot; + bacteriaCollectionPath + spShortName + &quot;/cdna/*.cdna.all.fa.gz&quot;;</span>
+<span class="nc" id="L450">        fileName = geneFolder.resolve(spShortName + &quot;.cdna.all.fa.gz&quot;).toString();</span>
+<span class="nc" id="L451">        downloadFile(url, fileName);</span>
+<span class="nc" id="L452">        downloadedUrls.add(url);</span>
+
+<span class="nc" id="L454">        url = ensemblHost + &quot;/regulation/&quot; + spShortName + &quot;/MotifFeatures.gff.gz&quot;;</span>
+<span class="nc" id="L455">        Path outputFile = geneFolder.resolve(&quot;MotifFeatures.gff.gz&quot;);</span>
+<span class="nc" id="L456">        downloadFile(url, outputFile.toString());</span>
+<span class="nc" id="L457">        downloadedUrls.add(url);</span>
+
+<span class="nc" id="L459">        saveVersionData(EtlCommons.GENE_DATA, ENSEMBL_NAME, ensemblVersion, getTimeStamp(), downloadedUrls,</span>
+<span class="nc" id="L460">                geneFolder.resolve(&quot;ensemblCoreVersion.json&quot;));</span>
+<span class="nc" id="L461">    }</span>
+
+    private void downloadGeneUniprotXref(Species sp, Path geneFolder) throws IOException, InterruptedException {
+<span class="nc" id="L464">        logger.info(&quot;Downloading UniProt ID mapping ...&quot;);</span>
+
+<span class="nc bnc" id="L466" title="All 2 branches missed.">        if (GENE_UNIPROT_XREF_FILES.containsKey(sp.getScientificName())) {</span>
+<span class="nc" id="L467">            String geneGtfUrl = configuration.getDownload().getGeneUniprotXref().getHost() + &quot;/&quot;</span>
+<span class="nc" id="L468">                    + GENE_UNIPROT_XREF_FILES.get(sp.getScientificName());</span>
+<span class="nc" id="L469">            downloadFile(geneGtfUrl, geneFolder.resolve(&quot;idmapping_selected.tab.gz&quot;).toString());</span>
+<span class="nc" id="L470">            downloadFile(getUniProtReleaseNotesUrl(), geneFolder.resolve(&quot;uniprotRelnotes.txt&quot;).toString());</span>
+
+<span class="nc" id="L472">            saveVersionData(EtlCommons.GENE_DATA, UNIPROT_NAME,</span>
+<span class="nc" id="L473">                    getUniProtRelease(geneFolder.resolve(&quot;uniprotRelnotes.txt&quot;).toString()), getTimeStamp(),</span>
+<span class="nc" id="L474">                    Collections.singletonList(geneGtfUrl), geneFolder.resolve(&quot;uniprotXrefVersion.json&quot;));</span>
+        }
+<span class="nc" id="L476">    }</span>
+
+    private String getUniProtRelease(String relnotesFilename) {
+<span class="nc" id="L479">        Path path = Paths.get(relnotesFilename);</span>
+<span class="nc" id="L480">        Files.exists(path);</span>
+        try {
+            // The first line at the relnotes.txt file contains the UniProt release
+<span class="nc" id="L483">            BufferedReader reader = Files.newBufferedReader(path, Charset.defaultCharset());</span>
+<span class="nc" id="L484">            String release = reader.readLine().split(&quot; &quot;)[2];</span>
+<span class="nc" id="L485">            reader.close();</span>
+<span class="nc" id="L486">            return  release;</span>
+<span class="nc" id="L487">        } catch (IOException e) {</span>
+<span class="nc" id="L488">            e.printStackTrace();</span>
+        }
+<span class="nc" id="L490">        return null;</span>
+    }
+
+    private String getUniProtReleaseNotesUrl() {
+<span class="nc" id="L494">        return URI.create(configuration.getDownload().getGeneUniprotXref().getHost()).resolve(&quot;../../../&quot;).toString()</span>
+                + &quot;/relnotes.txt&quot;;
+    }
+
+    private void downloadGeneExpressionAtlas() throws IOException, InterruptedException {
+<span class="nc" id="L499">        logger.info(&quot;Downloading gene expression atlas ...&quot;);</span>
+<span class="nc" id="L500">        Path expression = common.resolve(&quot;expression&quot;);</span>
+
+<span class="nc bnc" id="L502" title="All 2 branches missed.">        if (!Files.exists(expression)) {</span>
+<span class="nc" id="L503">            makeDir(expression);</span>
+
+<span class="nc" id="L505">            String geneGtfUrl = configuration.getDownload().getGeneExpressionAtlas().getHost();</span>
+<span class="nc" id="L506">            downloadFile(geneGtfUrl, expression.resolve(&quot;allgenes_updown_in_organism_part.tab.gz&quot;).toString());</span>
+
+<span class="nc" id="L508">            saveVersionData(EtlCommons.GENE_DATA, GENE_EXPRESSION_ATLAS_NAME, getGeneExpressionAtlasVersion(), getTimeStamp(),</span>
+<span class="nc" id="L509">                    Collections.singletonList(geneGtfUrl), expression.resolve(&quot;geneExpressionAtlasVersion.json&quot;));</span>
+        }
+<span class="nc" id="L511">    }</span>
+
+    private String getGeneExpressionAtlasVersion() {
+<span class="nc" id="L514">        return FilenameUtils.getBaseName(configuration.getDownload().getGeneExpressionAtlas().getHost())</span>
+<span class="nc" id="L515">                .split(&quot;_&quot;)[5].replace(&quot;.tab&quot;, &quot;&quot;);</span>
+    }
+
+    private void downloadGeneDiseaseAnnotation(Path geneFolder) throws IOException, InterruptedException {
+<span class="nc" id="L519">        logger.info(&quot;Downloading gene disease annotation ...&quot;);</span>
+
+<span class="nc" id="L521">        String host = configuration.getDownload().getHpo().getHost();</span>
+<span class="nc" id="L522">        String fileName = StringUtils.substringAfterLast(host, &quot;/&quot;);</span>
+<span class="nc" id="L523">        downloadFile(host, geneFolder.resolve(fileName).toString());</span>
+<span class="nc" id="L524">        saveVersionData(EtlCommons.GENE_DATA, HPO_NAME, null, getTimeStamp(), Collections.singletonList(host),</span>
+<span class="nc" id="L525">                geneFolder.resolve(&quot;hpoVersion.json&quot;));</span>
+
+<span class="nc" id="L527">        host = configuration.getDownload().getDisgenet().getHost();</span>
+<span class="nc" id="L528">        String readme = configuration.getDownload().getDisgenetReadme().getHost();</span>
+<span class="nc" id="L529">        fileName = StringUtils.substringAfterLast(host, &quot;/&quot;);</span>
+<span class="nc" id="L530">        downloadFile(host, geneFolder.resolve(fileName).toString());</span>
+<span class="nc" id="L531">        downloadFile(readme, geneFolder.resolve(&quot;disgenetReadme.txt&quot;).toString());</span>
+<span class="nc" id="L532">        saveVersionData(EtlCommons.GENE_DISEASE_ASSOCIATION_DATA, DISGENET_NAME,</span>
+<span class="nc" id="L533">                getVersionFromVersionLine(geneFolder.resolve(&quot;disgenetReadme.txt&quot;), &quot;(version&quot;), getTimeStamp(),</span>
+<span class="nc" id="L534">                Collections.singletonList(host), geneFolder.resolve(&quot;disgenetVersion.json&quot;));</span>
+<span class="nc" id="L535">    }</span>
+
+    private String getVersionFromVersionLine(Path path, String tag) {
+<span class="nc" id="L538">        Files.exists(path);</span>
+        try {
+<span class="nc" id="L540">            BufferedReader reader = Files.newBufferedReader(path, Charset.defaultCharset());</span>
+<span class="nc" id="L541">            String line = reader.readLine();</span>
+            // There shall be a line at the README.txt containing the version.
+            // e.g. The files in the current directory contain the data corresponding to the latest release
+            // (version 4.0, April 2016). ...
+<span class="nc bnc" id="L545" title="All 2 branches missed.">            while (line != null) {</span>
+                // tag specifies a certain string that must be found within the line supposed to contain the version
+                // info
+<span class="nc bnc" id="L548" title="All 2 branches missed.">                if (line.contains(tag)) {</span>
+<span class="nc" id="L549">                    String version = line.split(&quot;\\(&quot;)[1].split(&quot;\\)&quot;)[0];</span>
+<span class="nc" id="L550">                    reader.close();</span>
+<span class="nc" id="L551">                    return version;</span>
+                }
+<span class="nc" id="L553">                line = reader.readLine();</span>
+            }
+<span class="nc" id="L555">        } catch (IOException e) {</span>
+<span class="nc" id="L556">            e.printStackTrace();</span>
+<span class="nc" id="L557">        }</span>
+<span class="nc" id="L558">        return null;</span>
+    }
+
+    private void runGeneExtraInfo(Species sp, String assembly, Path geneFolder) throws IOException, InterruptedException {
+<span class="nc" id="L562">        logger.info(&quot;Downloading gene extra info ...&quot;);</span>
+
+<span class="nc" id="L564">        String geneExtraInfoLogFile = geneFolder.resolve(&quot;gene_extra_info.log&quot;).toString();</span>
+<span class="nc" id="L565">        List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+//        if (sp.getScientificName().equals(&quot;Homo sapiens&quot;) &amp;&amp; assembly.equalsIgnoreCase(&quot;GRCh37&quot;)) {
+//            args.addAll(Arrays.asList(&quot;--species&quot;, sp.getScientificName(), &quot;--outdir&quot;, geneFolder.toAbsolutePath().toString(),
+//                    &quot;--ensembl-libs&quot;, configuration.getDownload().getEnsembl().getLibs()
+//                            .replace(&quot;79&quot;, &quot;75&quot;)));
+//        } else {
+//            args.addAll(Arrays.asList(&quot;--species&quot;, sp.getScientificName(), &quot;--outdir&quot;, geneFolder.toAbsolutePath().toString(),
+//                    &quot;--ensembl-libs&quot;, configuration.getDownload().getEnsembl().getLibs()));
+//
+//        }
+
+<span class="nc" id="L576">            args.addAll(Arrays.asList(&quot;--species&quot;, sp.getScientificName(), &quot;--assembly&quot;, assembly,</span>
+<span class="nc" id="L577">                    &quot;--outdir&quot;, geneFolder.toAbsolutePath().toString(),</span>
+<span class="nc" id="L578">                    &quot;--ensembl-libs&quot;, configuration.getDownload().getEnsembl().getLibs()));</span>
+
+<span class="nc bnc" id="L580" title="All 2 branches missed.">        if (!configuration.getSpecies().getVertebrates().contains(species)</span>
+<span class="nc bnc" id="L581" title="All 2 branches missed.">                &amp;&amp; !species.getScientificName().equals(&quot;Drosophila melanogaster&quot;)) {</span>
+<span class="nc" id="L582">            args.add(&quot;--phylo&quot;);</span>
+<span class="nc" id="L583">            args.add(&quot;no-vertebrate&quot;);</span>
+        }
+
+        // run gene_extra_info.pl
+<span class="nc" id="L587">        boolean geneExtraInfoDownloaded = EtlCommons.runCommandLineProcess(ensemblScriptsFolder,</span>
+                &quot;./gene_extra_info.pl&quot;,
+                args,
+                geneExtraInfoLogFile);
+
+        // check output
+<span class="nc bnc" id="L593" title="All 2 branches missed.">        if (geneExtraInfoDownloaded) {</span>
+<span class="nc" id="L594">            logger.info(&quot;Gene extra files created OK&quot;);</span>
+        } else {
+<span class="nc" id="L596">            logger.error(&quot;Gene extra info for &quot; + sp.getScientificName() + &quot; cannot be downloaded&quot;);</span>
+        }
+<span class="nc" id="L598">    }</span>
+
+
+    private void downloadVariation(Species sp, String shortName, Path spFolder, String host)
+            throws IOException, InterruptedException {
+<span class="nc" id="L603">        logger.info(&quot;Downloading variation information ...&quot;);</span>
+<span class="nc" id="L604">        Path variationFolder = spFolder.resolve(&quot;variation&quot;);</span>
+<span class="nc" id="L605">        makeDir(variationFolder);</span>
+
+<span class="nc" id="L607">        String variationUrl = host + &quot;/&quot; + ensemblRelease;</span>
+<span class="nc bnc" id="L608" title="All 2 branches missed.">        if (!configuration.getSpecies().getVertebrates().contains(sp)) {</span>
+<span class="nc" id="L609">            variationUrl = host + &quot;/&quot; + ensemblRelease + &quot;/&quot; + getPhylo(sp);</span>
+        }
+<span class="nc" id="L611">        variationUrl = variationUrl + &quot;/mysql/&quot; + shortName + &quot;_variation_&quot; + ensemblVersion;</span>
+<span class="nc" id="L612">        List&lt;String&gt; downloadedUrls = new ArrayList&lt;&gt;(VARIATION_FILES.length);</span>
+
+<span class="nc bnc" id="L614" title="All 2 branches missed.">        for (String variationFile : VARIATION_FILES) {</span>
+<span class="nc" id="L615">            Path outputFile = variationFolder.resolve(variationFile);</span>
+<span class="nc" id="L616">            downloadFile(variationUrl + &quot;/&quot; + variationFile, outputFile.toString());</span>
+<span class="nc" id="L617">            downloadedUrls.add(variationUrl + &quot;/&quot; + variationFile);</span>
+        }
+
+<span class="nc" id="L620">        saveVersionData(EtlCommons.VARIATION_DATA, ENSEMBL_NAME, ensemblVersion, getTimeStamp(), downloadedUrls,</span>
+<span class="nc" id="L621">                variationFolder.resolve(&quot;ensemblVariationVersion.json&quot;));</span>
+
+<span class="nc" id="L623">    }</span>
+
+
+    private void downloadRegulation(Species species, String shortName, String assembly, Path speciesFolder, String host)
+            throws IOException, InterruptedException {
+<span class="nc" id="L628">        logger.info(&quot;Downloading regulation information ...&quot;);</span>
+
+<span class="nc" id="L630">        Path regulationFolder = speciesFolder.resolve(&quot;regulation&quot;);</span>
+<span class="nc" id="L631">        makeDir(regulationFolder);</span>
+
+        // Downloading Ensembl Regulation
+<span class="nc" id="L634">        String regulationUrl = host + &quot;/&quot; + ensemblRelease;</span>
+<span class="nc bnc" id="L635" title="All 2 branches missed.">        if (!configuration.getSpecies().getVertebrates().contains(species)) {</span>
+<span class="nc" id="L636">            regulationUrl = host + &quot;/&quot; + ensemblRelease + &quot;/&quot; + getPhylo(species);</span>
+        }
+<span class="nc" id="L638">        regulationUrl = regulationUrl + &quot;/regulation/&quot; + shortName;</span>
+
+<span class="nc" id="L640">        List&lt;String&gt; downloadedUrls = new ArrayList&lt;&gt;(DEPRECATED_REGULATION_FILES.length + 2);</span>
+        // TODO: REMOVE
+        // &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; DEPRECATED
+<span class="nc bnc" id="L643" title="All 2 branches missed.">        for (String regulationFile : DEPRECATED_REGULATION_FILES) {</span>
+<span class="nc" id="L644">            Path outputFile = regulationFolder.resolve(regulationFile);</span>
+<span class="nc" id="L645">            downloadFile(regulationUrl + &quot;/&quot; + regulationFile, outputFile.toString());</span>
+<span class="nc" id="L646">            downloadedUrls.add(regulationUrl + &quot;/&quot; + regulationFile);</span>
+        }
+        // &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; DEPRECATED
+
+<span class="nc" id="L650">        Path outputFile = regulationFolder.resolve(EtlCommons.REGULATORY_FEATURES_FILE);</span>
+<span class="nc" id="L651">        downloadFile(regulationUrl + &quot;/*Regulatory_Build.regulatory_features*.gff.gz&quot;, outputFile.toString());</span>
+<span class="nc" id="L652">        downloadedUrls.add(regulationUrl + &quot;/*Regulatory_Build.regulatory_features*.gff.gz&quot;);</span>
+
+<span class="nc" id="L654">        outputFile = regulationFolder.resolve(EtlCommons.MOTIF_FEATURES_FILE);</span>
+<span class="nc" id="L655">        downloadFile(regulationUrl + &quot;/*motiffeatures*.gff.gz&quot;, outputFile.toString());</span>
+<span class="nc" id="L656">        downloadedUrls.add(regulationUrl + &quot;/*motiffeatures*.gff.gz&quot;);</span>
+
+<span class="nc" id="L658">        saveVersionData(EtlCommons.REGULATION_DATA, ENSEMBL_NAME, ensemblVersion, getTimeStamp(), downloadedUrls,</span>
+<span class="nc" id="L659">                regulationFolder.resolve(&quot;ensemblRegulationVersion.json&quot;));</span>
+
+        // Downloading miRNA info
+        String url;
+<span class="nc" id="L663">        Path mirbaseFolder = common.resolve(&quot;mirbase&quot;);</span>
+<span class="nc bnc" id="L664" title="All 2 branches missed.">        if (!Files.exists(mirbaseFolder)) {</span>
+<span class="nc" id="L665">            makeDir(mirbaseFolder);</span>
+<span class="nc" id="L666">            downloadedUrls = new ArrayList&lt;&gt;(2);</span>
+
+<span class="nc" id="L668">            url = configuration.getDownload().getMirbase().getHost() + &quot;/miRNA.xls.gz&quot;;</span>
+<span class="nc" id="L669">            downloadFile(url, mirbaseFolder.resolve(&quot;miRNA.xls.gz&quot;).toString());</span>
+<span class="nc" id="L670">            downloadedUrls.add(url);</span>
+
+<span class="nc" id="L672">            url = configuration.getDownload().getMirbase().getHost() + &quot;/aliases.txt.gz&quot;;</span>
+<span class="nc" id="L673">            downloadFile(url, mirbaseFolder.resolve(&quot;aliases.txt.gz&quot;).toString());</span>
+<span class="nc" id="L674">            downloadedUrls.add(url);</span>
+
+<span class="nc" id="L676">            String readmeUrl = configuration.getDownload().getMirbaseReadme().getHost();</span>
+<span class="nc" id="L677">            downloadFile(readmeUrl, mirbaseFolder.resolve(&quot;mirbaseReadme.txt&quot;).toString());</span>
+<span class="nc" id="L678">            saveVersionData(EtlCommons.REGULATION_DATA, MIRBASE_NAME,</span>
+<span class="nc" id="L679">                    getLine(mirbaseFolder.resolve(&quot;mirbaseReadme.txt&quot;), 1), getTimeStamp(),</span>
+<span class="nc" id="L680">                    Collections.singletonList(url), mirbaseFolder.resolve(&quot;mirbaseVersion.json&quot;));</span>
+        }
+
+<span class="nc bnc" id="L683" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">            if (assembly.equalsIgnoreCase(&quot;GRCh37&quot;)) {</span>
+<span class="nc" id="L685">                url = configuration.getDownload().getTargetScan().getHost() + &quot;/hg19/database/targetScanS.txt.gz&quot;;</span>
+<span class="nc" id="L686">                downloadFile(url, regulationFolder.resolve(&quot;targetScanS.txt.gz&quot;).toString());</span>
+
+<span class="nc" id="L688">                String readmeUrl = configuration.getDownload().getTargetScan().getHost() + &quot;/hg19/database/README.txt&quot;;</span>
+<span class="nc" id="L689">                saveVersionData(EtlCommons.REGULATION_DATA, TARGETSCAN_NAME, null, getTimeStamp(),</span>
+<span class="nc" id="L690">                        Collections.singletonList(url), regulationFolder.resolve(&quot;targetScanVersion.json&quot;));</span>
+
+<span class="nc" id="L692">                url = configuration.getDownload().getMiRTarBase().getHost() + &quot;/hsa_MTI.xls&quot;;</span>
+<span class="nc" id="L693">                downloadFile(url, regulationFolder.resolve(&quot;hsa_MTI.xls&quot;).toString());</span>
+<span class="nc" id="L694">                saveVersionData(EtlCommons.REGULATION_DATA, MIRTARBASE_NAME, url.split(&quot;/&quot;)[5], getTimeStamp(),</span>
+<span class="nc" id="L695">                        Collections.singletonList(url), regulationFolder.resolve(&quot;miRTarBaseVersion.json&quot;));</span>
+            }
+        }
+<span class="nc bnc" id="L698" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Mus musculus&quot;)) {</span>
+<span class="nc" id="L699">            url = configuration.getDownload().getTargetScan().getHost() + &quot;/mm9/database/targetScanS.txt.gz&quot;;</span>
+<span class="nc" id="L700">            downloadFile(url, regulationFolder.resolve(&quot;targetScanS.txt.gz&quot;).toString());</span>
+
+<span class="nc" id="L702">            String readmeUrl = configuration.getDownload().getTargetScan().getHost() + &quot;/mm9/database/README.txt&quot;;</span>
+<span class="nc" id="L703">            downloadFile(readmeUrl, regulationFolder.resolve(&quot;targetScanReadme.txt&quot;).toString());</span>
+<span class="nc" id="L704">            saveVersionData(EtlCommons.REGULATION_DATA, TARGETSCAN_NAME, null, getTimeStamp(),</span>
+<span class="nc" id="L705">                    Collections.singletonList(url), regulationFolder.resolve(&quot;targetScanVersion.json&quot;));</span>
+
+<span class="nc" id="L707">            url = configuration.getDownload().getMiRTarBase().getHost() + &quot;/mmu_MTI.xls&quot;;</span>
+<span class="nc" id="L708">            downloadFile(url, regulationFolder.resolve(&quot;mmu_MTI.xls&quot;).toString());</span>
+<span class="nc" id="L709">            saveVersionData(EtlCommons.REGULATION_DATA, MIRTARBASE_NAME, url.split(&quot;/&quot;)[5], getTimeStamp(),</span>
+<span class="nc" id="L710">                    Collections.singletonList(url),</span>
+<span class="nc" id="L711">                    regulationFolder.resolve(&quot;miRTarBaseVersion.json&quot;));</span>
+        }
+<span class="nc" id="L713">    }</span>
+
+    private String getLine(Path readmePath, int lineNumber) {
+<span class="nc" id="L716">        Files.exists(readmePath);</span>
+        try {
+<span class="nc" id="L718">            BufferedReader reader = Files.newBufferedReader(readmePath, Charset.defaultCharset());</span>
+<span class="nc" id="L719">            String line = null;</span>
+<span class="nc bnc" id="L720" title="All 2 branches missed.">            for (int i = 0; i &lt; lineNumber; i++) {</span>
+<span class="nc" id="L721">                line = reader.readLine();</span>
+            }
+<span class="nc" id="L723">            reader.close();</span>
+<span class="nc" id="L724">            return line;</span>
+<span class="nc" id="L725">        } catch (IOException e) {</span>
+<span class="nc" id="L726">            e.printStackTrace();</span>
+        }
+<span class="nc" id="L728">        return null;</span>
+    }
+
+    /**
+     * This method downloads UniProt, IntAct and Interpro data from EMBL-EBI.
+     *
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    private void downloadProtein() throws IOException, InterruptedException {
+<span class="nc" id="L738">        logger.info(&quot;Downloading protein information ...&quot;);</span>
+<span class="nc" id="L739">        Path proteinFolder = common.resolve(&quot;protein&quot;);</span>
+
+<span class="nc bnc" id="L741" title="All 2 branches missed.">        if (!Files.exists(proteinFolder)) {</span>
+<span class="nc" id="L742">            makeDir(proteinFolder);</span>
+<span class="nc" id="L743">            String url = configuration.getDownload().getUniprot().getHost();</span>
+<span class="nc" id="L744">            downloadFile(url, proteinFolder.resolve(&quot;uniprot_sprot.xml.gz&quot;).toString());</span>
+<span class="nc" id="L745">            String relNotesUrl = configuration.getDownload().getUniprotRelNotes().getHost();</span>
+<span class="nc" id="L746">            downloadFile(relNotesUrl, proteinFolder.resolve(&quot;uniprotRelnotes.txt&quot;).toString());</span>
+<span class="nc" id="L747">            saveVersionData(EtlCommons.PROTEIN_DATA, UNIPROT_NAME, getLine(proteinFolder.resolve(&quot;uniprotRelnotes.txt&quot;), 1),</span>
+<span class="nc" id="L748">                    getTimeStamp(), Collections.singletonList(url), proteinFolder.resolve(&quot;uniprotVersion.json&quot;));</span>
+
+<span class="nc" id="L750">            makeDir(proteinFolder.resolve(&quot;uniprot_chunks&quot;));</span>
+<span class="nc" id="L751">            splitUniprot(proteinFolder.resolve(&quot;uniprot_sprot.xml.gz&quot;), proteinFolder.resolve(&quot;uniprot_chunks&quot;));</span>
+
+<span class="nc" id="L753">            url = configuration.getDownload().getIntact().getHost();</span>
+<span class="nc" id="L754">            downloadFile(url, proteinFolder.resolve(&quot;intact.txt&quot;).toString());</span>
+<span class="nc" id="L755">            saveVersionData(EtlCommons.PROTEIN_DATA, INTACT_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L756">                    proteinFolder.resolve(&quot;intactVersion.json&quot;));</span>
+
+<span class="nc" id="L758">            url = configuration.getDownload().getInterpro().getHost();</span>
+<span class="nc" id="L759">            downloadFile(url, proteinFolder.resolve(&quot;protein2ipr.dat.gz&quot;).toString());</span>
+<span class="nc" id="L760">            relNotesUrl = configuration.getDownload().getInterproRelNotes().getHost();</span>
+<span class="nc" id="L761">            downloadFile(relNotesUrl, proteinFolder.resolve(&quot;interproRelnotes.txt&quot;).toString());</span>
+<span class="nc" id="L762">            saveVersionData(EtlCommons.PROTEIN_DATA, INTERPRO_NAME, getLine(proteinFolder.resolve(&quot;interproRelnotes.txt&quot;), 5),</span>
+<span class="nc" id="L763">                    getTimeStamp(), Collections.singletonList(url), proteinFolder.resolve(&quot;interproVersion.json&quot;));</span>
+
+<span class="nc" id="L765">        } else {</span>
+<span class="nc" id="L766">            logger.info(&quot;Protein: skipping this since it is already downloaded. Delete 'protein' folder to force download&quot;);</span>
+        }
+<span class="nc" id="L768">    }</span>
+
+    private void splitUniprot(Path uniprotFilePath, Path splitOutdirPath) throws IOException {
+<span class="nc" id="L771">        BufferedReader br = FileUtils.newBufferedReader(uniprotFilePath);</span>
+<span class="nc" id="L772">        PrintWriter pw = null;</span>
+<span class="nc" id="L773">        StringBuilder header = new StringBuilder();</span>
+<span class="nc" id="L774">        boolean beforeEntry = true;</span>
+<span class="nc" id="L775">        boolean inEntry = false;</span>
+<span class="nc" id="L776">        int count = 0;</span>
+<span class="nc" id="L777">        int chunk = 0;</span>
+        String line;
+<span class="nc bnc" id="L779" title="All 2 branches missed.">        while ((line = br.readLine()) != null) {</span>
+<span class="nc bnc" id="L780" title="All 2 branches missed.">            if (line.trim().startsWith(&quot;&lt;entry &quot;)) {</span>
+<span class="nc" id="L781">                inEntry = true;</span>
+<span class="nc" id="L782">                beforeEntry = false;</span>
+<span class="nc bnc" id="L783" title="All 2 branches missed.">                if (count % 10000 == 0) {</span>
+<span class="nc" id="L784">                    pw = new PrintWriter(new FileOutputStream(splitOutdirPath.resolve(&quot;chunk_&quot; + chunk + &quot;.xml&quot;).toFile()));</span>
+<span class="nc" id="L785">                    pw.println(header.toString().trim());</span>
+                }
+<span class="nc" id="L787">                count++;</span>
+            }
+
+<span class="nc bnc" id="L790" title="All 2 branches missed.">            if (beforeEntry) {</span>
+<span class="nc" id="L791">                header.append(line).append(&quot;\n&quot;);</span>
+            }
+
+<span class="nc bnc" id="L794" title="All 2 branches missed.">            if (inEntry) {</span>
+<span class="nc" id="L795">                pw.println(line);</span>
+            }
+
+<span class="nc bnc" id="L798" title="All 2 branches missed.">            if (line.trim().startsWith(&quot;&lt;/entry&gt;&quot;)) {</span>
+<span class="nc" id="L799">                inEntry = false;</span>
+<span class="nc bnc" id="L800" title="All 2 branches missed.">                if (count % 10000 == 0) {</span>
+<span class="nc" id="L801">                    pw.print(&quot;&lt;/uniprot&gt;&quot;);</span>
+<span class="nc" id="L802">                    pw.close();</span>
+<span class="nc" id="L803">                    chunk++;</span>
+                }
+            }
+        }
+<span class="nc" id="L807">        pw.print(&quot;&lt;/uniprot&gt;&quot;);</span>
+<span class="nc" id="L808">        pw.close();</span>
+<span class="nc" id="L809">        br.close();</span>
+<span class="nc" id="L810">    }</span>
+
+    /**
+     * This method downloads bith PhastCons and PhyloP data from UCSC for Human and Mouse species.
+     *
+     * @param species       The Species object to download the data
+     * @param assembly      The assembly required
+     * @param speciesFolder Output folder to download the data
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    private void downloadConservation(Species species, String assembly, Path speciesFolder)
+            throws IOException, InterruptedException {
+<span class="nc" id="L823">        logger.info(&quot;Downloading conservation information ...&quot;);</span>
+<span class="nc" id="L824">        Path conservationFolder = speciesFolder.resolve(&quot;conservation&quot;);</span>
+
+<span class="nc bnc" id="L826" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc" id="L827">            makeDir(conservationFolder);</span>
+<span class="nc" id="L828">            makeDir(conservationFolder.resolve(&quot;phastCons&quot;));</span>
+<span class="nc" id="L829">            makeDir(conservationFolder.resolve(&quot;phylop&quot;));</span>
+<span class="nc" id="L830">            makeDir(conservationFolder.resolve(&quot;gerp&quot;));</span>
+
+<span class="nc" id="L832">            String[] chromosomes = {&quot;1&quot;, &quot;2&quot;, &quot;3&quot;, &quot;4&quot;, &quot;5&quot;, &quot;6&quot;, &quot;7&quot;, &quot;8&quot;, &quot;9&quot;, &quot;10&quot;, &quot;11&quot;, &quot;12&quot;, &quot;13&quot;, &quot;14&quot;,</span>
+                    &quot;15&quot;, &quot;16&quot;, &quot;17&quot;, &quot;18&quot;, &quot;19&quot;, &quot;20&quot;, &quot;21&quot;, &quot;22&quot;, &quot;X&quot;, &quot;Y&quot;, &quot;M&quot;, };
+
+<span class="nc bnc" id="L835" title="All 2 branches missed.">            if (assembly.equalsIgnoreCase(&quot;GRCh37&quot;)) {</span>
+<span class="nc" id="L836">                logger.debug(&quot;Downloading GERP++ ...&quot;);</span>
+<span class="nc" id="L837">                downloadFile(configuration.getDownload().getGerp().getHost(),</span>
+<span class="nc" id="L838">                        conservationFolder.resolve(EtlCommons.GERP_SUBDIRECTORY + &quot;/&quot; + EtlCommons.GERP_FILE).toAbsolutePath().toString());</span>
+<span class="nc" id="L839">                saveVersionData(EtlCommons.CONSERVATION_DATA, GERP_NAME, null, getTimeStamp(),</span>
+<span class="nc" id="L840">                        Collections.singletonList(configuration.getDownload().getGerp().getHost()),</span>
+<span class="nc" id="L841">                        conservationFolder.resolve(&quot;gerpVersion.json&quot;));</span>
+
+<span class="nc" id="L843">                String url = configuration.getDownload().getConservation().getHost() + &quot;/hg19&quot;;</span>
+<span class="nc" id="L844">                List&lt;String&gt; phastconsUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc" id="L845">                List&lt;String&gt; phyloPUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc bnc" id="L846" title="All 2 branches missed.">                for (int i = 0; i &lt; chromosomes.length; i++) {</span>
+<span class="nc" id="L847">                    String phastConsUrl = url + &quot;/phastCons46way/primates/chr&quot; + chromosomes[i] + &quot;.phastCons46way.primates.wigFix.gz&quot;;</span>
+<span class="nc" id="L848">                    downloadFile(phastConsUrl, conservationFolder.resolve(&quot;phastCons&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L849">                            + &quot;.phastCons46way.primates.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L850">                    phastconsUrls.add(phastConsUrl);</span>
+
+<span class="nc" id="L852">                    String phyloPUrl = url + &quot;/phyloP46way/primates/chr&quot; + chromosomes[i] + &quot;.phyloP46way.primate.wigFix.gz&quot;;</span>
+<span class="nc" id="L853">                    downloadFile(phyloPUrl, conservationFolder.resolve(&quot;phylop&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L854">                            + &quot;.phyloP46way.primate.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L855">                    phyloPUrls.add(phyloPUrl);</span>
+                }
+<span class="nc" id="L857">                saveVersionData(EtlCommons.CONSERVATION_DATA, PHASTCONS_NAME, null, getTimeStamp(), phastconsUrls,</span>
+<span class="nc" id="L858">                        conservationFolder.resolve(&quot;phastConsVersion.json&quot;));</span>
+<span class="nc" id="L859">                saveVersionData(EtlCommons.CONSERVATION_DATA, PHYLOP_NAME, null, getTimeStamp(), phyloPUrls,</span>
+<span class="nc" id="L860">                        conservationFolder.resolve(&quot;phyloPVersion.json&quot;));</span>
+            }
+
+<span class="nc bnc" id="L863" title="All 2 branches missed.">            if (assembly.equalsIgnoreCase(&quot;GRCh38&quot;)) {</span>
+<span class="nc" id="L864">                String url = configuration.getDownload().getConservation().getHost() + &quot;/hg38&quot;;</span>
+<span class="nc" id="L865">                List&lt;String&gt; phastconsUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc" id="L866">                List&lt;String&gt; phyloPUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc bnc" id="L867" title="All 2 branches missed.">                for (int i = 0; i &lt; chromosomes.length; i++) {</span>
+<span class="nc" id="L868">                    String phastConsUrl = url + &quot;/phastCons100way/hg38.100way.phastCons/chr&quot; + chromosomes[i]</span>
+                            + &quot;.phastCons100way.wigFix.gz&quot;;
+<span class="nc" id="L870">                    downloadFile(phastConsUrl, conservationFolder.resolve(&quot;phastCons&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L871">                            + &quot;.phastCons100way.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L872">                    phastconsUrls.add(phastConsUrl);</span>
+
+<span class="nc" id="L874">                    String phyloPUrl = url + &quot;/phyloP100way/hg38.100way.phyloP100way/chr&quot; + chromosomes[i] + &quot;.phyloP100way.wigFix.gz&quot;;</span>
+<span class="nc" id="L875">                    downloadFile(phyloPUrl, conservationFolder.resolve(&quot;phylop&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L876">                            + &quot;.phyloP100way.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L877">                    phyloPUrls.add(phyloPUrl);</span>
+                }
+<span class="nc" id="L879">                saveVersionData(EtlCommons.CONSERVATION_DATA, PHASTCONS_NAME, null, getTimeStamp(), phastconsUrls,</span>
+<span class="nc" id="L880">                        conservationFolder.resolve(&quot;phastConsVersion.json&quot;));</span>
+<span class="nc" id="L881">                saveVersionData(EtlCommons.CONSERVATION_DATA, PHYLOP_NAME, null, getTimeStamp(), phyloPUrls,</span>
+<span class="nc" id="L882">                        conservationFolder.resolve(&quot;phyloPVersion.json&quot;));</span>
+//                String phastConsUrl = url + &quot;/phastCons7way/hg38.phastCons100way.wigFix.gz&quot;;
+//                Path outFile = conservationFolder.resolve(&quot;phastCons&quot;).resolve(&quot;hg38.phastCons100way.wigFix.gz&quot;);
+//                downloadFile(phastConsUrl, outFile.toString());
+//
+//                String phyloPUrl = url + &quot;/phyloP7way/hg38.phyloP100way.wigFix.gz&quot;;
+//                outFile = conservationFolder.resolve(&quot;phylop&quot;).resolve(&quot;hg38.phyloP100way.wigFix.gz&quot;);
+//                downloadFile(phyloPUrl, outFile.toString());
+            }
+        }
+
+<span class="nc bnc" id="L893" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Mus musculus&quot;)) {</span>
+<span class="nc" id="L894">            makeDir(conservationFolder);</span>
+<span class="nc" id="L895">            makeDir(conservationFolder.resolve(&quot;phastCons&quot;));</span>
+<span class="nc" id="L896">            makeDir(conservationFolder.resolve(&quot;phylop&quot;));</span>
+
+<span class="nc" id="L898">            String url = configuration.getDownload().getConservation().getHost() + &quot;/mm10&quot;;</span>
+<span class="nc" id="L899">            String[] chromosomes = {&quot;1&quot;, &quot;2&quot;, &quot;3&quot;, &quot;4&quot;, &quot;5&quot;, &quot;6&quot;, &quot;7&quot;, &quot;8&quot;, &quot;9&quot;, &quot;10&quot;, &quot;11&quot;, &quot;12&quot;, &quot;13&quot;, &quot;14&quot;,</span>
+                    &quot;15&quot;, &quot;16&quot;, &quot;17&quot;, &quot;18&quot;, &quot;19&quot;, &quot;X&quot;, &quot;Y&quot;, &quot;M&quot;, };
+<span class="nc" id="L901">            List&lt;String&gt; phastconsUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc" id="L902">            List&lt;String&gt; phyloPUrls = new ArrayList&lt;&gt;(chromosomes.length);</span>
+<span class="nc bnc" id="L903" title="All 2 branches missed.">            for (int i = 0; i &lt; chromosomes.length; i++) {</span>
+<span class="nc" id="L904">                String phastConsUrl = url + &quot;/phastCons60way/mm10.60way.phastCons/chr&quot; + chromosomes[i] + &quot;.phastCons60way.wigFix.gz&quot;;</span>
+<span class="nc" id="L905">                downloadFile(phastConsUrl, conservationFolder.resolve(&quot;phastCons&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L906">                        + &quot;.phastCons60way.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L907">                phastconsUrls.add(phastConsUrl);</span>
+<span class="nc" id="L908">                String phyloPUrl = url + &quot;/phyloP60way/mm10.60way.phyloP60way/chr&quot; + chromosomes[i] + &quot;.phyloP60way.wigFix.gz&quot;;</span>
+<span class="nc" id="L909">                downloadFile(phyloPUrl, conservationFolder.resolve(&quot;phylop&quot;).resolve(&quot;chr&quot; + chromosomes[i]</span>
+<span class="nc" id="L910">                        + &quot;.phyloP60way.wigFix.gz&quot;).toString());</span>
+<span class="nc" id="L911">                phyloPUrls.add(phyloPUrl);</span>
+            }
+<span class="nc" id="L913">            saveVersionData(EtlCommons.CONSERVATION_DATA, PHASTCONS_NAME, null, getTimeStamp(), phastconsUrls,</span>
+<span class="nc" id="L914">                    conservationFolder.resolve(&quot;phastConsVersion.json&quot;));</span>
+<span class="nc" id="L915">            saveVersionData(EtlCommons.CONSERVATION_DATA, PHYLOP_NAME, null, getTimeStamp(), phyloPUrls,</span>
+<span class="nc" id="L916">                    conservationFolder.resolve(&quot;phastConsVersion.json&quot;));</span>
+        }
+<span class="nc" id="L918">    }</span>
+
+    private void downloadClinical(Species species, String assembly, Path speciesFolder)
+            throws IOException, InterruptedException {
+
+<span class="nc bnc" id="L923" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc bnc" id="L924" title="All 2 branches missed.">            if (downloadCommandOptions.assembly == null) {</span>
+<span class="nc" id="L925">                throw new ParameterException(&quot;Assembly must be provided for downloading clinical variants data.&quot;</span>
+                        + &quot; Please, specify either --assembly GRCh37 or --assembly GRCh38&quot;);
+            }
+
+<span class="nc" id="L929">            logger.info(&quot;Downloading clinical information ...&quot;);</span>
+
+<span class="nc" id="L931">            Path clinicalFolder = speciesFolder.resolve(EtlCommons.CLINICAL_VARIANTS_FOLDER);</span>
+<span class="nc" id="L932">            makeDir(clinicalFolder);</span>
+<span class="nc" id="L933">            List&lt;String&gt; clinvarUrls = new ArrayList&lt;&gt;(3);</span>
+<span class="nc" id="L934">            String url = configuration.getDownload().getClinvar().getHost();</span>
+
+<span class="nc" id="L936">            downloadFile(url, clinicalFolder.resolve(EtlCommons.CLINVAR_XML_FILE).toString());</span>
+<span class="nc" id="L937">            clinvarUrls.add(url);</span>
+
+<span class="nc" id="L939">            url = configuration.getDownload().getClinvarEfoTerms().getHost();</span>
+<span class="nc" id="L940">            downloadFile(url, clinicalFolder.resolve(EtlCommons.CLINVAR_EFO_FILE).toString());</span>
+<span class="nc" id="L941">            clinvarUrls.add(url);</span>
+
+<span class="nc" id="L943">            url = configuration.getDownload().getClinvarSummary().getHost();</span>
+<span class="nc" id="L944">            downloadFile(url, clinicalFolder.resolve(EtlCommons.CLINVAR_SUMMARY_FILE).toString());</span>
+<span class="nc" id="L945">            clinvarUrls.add(url);</span>
+
+<span class="nc" id="L947">            url = configuration.getDownload().getClinvarVariationAllele().getHost();</span>
+<span class="nc" id="L948">            downloadFile(url, clinicalFolder.resolve(EtlCommons.CLINVAR_VARIATION_ALLELE_FILE).toString());</span>
+<span class="nc" id="L949">            clinvarUrls.add(url);</span>
+<span class="nc" id="L950">            saveVersionData(EtlCommons.CLINICAL_VARIANTS_DATA, CLINVAR_NAME, getClinVarVersion(), getTimeStamp(), clinvarUrls,</span>
+<span class="nc" id="L951">                    clinicalFolder.resolve(&quot;clinvarVersion.json&quot;));</span>
+
+            // TODO: Fix and enable when needed
+//            url = configuration.getDownload().getGwasCatalog().getHost();
+//            downloadFile(url, clinicalFolder.resolve(EtlCommons.GWAS_FILE).toString());
+//            saveVersionData(EtlCommons.CLINICAL_VARIANTS_DATA, GWAS_NAME, getGwasVersion(), getTimeStamp(),
+//                     Collections.singletonList(url), clinicalFolder.resolve(&quot;gwasVersion.json&quot;));
+
+//            List&lt;String&gt; dbsnpUrls = new ArrayList&lt;&gt;(2);
+//            url = configuration.getDownload().getDbsnp().getHost();
+//            downloadFile(url, clinicalFolder.resolve(EtlCommons.DBSNP_FILE).toString());
+//            dbsnpUrls.add(url);
+//
+//            url = url + &quot;.tbi&quot;;
+//            downloadFile(url, clinicalFolder.resolve(EtlCommons.DBSNP_FILE + &quot;.tbi&quot;).toString());
+//            dbsnpUrls.add(url);
+//            saveVersionData(EtlCommons.CLINICAL_VARIANTS_DATA, DBSNP_NAME, getDbsnpVersion(), getTimeStamp(), dbsnpUrls,
+//                    clinicalFolder.resolve(&quot;dbsnpVersion.json&quot;));
+
+<span class="nc" id="L970">            List&lt;String&gt; hgvsList = getDocmHgvsList();</span>
+<span class="nc bnc" id="L971" title="All 2 branches missed.">            if (!hgvsList.isEmpty()) {</span>
+<span class="nc" id="L972">                downloadDocm(hgvsList, clinicalFolder.resolve(EtlCommons.DOCM_FILE));</span>
+<span class="nc" id="L973">                downloadFile(configuration.getDownload().getDocmVersion().getHost(),</span>
+<span class="nc" id="L974">                        clinicalFolder.resolve(&quot;docmIndex.html&quot;).toString());</span>
+<span class="nc" id="L975">                saveVersionData(EtlCommons.CLINICAL_VARIANTS_DATA, EtlCommons.DOCM_NAME,</span>
+<span class="nc" id="L976">                        getDocmVersion(clinicalFolder.resolve(&quot;docmIndex.html&quot;)), getTimeStamp(),</span>
+<span class="nc" id="L977">                        Arrays.asList(configuration.getDownload().getDocm().getHost() + &quot;v1/variants.json&quot;,</span>
+<span class="nc" id="L978">                                configuration.getDownload().getDocm().getHost() + &quot;v1/variants/{hgvs}.json&quot;),</span>
+<span class="nc" id="L979">                        clinicalFolder.resolve(&quot;docmVersion.json&quot;));</span>
+            } else {
+<span class="nc" id="L981">                logger.warn(&quot;No DOCM variants found for assembly {}. Please double-check that this is the correct &quot;</span>
+                        + &quot;assembly&quot;, assembly);
+            }
+
+<span class="nc bnc" id="L985" title="All 2 branches missed.">            if (assembly.equalsIgnoreCase(&quot;grch37&quot;)) {</span>
+<span class="nc" id="L986">                url = configuration.getDownload().getIarctp53().getHost();</span>
+<span class="nc" id="L987">                downloadFile(url, clinicalFolder.resolve(EtlCommons.IARCTP53_FILE).toString(),</span>
+<span class="nc" id="L988">                        Collections.singletonList(&quot;--post-data=dataset-somaticMutationData=somaticMutationData&quot;</span>
+                                + &quot;&amp;dataset-germlineMutationData=germlineMutationData&quot;
+                                + &quot;&amp;dataset-somaticMutationReference=somaticMutationReference&quot;
+                                + &quot;&amp;dataset-germlineMutationReference=germlineMutationReference&quot;));
+
+<span class="nc" id="L993">                ZipFile zipFile = new ZipFile(clinicalFolder.resolve(EtlCommons.IARCTP53_FILE).toString());</span>
+<span class="nc" id="L994">                Enumeration&lt;? extends ZipEntry&gt; entries = zipFile.entries();</span>
+<span class="nc bnc" id="L995" title="All 2 branches missed.">                while (entries.hasMoreElements()) {</span>
+<span class="nc" id="L996">                    ZipEntry entry = entries.nextElement();</span>
+<span class="nc" id="L997">                    File entryDestination = new File(clinicalFolder.toFile(), entry.getName());</span>
+<span class="nc bnc" id="L998" title="All 2 branches missed.">                    if (entry.isDirectory()) {</span>
+<span class="nc" id="L999">                        entryDestination.mkdirs();</span>
+                    } else {
+<span class="nc" id="L1001">                        entryDestination.getParentFile().mkdirs();</span>
+<span class="nc" id="L1002">                        InputStream in = zipFile.getInputStream(entry);</span>
+<span class="nc" id="L1003">                        OutputStream out = new FileOutputStream(entryDestination);</span>
+<span class="nc" id="L1004">                        IOUtils.copy(in, out);</span>
+<span class="nc" id="L1005">                        IOUtils.closeQuietly(in);</span>
+<span class="nc" id="L1006">                        out.close();</span>
+                    }
+<span class="nc" id="L1008">                }</span>
+<span class="nc" id="L1009">                saveVersionData(EtlCommons.CLINICAL_VARIANTS_DATA, IARCTP53_NAME,</span>
+<span class="nc" id="L1010">                        getVersionFromVersionLine(clinicalFolder.resolve(&quot;Disclaimer.txt&quot;),</span>
+<span class="nc" id="L1011">                                &quot;The version of the database should be identified&quot;), getTimeStamp(),</span>
+<span class="nc" id="L1012">                        Collections.singletonList(url), clinicalFolder.resolve(&quot;iarctp53Version.json&quot;));</span>
+            }
+        }
+<span class="nc" id="L1015">    }</span>
+
+    private String getDocmVersion(Path docmIndexHtml) {
+<span class="nc" id="L1018">        return getVersionFromVersionLine(docmIndexHtml, &quot;&lt;select name=\&quot;version\&quot; id=\&quot;version\&quot;&quot;);</span>
+    }
+
+    private void downloadDocm(List&lt;String&gt; hgvsList, Path path) throws IOException, InterruptedException {
+<span class="nc" id="L1022">        BufferedWriter bufferedWriter = FileUtils.newBufferedWriter(path);</span>
+<span class="nc" id="L1023">        Client client = ClientBuilder.newClient();</span>
+<span class="nc" id="L1024">        WebTarget restUrlBase = client</span>
+<span class="nc" id="L1025">                .target(URI.create(configuration.getDownload().getDocm().getHost() + &quot;v1/variants&quot;));</span>
+
+<span class="nc" id="L1027">        logger.info(&quot;Querying DOCM REST API to get detailed data for all their variants&quot;);</span>
+<span class="nc" id="L1028">        int counter = 0;</span>
+<span class="nc bnc" id="L1029" title="All 2 branches missed.">        for (String hgvs : hgvsList) {</span>
+<span class="nc" id="L1030">            WebTarget callUrl = restUrlBase.path(hgvs + &quot;.json&quot;);</span>
+<span class="nc" id="L1031">            String jsonString = callUrl.request().get(String.class);</span>
+<span class="nc" id="L1032">            bufferedWriter.write(jsonString + &quot;\n&quot;);</span>
+
+<span class="nc bnc" id="L1034" title="All 2 branches missed.">            if (counter % 10 == 0) {</span>
+<span class="nc" id="L1035">                logger.info(&quot;{} DOCM variants saved&quot;, counter);</span>
+            }
+            // Wait 1/3 of a second to avoid saturating their REST server - also avoid getting banned
+<span class="nc" id="L1038">            Thread.sleep(300);</span>
+
+<span class="nc" id="L1040">            counter++;</span>
+<span class="nc" id="L1041">        }</span>
+<span class="nc" id="L1042">        logger.info(&quot;Finished. {} DOCM variants saved at {}&quot;, counter, path.toString());</span>
+<span class="nc" id="L1043">        bufferedWriter.close();</span>
+<span class="nc" id="L1044">    }</span>
+
+    private List&lt;String&gt; getDocmHgvsList() throws IOException {
+<span class="nc" id="L1047">        Client client = ClientBuilder.newClient();</span>
+<span class="nc" id="L1048">        WebTarget restUrl = client</span>
+<span class="nc" id="L1049">                .target(URI.create(configuration.getDownload().getDocm().getHost() + &quot;v1/variants.json&quot;));</span>
+
+        String jsonString;
+<span class="nc" id="L1052">        logger.info(&quot;Getting full list of DOCM hgvs from: {}&quot;, restUrl.getUri().toURL());</span>
+<span class="nc" id="L1053">        jsonString = restUrl.request().get(String.class);</span>
+
+<span class="nc" id="L1055">        List&lt;Map&lt;String, String&gt;&gt; responseMap = parseResult(jsonString);</span>
+<span class="nc" id="L1056">        List&lt;String&gt; hgvsList = new ArrayList&lt;&gt;(responseMap.size());</span>
+<span class="nc bnc" id="L1057" title="All 2 branches missed.">        for (Map&lt;String, String&gt; document : responseMap) {</span>
+<span class="nc bnc" id="L1058" title="All 2 branches missed.">            if (document.containsKey(&quot;reference_version&quot;)</span>
+<span class="nc bnc" id="L1059" title="All 2 branches missed.">                    &amp;&amp; document.get(&quot;reference_version&quot;).equalsIgnoreCase(downloadCommandOptions.assembly)) {</span>
+<span class="nc" id="L1060">                hgvsList.add(document.get(&quot;hgvs&quot;));</span>
+            }
+<span class="nc" id="L1062">        }</span>
+<span class="nc" id="L1063">        logger.info(&quot;{} hgvs found&quot;, hgvsList.size());</span>
+
+<span class="nc" id="L1065">        return hgvsList;</span>
+    }
+
+    private List&lt;Map&lt;String, String&gt;&gt; parseResult(String json) throws IOException {
+<span class="nc" id="L1069">        ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L1070">        jsonObjectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="nc" id="L1071">        ObjectReader reader = jsonObjectMapper</span>
+<span class="nc" id="L1072">                .readerFor(jsonObjectMapper.getTypeFactory()</span>
+<span class="nc" id="L1073">                        .constructCollectionType(List.class, Map.class));</span>
+<span class="nc" id="L1074">        return reader.readValue(json);</span>
+    }
+
+    private String getDbsnpVersion() {
+        // ftp://ftp.ncbi.nih.gov/snp/organisms/human_9606_b144_GRCh37p13/VCF/All_20150605.vcf.gz
+<span class="nc" id="L1079">        return configuration.getDownload().getDbsnp().getHost().split(&quot;_&quot;)[2];</span>
+    }
+
+    private String getGwasVersion() {
+        // ftp://ftp.ebi.ac.uk/pub/databases/gwas/releases/2016/05/10/gwas-catalog-associations.tsv
+<span class="nc" id="L1084">        String[] pathParts = configuration.getDownload().getGwasCatalog().getHost().split(&quot;/&quot;);</span>
+<span class="nc" id="L1085">        return pathParts[9] + &quot;/&quot; + pathParts[8] + &quot;/&quot; + pathParts[7];</span>
+    }
+
+    private String getClinVarVersion() {
+        // ftp://ftp.ncbi.nlm.nih.gov/pub/clinvar/xml/ClinVarFullRelease_2015-12.xml.gz
+<span class="nc" id="L1090">        return configuration.getDownload().getClinvar().getHost().split(&quot;_&quot;)[1].split(&quot;\\.&quot;)[0];</span>
+    }
+
+    private void downloadCaddScores(Species species, String assembly, Path speciesFolder) throws IOException, InterruptedException {
+<span class="nc bnc" id="L1094" title="All 4 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;) &amp;&amp; assembly.equalsIgnoreCase(&quot;GRCh37&quot;)) {</span>
+<span class="nc" id="L1095">            logger.info(&quot;Downloading CADD scores information ...&quot;);</span>
+
+<span class="nc" id="L1097">            Path variationFunctionalScoreFolder = speciesFolder.resolve(&quot;variation_functional_score&quot;);</span>
+<span class="nc" id="L1098">            makeDir(variationFunctionalScoreFolder);</span>
+
+            // Downloads CADD scores
+<span class="nc" id="L1101">            String url = configuration.getDownload().getCadd().getHost();</span>
+<span class="nc" id="L1102">            downloadFile(url, variationFunctionalScoreFolder.resolve(&quot;whole_genome_SNVs.tsv.gz&quot;).toString());</span>
+<span class="nc" id="L1103">            saveVersionData(EtlCommons.VARIATION_FUNCTIONAL_SCORE_DATA, CADD_NAME, url.split(&quot;/&quot;)[5], getTimeStamp(),</span>
+<span class="nc" id="L1104">                    Collections.singletonList(url), variationFunctionalScoreFolder.resolve(&quot;caddVersion.json&quot;));</span>
+        }
+<span class="nc" id="L1106">    }</span>
+
+    private void downloadReactomeData() throws IOException, InterruptedException {
+<span class="nc" id="L1109">        Path proteinFolder = common.resolve(&quot;protein&quot;);</span>
+
+<span class="nc" id="L1111">        String url = configuration.getDownload().getReactome().getHost();</span>
+<span class="nc" id="L1112">        downloadFile(url, proteinFolder.resolve(&quot;biopax.zip&quot;).toString());</span>
+<span class="nc" id="L1113">        saveVersionData(EtlCommons.PROTEIN_DATA, REACTOME_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L1114">                proteinFolder.resolve(&quot;reactomeVersion.json&quot;));</span>
+<span class="nc" id="L1115">    }</span>
+
+    private void downloadRepeats(Species species, String assembly, Path speciesFolder)
+            throws IOException, InterruptedException {
+
+<span class="nc bnc" id="L1120" title="All 2 branches missed.">        if (species.getScientificName().equals(&quot;Homo sapiens&quot;)) {</span>
+<span class="nc" id="L1121">            logger.info(&quot;Downloading repeats data ...&quot;);</span>
+<span class="nc" id="L1122">            Path repeatsFolder = speciesFolder.resolve(EtlCommons.REPEATS_FOLDER);</span>
+<span class="nc" id="L1123">            makeDir(repeatsFolder);</span>
+            String pathParam;
+<span class="nc bnc" id="L1125" title="All 2 branches missed.">            if (assembly.equalsIgnoreCase(&quot;grch37&quot;)) {</span>
+<span class="nc" id="L1126">                pathParam = &quot;hg19&quot;;</span>
+<span class="nc bnc" id="L1127" title="All 2 branches missed.">            } else if (assembly.equalsIgnoreCase(&quot;grch38&quot;)) {</span>
+<span class="nc" id="L1128">                pathParam = &quot;hg38&quot;;</span>
+            } else {
+<span class="nc" id="L1130">                logger.error(&quot;Please provide a valid human assembly {GRCh37, GRCh38)&quot;);</span>
+<span class="nc" id="L1131">                throw new ParameterException(&quot;Assembly '&quot; + assembly + &quot;' is not valid. Please provide a valid human &quot;</span>
+                        + &quot;assembly {GRCh37, GRCh38)&quot;);
+            }
+
+            // Download tandem repeat finder
+<span class="nc" id="L1136">            String url = configuration.getDownload().getSimpleRepeats().getHost() + &quot;/&quot; + pathParam</span>
+                    + &quot;/database/simpleRepeat.txt.gz&quot;;
+<span class="nc" id="L1138">            downloadFile(url, repeatsFolder.resolve(EtlCommons.TRF_FILE).toString());</span>
+<span class="nc" id="L1139">            saveVersionData(EtlCommons.REPEATS_DATA, TRF_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L1140">                    repeatsFolder.resolve(EtlCommons.TRF_VERSION_FILE));</span>
+
+            // Download genomic super duplications
+<span class="nc" id="L1143">            url = configuration.getDownload().getGenomicSuperDups().getHost() + &quot;/&quot; + pathParam</span>
+                    + &quot;/database/genomicSuperDups.txt.gz&quot;;
+<span class="nc" id="L1145">            downloadFile(url, repeatsFolder.resolve(EtlCommons.GSD_FILE).toString());</span>
+<span class="nc" id="L1146">            saveVersionData(EtlCommons.REPEATS_DATA, GSD_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L1147">                    repeatsFolder.resolve(EtlCommons.GSD_VERSION_FILE));</span>
+
+            // Download WindowMasker
+<span class="nc bnc" id="L1150" title="All 2 branches missed.">            if (!pathParam.equalsIgnoreCase(&quot;hg19&quot;)) {</span>
+<span class="nc" id="L1151">                url = configuration.getDownload().getWindowMasker().getHost() + &quot;/&quot; + pathParam</span>
+                        + &quot;/database/windowmaskerSdust.txt.gz&quot;;
+<span class="nc" id="L1153">                downloadFile(url, repeatsFolder.resolve(EtlCommons.WM_FILE).toString());</span>
+<span class="nc" id="L1154">                saveVersionData(EtlCommons.REPEATS_DATA, WM_NAME, null, getTimeStamp(), Collections.singletonList(url),</span>
+<span class="nc" id="L1155">                        repeatsFolder.resolve(EtlCommons.WM_VERSION_FILE));</span>
+            }
+
+        }
+<span class="nc" id="L1159">    }</span>
+
+    private void downloadFile(String url, String outputFileName) throws IOException, InterruptedException {
+<span class="nc" id="L1162">        downloadFile(url, outputFileName, null);</span>
+<span class="nc" id="L1163">    }</span>
+
+    private void downloadFile(String url, String outputFileName, List&lt;String&gt; wgetAdditionalArgs)
+            throws IOException, InterruptedException {
+
+<span class="nc" id="L1168">        List&lt;String&gt; wgetArgs = new ArrayList&lt;&gt;(Arrays.asList(&quot;--tries=10&quot;, url, &quot;-O&quot;, outputFileName, &quot;-o&quot;,</span>
+                outputFileName + &quot;.log&quot;));
+<span class="nc bnc" id="L1170" title="All 4 branches missed.">        if (wgetAdditionalArgs != null &amp;&amp; !wgetAdditionalArgs.isEmpty()) {</span>
+<span class="nc" id="L1171">            wgetArgs.addAll(wgetAdditionalArgs);</span>
+        }
+
+<span class="nc" id="L1174">        boolean downloaded = EtlCommons.runCommandLineProcess(null, &quot;wget&quot;, wgetArgs, null);</span>
+
+<span class="nc bnc" id="L1176" title="All 2 branches missed.">        if (downloaded) {</span>
+<span class="nc" id="L1177">            logger.info(outputFileName + &quot; created OK&quot;);</span>
+        } else {
+<span class="nc" id="L1179">            logger.warn(url + &quot; cannot be downloaded&quot;);</span>
+        }
+<span class="nc" id="L1181">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

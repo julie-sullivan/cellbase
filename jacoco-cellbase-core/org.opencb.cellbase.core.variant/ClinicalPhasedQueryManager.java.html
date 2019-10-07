@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinicalPhasedQueryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant</a> &gt; <span class="el_source">ClinicalPhasedQueryManager.java</span></div><h1>ClinicalPhasedQueryManager.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.EvidenceEntry;
+import org.opencb.biodata.models.variant.avro.Property;
+
+import java.util.Collections;
+import java.util.List;
+
+<span class="nc" id="L10">public class ClinicalPhasedQueryManager extends AnnotationBasedPhasedQueryManager&lt;EvidenceEntry&gt; {</span>
+
+    private static final String HAPLOTYPE_PROPERTY = &quot;haplotype&quot;;
+
+//    /**
+//     * Implements the following matching logic.
+//     *
+//     * Sample   Cellbase-ClinVar  Match
+//     * -------------------------------
+//     * SNV      SNV               ✓
+//     * SNV      MNV               X
+//     * MNV      SNV               ✓
+//     * MNV      MNV               ✓
+//     *
+//     * @param variantList list of Variant objects used as an input for the ClinicalDBAdaptor query method
+//     * @param variantQueryResultList list of QueryResults obtained as a result of the corresponding query within the
+//     *                               ClinicalDBAdaptor
+//     * @return the same variantQueryResultList instance edited as appropriate according to the phasing logic described
+//     * above.
+//     */
+//    @Override
+//    public List&lt;QueryResult&lt;Variant&gt;&gt; run(List&lt;Variant&gt; variantList, List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResultList) {
+//        // Go through all input variants and their corresponding query results
+//        for (int j = 0; j &lt; variantQueryResultList.size(); j++) {
+//            QueryResult&lt;Variant&gt; variantQueryResult = variantQueryResultList.get(j);
+//            if (!variantQueryResult.getResult().isEmpty()) {
+//                // Variants are normalised and data from each of the sources (COSMIC, ClinVar, DOCM, etc.) integrated
+//                // during the build process. Only one variant record should be present per assembly.
+//                if (variantQueryResult.getResult().size() &gt; 1) {
+//                    throw new RuntimeException(&quot;Unexpected: more than one result found in the clinical variant &quot;
+//                            + &quot;collection for variant &quot; + variantQueryResult.getId() + &quot;. Please, check.&quot;);
+//                }
+//
+//                Variant matchedVariant = variantQueryResult.getResult().get(0);
+//                Variant queryVariant = variantList.get(j);
+//                // Phase is stored at the evidence entry level, e.g.: there might be two ClinVar RCVs for one
+//                // variant:
+//                //   - In the first the variant is submitted as part of an MNV and therefore it is phased
+//                //   - In the second one the variant is submitted singleton and therefore it is not phased
+//                // both RCVs will be integrated in the same Variant object after decomposition as separate EvidenceEntry
+//                // objects, each with its corresponding phase information
+//                int i = 0;
+//                while (i &lt; matchedVariant.getAnnotation().getTraitAssociation().size()) {
+//                    EvidenceEntry evidenceEntry = matchedVariant.getAnnotation().getTraitAssociation().get(i);
+//                    List&lt;Variant&gt; clinicalHaplotype = getHaplotype(evidenceEntry);
+//                    // Haplotype empty if EvidenceEntry is not phased
+//                    if (clinicalHaplotype.isEmpty()) {
+//                        i++;
+//                    } else {
+//                        // Sample   Cellbase-ClinVar  Match
+//                        // -------------------------------
+//                        // SNV      MNV               X
+//                        // MNV      MNV               ✓
+//                        // Missing genotypes in the input list will be considered as wildcards towards finding a
+//                        // matching haplotype (MNV) in the input list, since otherwise the clinical variant would not be
+//                        // returned
+//                        if (sameHaplotype(queryVariant, variantList, clinicalHaplotype)) {
+//                            i++;
+//                        } else {
+//                            matchedVariant.getAnnotation().getTraitAssociation().remove(i);
+//                        }
+//                        // Sample   Cellbase-ClinVar  Match
+//                        // -------------------------------
+//                        // SNV      SNV               ✓
+//                        // MNV      SNV               ✓
+//                    }
+//                }
+//
+//                // Remove whole variant from the query result object if ended up without any evidence entry
+//                if (matchedVariant.getAnnotation().getTraitAssociation().isEmpty()) {
+//                    reset(variantQueryResult);
+//                }
+//            }
+//        }
+//
+//        return variantQueryResultList;
+//    }
+
+    @Override
+    protected List&lt;Variant&gt; getHaplotype(EvidenceEntry evidenceEntry, Variant variant) {
+<span class="nc" id="L90">        List&lt;Property&gt; additionalProperties = evidenceEntry.getAdditionalProperties();</span>
+<span class="nc bnc" id="L91" title="All 4 branches missed.">        if (additionalProperties != null &amp;&amp; !additionalProperties.isEmpty()) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (Property property : additionalProperties) {</span>
+                // Only one haplotype property expected; will select the first one and discard the rest anyway
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                if (property.getName().equals(HAPLOTYPE_PROPERTY)) {</span>
+<span class="nc" id="L95">                    return Variant.parseVariants(property.getValue());</span>
+                }
+<span class="nc" id="L97">            }</span>
+
+        }
+
+<span class="nc" id="L101">        return Collections.emptyList();</span>
+    }
+
+    @Override
+    protected List&lt;EvidenceEntry&gt; getAnnotationObjectList(Variant variant) {
+<span class="nc" id="L106">        return variant.getAnnotation().getTraitAssociation();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellBaseConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.config</a> &gt; <span class="el_source">CellBaseConfiguration.java</span></div><h1>CellBaseConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by parce on 12/02/15.
+ */
+<span class="fc" id="L29">public class CellBaseConfiguration {</span>
+
+    private String version;
+    private String apiVersion;
+    private String wiki;
+    private String maintenanceFlagFile;
+    private String maintainerContact;
+    private String defaultOutdir;
+    private Databases databases;
+    private DownloadProperties download;
+    private SpeciesProperties species;
+
+
+    public static CellBaseConfiguration load(InputStream configurationInputStream) throws IOException {
+<span class="fc" id="L43">        ObjectMapper jsonMapper = new ObjectMapper();</span>
+<span class="fc" id="L44">        return jsonMapper.readValue(configurationInputStream, CellBaseConfiguration.class);</span>
+    }
+
+    public String getVersion() {
+<span class="fc" id="L48">        return version;</span>
+    }
+
+    public void setVersion(String version) {
+<span class="fc" id="L52">        this.version = version;</span>
+<span class="fc" id="L53">    }</span>
+
+    public String getApiVersion() {
+<span class="fc" id="L56">        return apiVersion;</span>
+    }
+
+    public void setApiVersion(String apiVersion) {
+<span class="fc" id="L60">        this.apiVersion = apiVersion;</span>
+<span class="fc" id="L61">    }</span>
+
+    public String getWiki() {
+<span class="fc" id="L64">        return wiki;</span>
+    }
+
+    public void setWiki(String wiki) {
+<span class="fc" id="L68">        this.wiki = wiki;</span>
+<span class="fc" id="L69">    }</span>
+
+    public String getMaintenanceFlagFile() {
+<span class="fc" id="L72">        return maintenanceFlagFile;</span>
+    }
+
+    public void setMaintenanceFlagFile(String maintenanceFlagFile) {
+<span class="nc" id="L76">        this.maintenanceFlagFile = maintenanceFlagFile;</span>
+<span class="nc" id="L77">    }</span>
+
+    public String getMaintainerContact() {
+<span class="fc" id="L80">        return maintainerContact;</span>
+    }
+
+    public void setMaintainerContact(String maintainerContact) {
+<span class="nc" id="L84">        this.maintainerContact = maintainerContact;</span>
+<span class="nc" id="L85">    }</span>
+
+    public Databases getDatabases() {
+<span class="fc" id="L88">        return databases;</span>
+    }
+
+    public CellBaseConfiguration setDatabases(Databases databases) {
+<span class="fc" id="L92">        this.databases = databases;</span>
+<span class="fc" id="L93">        return this;</span>
+    }
+
+    public String getDefaultOutdir() {
+<span class="fc" id="L97">        return defaultOutdir;</span>
+    }
+
+    public void setDefaultOutdir(String defaultOutdir) {
+<span class="fc" id="L101">        this.defaultOutdir = defaultOutdir;</span>
+<span class="fc" id="L102">    }</span>
+
+    public DownloadProperties getDownload() {
+<span class="fc" id="L105">        return download;</span>
+    }
+
+    public void setDownload(DownloadProperties download) {
+<span class="fc" id="L109">        this.download = download;</span>
+<span class="fc" id="L110">    }</span>
+
+    public SpeciesProperties getSpecies() {
+<span class="fc" id="L113">        return species;</span>
+    }
+
+    public void setSpecies(SpeciesProperties species) {
+<span class="fc" id="L117">        this.species = species;</span>
+<span class="fc" id="L118">    }</span>
+
+    public List&lt;Species&gt; getAllSpecies() {
+<span class="fc" id="L121">        List&lt;Species&gt; allSpecies = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L122" title="2 of 4 branches missed.">        if (species.getVertebrates() != null &amp;&amp; !species.getVertebrates().isEmpty()) {</span>
+<span class="fc" id="L123">            allSpecies.addAll(species.getVertebrates());</span>
+        }
+<span class="pc bpc" id="L125" title="2 of 4 branches missed.">        if (species.getMetazoa() != null &amp;&amp; !species.getMetazoa().isEmpty()) {</span>
+<span class="fc" id="L126">            allSpecies.addAll(species.getMetazoa());</span>
+        }
+<span class="pc bpc" id="L128" title="2 of 4 branches missed.">        if (species.getFungi() != null &amp;&amp; !species.getFungi().isEmpty()) {</span>
+<span class="fc" id="L129">            allSpecies.addAll(species.getFungi());</span>
+        }
+<span class="pc bpc" id="L131" title="2 of 4 branches missed.">        if (species.getProtist() != null &amp;&amp; !species.getProtist().isEmpty()) {</span>
+<span class="fc" id="L132">            allSpecies.addAll(species.getProtist());</span>
+        }
+<span class="pc bpc" id="L134" title="2 of 4 branches missed.">        if (species.getPlants() != null &amp;&amp; !species.getPlants().isEmpty()) {</span>
+<span class="fc" id="L135">            allSpecies.addAll(species.getPlants());</span>
+        }
+<span class="pc bpc" id="L137" title="2 of 4 branches missed.">        if (species.getVirus() != null &amp;&amp; !species.getVirus().isEmpty()) {</span>
+<span class="fc" id="L138">            allSpecies.addAll(species.getVirus());</span>
+        }
+<span class="pc bpc" id="L140" title="3 of 4 branches missed.">        if (species.getBacteria() != null &amp;&amp; !species.getBacteria().isEmpty()) {</span>
+<span class="nc" id="L141">            allSpecies.addAll(species.getBacteria());</span>
+        }
+
+<span class="fc" id="L144">        return allSpecies;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

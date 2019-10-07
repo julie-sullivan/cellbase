@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenomeDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.api</a> &gt; <span class="el_source">GenomeDBAdaptor.java</span></div><h1>GenomeDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.api;
+
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.core.GenomeSequenceFeature;
+import org.opencb.biodata.models.core.GenomicScoreRegion;
+import org.opencb.biodata.models.variant.avro.Cytoband;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryParam;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.opencb.commons.datastore.core.QueryParam.Type.STRING;
+
+/**
+ * Created by imedina on 30/11/15.
+ */
+public interface GenomeDBAdaptor extends CellBaseDBAdaptor {
+
+<span class="nc" id="L40">    enum QueryParams implements QueryParam {</span>
+<span class="nc" id="L41">        REGION(&quot;region&quot;, STRING, &quot;&quot;);</span>
+
+<span class="nc" id="L43">        QueryParams(String key, Type type, String description) {</span>
+<span class="nc" id="L44">            this.key = key;</span>
+<span class="nc" id="L45">            this.type = type;</span>
+<span class="nc" id="L46">            this.description = description;</span>
+<span class="nc" id="L47">        }</span>
+
+        private final String key;
+        private Type type;
+        private String description;
+
+        @Override
+        public String key() {
+<span class="nc" id="L55">            return key;</span>
+        }
+
+        @Override
+        public String description() {
+<span class="nc" id="L60">            return description;</span>
+        }
+
+        @Override
+        public Type type() {
+<span class="nc" id="L65">            return type;</span>
+        }
+    }
+
+    QueryResult getGenomeInfo(QueryOptions queryOptions);
+
+    QueryResult getChromosomeInfo(String chromosomeId, QueryOptions queryOptions);
+
+    @Deprecated
+    QueryResult&lt;GenomeSequenceFeature&gt; getGenomicSequence(Query query, QueryOptions queryOptions);
+
+    @Deprecated
+    default List&lt;QueryResult&lt;GenomeSequenceFeature&gt;&gt; getGenomicSequence(List&lt;Query&gt; queries, QueryOptions queryOptions) {
+<span class="nc" id="L78">        List&lt;QueryResult&lt;GenomeSequenceFeature&gt;&gt; queryResults = new ArrayList&lt;&gt;(queries.size());</span>
+<span class="nc" id="L79">        queryResults.addAll(queries.stream().map(query -&gt; getGenomicSequence(query, queryOptions)).collect(Collectors.toList()));</span>
+<span class="nc" id="L80">        return queryResults;</span>
+    }
+
+
+    QueryResult&lt;GenomeSequenceFeature&gt; getSequence(Region region, QueryOptions queryOptions);
+
+    default List&lt;QueryResult&lt;GenomeSequenceFeature&gt;&gt; getSequence(List&lt;Region&gt; regions, QueryOptions queryOptions) {
+<span class="nc" id="L87">        List&lt;QueryResult&lt;GenomeSequenceFeature&gt;&gt; queryResults = new ArrayList&lt;&gt;(regions.size());</span>
+<span class="nc" id="L88">        queryResults.addAll(regions.stream().map(region -&gt; getSequence(region, queryOptions)).collect(Collectors.toList()));</span>
+<span class="nc" id="L89">        return queryResults;</span>
+    }
+
+
+//    default QueryResult&lt;ConservationScoreRegion&gt; getConservation(Region region, QueryOptions queryOptions) {
+    default QueryResult&lt;GenomicScoreRegion&lt;Float&gt;&gt; getConservation(Region region, QueryOptions queryOptions) {
+<span class="nc" id="L95">        return getConservation(Collections.singletonList(region), queryOptions).get(0);</span>
+    }
+
+//    List&lt;QueryResult&lt;ConservationScoreRegion&gt;&gt; getConservation(List&lt;Region&gt; regions, QueryOptions queryOptions);
+    List&lt;QueryResult&lt;GenomicScoreRegion&lt;Float&gt;&gt;&gt; getConservation(List&lt;Region&gt; regions, QueryOptions queryOptions);
+
+    default List&lt;QueryResult&lt;Cytoband&gt;&gt; getCytobands(List&lt;Region&gt; regionList, QueryOptions queryOptions) {
+<span class="nc" id="L102">        List&lt;QueryResult&lt;Cytoband&gt;&gt; queryResultList = new ArrayList&lt;&gt;(regionList.size());</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        for (Region region : regionList) {</span>
+<span class="nc" id="L104">            queryResultList.add(getCytobands(region, queryOptions));</span>
+<span class="nc" id="L105">        }</span>
+<span class="nc" id="L106">        return queryResultList;</span>
+    }
+
+    @Deprecated
+    default List&lt;QueryResult&lt;Cytoband&gt;&gt; getCytobands(List&lt;Region&gt; regionList) {
+<span class="nc" id="L111">        return getCytobands(regionList, null);</span>
+    }
+
+    QueryResult&lt;Cytoband&gt; getCytobands(Region region, QueryOptions queryOptions);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

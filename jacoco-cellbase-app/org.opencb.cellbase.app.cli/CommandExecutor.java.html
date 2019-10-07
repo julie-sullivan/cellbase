@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">CommandExecutor.java</span></div><h1>CommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.opencb.cellbase.core.config.CellBaseConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+/**
+ * Created by imedina on 03/02/15.
+ */
+public abstract class CommandExecutor {
+
+    protected String logLevel;
+    protected boolean verbose;
+    protected String configFile;
+
+    protected String appHome;
+    protected CellBaseConfiguration configuration;
+
+    protected Logger logger;
+
+<span class="nc" id="L48">    public CommandExecutor() {</span>
+
+<span class="nc" id="L50">    }</span>
+
+<span class="fc" id="L52">    public CommandExecutor(String logLevel, boolean verbose, String configFile) {</span>
+<span class="fc" id="L53">        this.logLevel = logLevel;</span>
+<span class="fc" id="L54">        this.verbose = verbose;</span>
+<span class="fc" id="L55">        this.configFile = configFile;</span>
+
+        /**
+         * System property 'app.home' is set up by cellbase.sh. If by any reason this is null
+         * then CELLBASE_HOME environment variable is used instead.
+         */
+<span class="fc" id="L61">        this.appHome = System.getProperty(&quot;app.home&quot;, System.getenv(&quot;CELLBASE_HOME&quot;));</span>
+
+<span class="pc bpc" id="L63" title="2 of 4 branches missed.">        if (logLevel != null &amp;&amp; !logLevel.isEmpty()) {</span>
+            // We must call to this method
+<span class="fc" id="L65">            setLogLevel(logLevel);</span>
+        }
+<span class="fc" id="L67">    }</span>
+
+    public abstract void execute();
+
+    public String getLogLevel() {
+<span class="nc" id="L72">        return logLevel;</span>
+    }
+
+    public void setLogLevel(String logLevel) {
+        // This small hack allow to configure the appropriate Logger level from the command line, this is done
+        // by setting the DEFAULT_LOG_LEVEL_KEY before the logger object is created.
+//        System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, logLevel);
+
+<span class="fc" id="L80">        org.apache.log4j.Logger rootLogger = LogManager.getRootLogger();</span>
+<span class="fc" id="L81">        ConsoleAppender stderr = (ConsoleAppender) rootLogger.getAppender(&quot;stderr&quot;);</span>
+
+        // Line above returning null - and causing NPE - in certain environments
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (stderr != null) {</span>
+<span class="fc" id="L85">            stderr.setThreshold(Level.toLevel(logLevel));</span>
+        }
+
+<span class="fc" id="L88">        logger = LoggerFactory.getLogger(this.getClass().toString());</span>
+<span class="fc" id="L89">        this.logLevel = logLevel;</span>
+<span class="fc" id="L90">    }</span>
+
+    public boolean isVerbose() {
+<span class="nc" id="L93">        return verbose;</span>
+    }
+
+    public void setVerbose(boolean verbose) {
+<span class="nc" id="L97">        this.verbose = verbose;</span>
+<span class="nc" id="L98">    }</span>
+
+    public String getConfigFile() {
+<span class="nc" id="L101">        return configFile;</span>
+    }
+
+    public void setConfigFile(String configFile) {
+<span class="nc" id="L105">        this.configFile = configFile;</span>
+<span class="nc" id="L106">    }</span>
+
+    public Logger getLogger() {
+<span class="nc" id="L109">        return logger;</span>
+    }
+
+    /*
+     * This method attempts to first data configuration from CLI parameter, if not present then uses
+     * the configuration from installation directory, if not exists then loads JAR configuration.json.
+     */
+    public void loadCellBaseConfiguration() throws URISyntaxException, IOException {
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        if (this.configFile != null) {</span>
+<span class="fc" id="L118">            logger.debug(&quot;Loading configuration from '{}'&quot;, this.configFile);</span>
+<span class="fc" id="L119">            this.configuration = CellBaseConfiguration.load(new FileInputStream(new File(this.configFile)));</span>
+        } else {
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            if (Files.exists(Paths.get(this.appHome + &quot;/configuration.json&quot;))) {</span>
+<span class="nc" id="L122">                logger.debug(&quot;Loading configuration from '{}'&quot;, this.appHome + &quot;/configuration.json&quot;);</span>
+<span class="nc" id="L123">                this.configuration = CellBaseConfiguration.load(new FileInputStream(new File(this.appHome + &quot;/configuration.json&quot;)));</span>
+            } else {
+<span class="nc" id="L125">                logger.debug(&quot;Loading configuration from '{}'&quot;,</span>
+<span class="nc" id="L126">                        CellBaseConfiguration.class.getClassLoader().getResourceAsStream(&quot;configuration.json&quot;).toString());</span>
+<span class="nc" id="L127">                this.configuration = CellBaseConfiguration</span>
+<span class="nc" id="L128">                        .load(CellBaseConfiguration.class.getClassLoader().getResourceAsStream(&quot;configuration.json&quot;));</span>
+            }
+        }
+<span class="fc" id="L131">    }</span>
+
+
+    protected void makeDir(Path folderPath) throws IOException {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if (!Files.exists(folderPath)) {</span>
+<span class="nc" id="L136">            Files.createDirectories(folderPath);</span>
+        }
+<span class="nc" id="L138">    }</span>
+
+//    protected boolean runCommandLineProcess(File workingDirectory, String binPath, List&lt;String&gt; args, String logFilePath)
+//            throws IOException, InterruptedException {
+//        ProcessBuilder builder = getProcessBuilder(workingDirectory, binPath, args, logFilePath);
+//
+//        logger.debug(&quot;Executing command: &quot; + StringUtils.join(builder.command(), &quot; &quot;));
+//        Process process = builder.start();
+//        process.waitFor();
+//
+//        // Check process output
+//        boolean executedWithoutErrors = true;
+//        int genomeInfoExitValue = process.exitValue();
+//        if (genomeInfoExitValue != 0) {
+//            logger.warn(&quot;Error executing {}, error code: {}. More info in log file: {}&quot;, binPath, genomeInfoExitValue, logFilePath);
+//            executedWithoutErrors = false;
+//        }
+//        return executedWithoutErrors;
+//    }
+//
+//    private ProcessBuilder getProcessBuilder(File workingDirectory, String binPath, List&lt;String&gt; args, String logFilePath) {
+//        List&lt;String&gt; commandArgs = new ArrayList&lt;&gt;();
+//        commandArgs.add(binPath);
+//        commandArgs.addAll(args);
+//        ProcessBuilder builder = new ProcessBuilder(commandArgs);
+//
+//        // working directoy and error and output log outputs
+//        if (workingDirectory != null) {
+//            builder.directory(workingDirectory);
+//        }
+//        builder.redirectErrorStream(true);
+//        if (logFilePath != null) {
+//            builder.redirectOutput(ProcessBuilder.Redirect.appendTo(new File(logFilePath)));
+//        }
+//
+//        return builder;
+//    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

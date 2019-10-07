@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeneMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">GeneMongoDBAdaptor.java</span></div><h1>GeneMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.mongodb.MongoClient;
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.cellbase.core.api.GeneDBAdaptor;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+/**
+ * Created by imedina on 25/11/15.
+ */
+public class GeneMongoDBAdaptor extends MongoDBAdaptor implements GeneDBAdaptor&lt;Gene&gt; {
+
+    private static final String TRANSCRIPTS = &quot;transcripts&quot;;
+    private static final String GENE = &quot;gene&quot;;
+    private static final String ANNOTATION_FLAGS = &quot;annotationFlags&quot;;
+
+    public GeneMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L57">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L58">        mongoDBCollection = mongoDataStore.getCollection(GENE);</span>
+
+<span class="fc" id="L60">        logger.debug(&quot;GeneMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L61">    }</span>
+
+    @Override
+    public QueryResult&lt;Gene&gt; next(Query query, QueryOptions options) {
+<span class="nc" id="L65">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L70">        return null;</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (query.getString(QueryParams.REGION.key()) != null) {</span>
+<span class="nc" id="L76">            Region region = Region.parseRegion(query.getString(QueryParams.REGION.key()));</span>
+<span class="nc" id="L77">            Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L78">            return getIntervalFrequencies(bsonDocument, region, intervalSize, options);</span>
+        }
+<span class="nc" id="L80">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L85">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L90">        Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L91">        return mongoDBCollection.count(bsonDocument);</span>
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; distinct(Query query, String field) {
+<span class="nc" id="L96">        Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L97">        return mongoDBCollection.distinct(field, bsonDocument);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L102">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Gene&gt; get(Query query, QueryOptions inputOptions) {
+<span class="fc" id="L107">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L108">        QueryOptions options = new QueryOptions(inputOptions);</span>
+<span class="fc" id="L109">        options = addPrivateExcludeOptions(options);</span>
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (postDBFilteringParametersEnabled(query)) {</span>
+<span class="nc" id="L112">            QueryResult&lt;Document&gt; nativeQueryResult = postDBFiltering(query, mongoDBCollection.find(bson, options));</span>
+<span class="nc" id="L113">            QueryResult&lt;Gene&gt; queryResult = new QueryResult&lt;&gt;(nativeQueryResult.getId(),</span>
+<span class="nc" id="L114">                    nativeQueryResult.getDbTime(), nativeQueryResult.getNumResults(),</span>
+<span class="nc" id="L115">                    nativeQueryResult.getNumTotalResults(), nativeQueryResult.getWarningMsg(),</span>
+<span class="nc" id="L116">                    nativeQueryResult.getErrorMsg(), null);</span>
+
+            // Now we need to convert MongoDB Documents to Gene objects
+            // TODO: maybe we could query Genes in the first stage
+<span class="nc" id="L120">            ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L121">            jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);</span>
+<span class="nc" id="L122">            jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="nc" id="L123">            ObjectWriter objectWriter = jsonObjectMapper.writer();</span>
+<span class="nc" id="L124">            queryResult.setResult(nativeQueryResult.getResult().stream()</span>
+<span class="nc" id="L125">                    .map(document -&gt; {</span>
+                        try {
+<span class="nc" id="L127">                            return this.objectMapper.readValue(objectWriter.writeValueAsString(document), Gene.class);</span>
+<span class="nc" id="L128">                        } catch (IOException e) {</span>
+<span class="nc" id="L129">                            e.printStackTrace();</span>
+<span class="nc" id="L130">                            return null;</span>
+                        }
+<span class="nc" id="L132">                    }).collect(Collectors.toList()));</span>
+<span class="nc" id="L133">            return queryResult;</span>
+        } else {
+<span class="fc" id="L135">            logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L136">            return mongoDBCollection.find(bson, null, Gene.class, options);</span>
+        }
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="nc" id="L142">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L143">        logger.info(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="nc" id="L144">        logger.info(&quot;options: {}&quot;, options.toJson());</span>
+<span class="nc" id="L145">        return postDBFiltering(query, mongoDBCollection.find(bson, options));</span>
+    }
+
+    @Override
+    public Iterator&lt;Gene&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L150">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L155">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L156">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+<span class="nc" id="L161">        Objects.requireNonNull(action);</span>
+<span class="nc" id="L162">        Iterator iterator = nativeIterator(query, options);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L164">            action.accept(iterator.next());</span>
+        }
+<span class="nc" id="L166">    }</span>
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L170">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L175">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L176">        return groupBy(bsonQuery, field, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+<span class="nc" id="L181">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L182">        return groupBy(bsonQuery, fields, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult startsWith(String id, QueryOptions options) {
+<span class="nc" id="L187">        Bson regex = Filters.regex(&quot;transcripts.xrefs.id&quot;, Pattern.compile(&quot;^&quot; + id));</span>
+<span class="nc" id="L188">        Bson include = Projections.include(&quot;id&quot;, &quot;name&quot;, &quot;chromosome&quot;, &quot;start&quot;, &quot;end&quot;);</span>
+<span class="nc" id="L189">        return mongoDBCollection.find(regex, include, options);</span>
+    }
+
+    @Override
+    public QueryResult getRegulatoryElements(Query query, QueryOptions queryOptions) {
+<span class="nc" id="L194">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L195">        QueryResult&lt;Document&gt; queryResult = null;</span>
+<span class="nc" id="L196">        QueryResult&lt;Document&gt; gene = mongoDBCollection.find(bson, new QueryOptions(QueryOptions.INCLUDE, &quot;chromosome,start,end&quot;));</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (gene != null) {</span>
+<span class="nc" id="L198">            MongoDBCollection regulatoryRegionCollection = mongoDataStore.getCollection(&quot;regulatory_region&quot;);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            for (Document document : gene.getResult()) {</span>
+<span class="nc" id="L200">                Bson eq = Filters.eq(&quot;chromosome&quot;, document.getString(&quot;chromosome&quot;));</span>
+<span class="nc" id="L201">                Bson lte = Filters.lte(&quot;start&quot;, document.getInteger(&quot;end&quot;, Integer.MAX_VALUE));</span>
+<span class="nc" id="L202">                Bson gte = Filters.gte(&quot;end&quot;, document.getInteger(&quot;start&quot;, 1));</span>
+<span class="nc" id="L203">                queryResult = regulatoryRegionCollection.find(Filters.and(eq, lte, gte), queryOptions);</span>
+<span class="nc" id="L204">            }</span>
+        }
+<span class="nc" id="L206">        return queryResult;</span>
+    }
+
+    @Override
+    public QueryResult getTfbs(Query query, QueryOptions queryOptions) {
+<span class="nc" id="L211">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L212">        Bson match = Aggregates.match(bsonQuery);</span>
+
+        // We parse user's exclude options, ONLY _id can be added if exists
+        Bson includeAndExclude;
+<span class="nc" id="L216">        Bson exclude = null;</span>
+<span class="nc bnc" id="L217" title="All 4 branches missed.">        if (queryOptions != null &amp;&amp; queryOptions.containsKey(&quot;exclude&quot;)) {</span>
+<span class="nc" id="L218">            List&lt;String&gt; stringList = queryOptions.getAsStringList(&quot;exclude&quot;);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if (stringList.contains(&quot;_id&quot;)) {</span>
+<span class="nc" id="L220">                exclude = Aggregates.project(Projections.exclude(&quot;_id&quot;));</span>
+            }
+        }
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (exclude != null) {</span>
+<span class="nc" id="L224">            includeAndExclude = Aggregates.project(Projections.fields(Projections.excludeId(), Projections.include(&quot;transcripts.tfbs&quot;)));</span>
+        } else {
+<span class="nc" id="L226">            includeAndExclude = Aggregates.project(Projections.include(&quot;transcripts.tfbs&quot;));</span>
+        }
+
+<span class="nc" id="L229">        Bson unwind = Aggregates.unwind(&quot;$transcripts&quot;);</span>
+<span class="nc" id="L230">        Bson unwind2 = Aggregates.unwind(&quot;$transcripts.tfbs&quot;);</span>
+
+        // This project the three fields of Xref to the top of the object
+<span class="nc" id="L233">        Document document = new Document(&quot;tfName&quot;, &quot;$transcripts.tfbs.tfName&quot;);</span>
+<span class="nc" id="L234">        document.put(&quot;pwm&quot;, &quot;$transcripts.tfbs.pwm&quot;);</span>
+<span class="nc" id="L235">        document.put(&quot;chromosome&quot;, &quot;$transcripts.tfbs.chromosome&quot;);</span>
+<span class="nc" id="L236">        document.put(&quot;start&quot;, &quot;$transcripts.tfbs.start&quot;);</span>
+<span class="nc" id="L237">        document.put(&quot;end&quot;, &quot;$transcripts.tfbs.end&quot;);</span>
+<span class="nc" id="L238">        document.put(&quot;strand&quot;, &quot;$transcripts.tfbs.strand&quot;);</span>
+<span class="nc" id="L239">        document.put(&quot;relativeStart&quot;, &quot;$transcripts.tfbs.relativeStart&quot;);</span>
+<span class="nc" id="L240">        document.put(&quot;relativeEnd&quot;, &quot;$transcripts.tfbs.relativeEnd&quot;);</span>
+<span class="nc" id="L241">        document.put(&quot;score&quot;, &quot;$transcripts.tfbs.score&quot;);</span>
+<span class="nc" id="L242">        Bson project = Aggregates.project(document);</span>
+
+<span class="nc" id="L244">        return mongoDBCollection.aggregate(Arrays.asList(match, includeAndExclude, unwind, unwind2, project), queryOptions);</span>
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getBiotypes(Query query) {
+<span class="nc" id="L249">        return distinct(query, &quot;biotypes&quot;);</span>
+    }
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L253">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L255">        createRegionQuery(query, QueryParams.REGION.key(), MongoDBCollectionConfiguration.GENE_CHUNK_SIZE, andBsonList);</span>
+
+<span class="fc" id="L257">        createOrQuery(query, QueryParams.ID.key(), &quot;id&quot;, andBsonList);</span>
+<span class="fc" id="L258">        createOrQuery(query, QueryParams.NAME.key(), &quot;name&quot;, andBsonList);</span>
+<span class="fc" id="L259">        createOrQuery(query, QueryParams.BIOTYPE.key(), &quot;biotype&quot;, andBsonList);</span>
+<span class="fc" id="L260">        createOrQuery(query, QueryParams.XREFS.key(), &quot;transcripts.xrefs.id&quot;, andBsonList);</span>
+
+<span class="fc" id="L262">        createOrQuery(query, QueryParams.TRANSCRIPT_ID.key(), &quot;transcripts.id&quot;, andBsonList);</span>
+<span class="fc" id="L263">        createOrQuery(query, QueryParams.TRANSCRIPT_NAME.key(), &quot;transcripts.name&quot;, andBsonList);</span>
+<span class="fc" id="L264">        createOrQuery(query, QueryParams.TRANSCRIPT_BIOTYPE.key(), &quot;transcripts.biotype&quot;, andBsonList);</span>
+<span class="fc" id="L265">        createOrQuery(query, QueryParams.TRANSCRIPT_ANNOTATION_FLAGS.key(), &quot;transcripts.annotationFlags&quot;, andBsonList);</span>
+
+<span class="fc" id="L267">        createOrQuery(query, QueryParams.TFBS_NAME.key(), &quot;transcripts.tfbs.name&quot;, andBsonList);</span>
+<span class="fc" id="L268">        createOrQuery(query, QueryParams.ANNOTATION_DISEASE_ID.key(), &quot;annotation.diseases.id&quot;, andBsonList);</span>
+<span class="fc" id="L269">        createOrQuery(query, QueryParams.ANNOTATION_DISEASE_NAME.key(), &quot;annotation.diseases.name&quot;, andBsonList);</span>
+<span class="fc" id="L270">        createOrQuery(query, QueryParams.ANNOTATION_EXPRESSION_GENE.key(), &quot;annotation.expression.geneName&quot;, andBsonList);</span>
+
+<span class="fc" id="L272">        createOrQuery(query, QueryParams.ANNOTATION_DRUGS_NAME.key(), &quot;annotation.drugs.drugName&quot;, andBsonList);</span>
+<span class="fc" id="L273">        createOrQuery(query, QueryParams.ANNOTATION_DRUGS_GENE.key(), &quot;annotation.drugs.geneName&quot;, andBsonList);</span>
+
+<span class="fc" id="L275">        createExpressionQuery(query, andBsonList);</span>
+
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L278">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L280">            return new Document();</span>
+        }
+    }
+
+    private void createExpressionQuery(Query query, List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">        if (query != null) {</span>
+<span class="fc" id="L286">            String tissue = query.getString(QueryParams.ANNOTATION_EXPRESSION_TISSUE.key());</span>
+<span class="pc bpc" id="L287" title="1 of 4 branches missed.">            if (tissue != null &amp;&amp; !tissue.isEmpty()) {</span>
+<span class="fc" id="L288">                String value = query.getString(QueryParams.ANNOTATION_EXPRESSION_VALUE.key());</span>
+<span class="pc bpc" id="L289" title="2 of 4 branches missed.">                if (value != null &amp;&amp; !value.isEmpty()) {</span>
+<span class="fc" id="L290">                    andBsonList.add(Filters.elemMatch(&quot;annotation.expression&quot;,</span>
+<span class="fc" id="L291">                            Filters.and(Filters.regex(&quot;factorValue&quot;, &quot;(.)*&quot; + tissue + &quot;(.)*&quot;, &quot;i&quot;), Filters.eq(&quot;expression&quot;, value))));</span>
+                }
+            }
+        }
+<span class="fc" id="L295">    }</span>
+
+    private Boolean postDBFilteringParametersEnabled(Query query) {
+<span class="fc" id="L298">        return StringUtils.isNotEmpty(query.getString(QueryParams.TRANSCRIPT_ANNOTATION_FLAGS.key()));</span>
+    }
+
+    private QueryResult&lt;Document&gt; postDBFiltering(Query query, QueryResult&lt;Document&gt; documentQueryResult) {
+<span class="nc" id="L302">        String annotationFlagsString = query.getString(QueryParams.TRANSCRIPT_ANNOTATION_FLAGS.key());</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (StringUtils.isNotEmpty(annotationFlagsString)) {</span>
+<span class="nc" id="L304">            Set&lt;String&gt; flags = new HashSet&lt;&gt;(Arrays.asList(annotationFlagsString.split(&quot;,&quot;)));</span>
+<span class="nc" id="L305">            List&lt;Document&gt; documents = documentQueryResult.getResult();</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            for (Document document : documents) {</span>
+<span class="nc" id="L307">                ArrayList&lt;Document&gt; transcripts = document.get(TRANSCRIPTS, ArrayList.class);</span>
+<span class="nc" id="L308">                ArrayList&lt;Document&gt; matchedTranscripts = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                for (Document transcript : transcripts) {</span>
+<span class="nc" id="L310">                    ArrayList annotationFlags = transcript.get(ANNOTATION_FLAGS, ArrayList.class);</span>
+<span class="nc bnc" id="L311" title="All 4 branches missed.">                    if (annotationFlags != null &amp;&amp; annotationFlags.size() &gt; 0) {</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                        if (CollectionUtils.containsAny(annotationFlags, flags)) {</span>
+<span class="nc" id="L313">                            matchedTranscripts.add(transcript);</span>
+                        }
+                    }
+<span class="nc" id="L316">                }</span>
+<span class="nc" id="L317">                document.put(TRANSCRIPTS, matchedTranscripts);</span>
+<span class="nc" id="L318">            }</span>
+<span class="nc" id="L319">            documentQueryResult.setResult(documents);</span>
+        }
+<span class="nc" id="L321">        return documentQueryResult;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

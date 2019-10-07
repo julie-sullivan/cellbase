@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellBaseWSVariantAnnotator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">CellBaseWSVariantAnnotator.java</span></div><h1>CellBaseWSVariantAnnotator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli.variant.annotation;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.client.rest.VariantClient;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResponse;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 02/03/15.
+ */
+public class CellBaseWSVariantAnnotator implements VariantAnnotator {
+
+    private VariantClient variantClient;
+
+    private QueryOptions queryOptions;
+
+    private Logger logger;
+
+<span class="nc" id="L44">    public CellBaseWSVariantAnnotator(VariantClient variantClient, QueryOptions queryOptions) {</span>
+<span class="nc" id="L45">        this.variantClient = variantClient;</span>
+<span class="nc" id="L46">        this.queryOptions = new QueryOptions(queryOptions);</span>
+<span class="nc" id="L47">        logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="nc" id="L48">    }</span>
+
+    public boolean open() {
+<span class="nc" id="L51">        return true;</span>
+    }
+
+    public boolean close() {
+<span class="nc" id="L55">        return false;</span>
+    }
+
+    public void run(List&lt;Variant&gt; variantList) {
+<span class="nc bnc" id="L59" title="All 4 branches missed.">        if (variantList != null &amp;&amp; !variantList.isEmpty()) {</span>
+<span class="nc" id="L60">            logger.debug(&quot;Annotator sends {} new variants for annotation. Waiting for the result&quot;, variantList.size());</span>
+            QueryResponse&lt;VariantAnnotation&gt; response;
+            try {
+<span class="nc" id="L63">                response = variantClient.getAnnotation(variantList, queryOptions, true);</span>
+<span class="nc" id="L64">            } catch (IOException e) {</span>
+<span class="nc" id="L65">                e.printStackTrace();</span>
+<span class="nc" id="L66">                return;</span>
+<span class="nc" id="L67">            }</span>
+
+            //TODO: assuming CellBase annotation will always be the first and therefore variantAnnotationList will be empty
+            //        variantAnnotationList = new ArrayList&lt;&gt;(variantList.size());
+            //        List&lt;QueryResult&lt;QueryResult&lt;VariantAnnotation&gt;&gt;&gt; response1 = response.getResponse();
+<span class="nc" id="L72">            List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; queryResultList = response.getResponse();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            for (int i = 0; i &lt; queryResultList.size(); i++) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">                if (queryResultList.get(i).getResult().size() &gt; 0) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                    if (variantList.get(i).getAnnotation() == null) {</span>
+<span class="nc" id="L76">                        variantList.get(i).setAnnotation(queryResultList.get(i).getResult().get(0));</span>
+                    } else {
+<span class="nc" id="L78">                        mergeAnnotation(variantList.get(i).getAnnotation(), queryResultList.get(i).getResult().get(0));</span>
+                    }
+                } else {
+<span class="nc" id="L81">                    logger.warn(&quot;Emtpy result for '{}'&quot;, queryResultList.get(i).getId());</span>
+                }
+            }
+        }
+<span class="nc" id="L85">    }</span>
+
+    private void mergeAnnotation(VariantAnnotation destination, VariantAnnotation origin) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (origin != null) {</span>
+<span class="nc" id="L89">            destination.setId(origin.getId());</span>
+<span class="nc" id="L90">            destination.setChromosome(origin.getChromosome());</span>
+<span class="nc" id="L91">            destination.setStart(origin.getStart());</span>
+<span class="nc" id="L92">            destination.setReference(origin.getReference());</span>
+<span class="nc" id="L93">            destination.setAlternate(origin.getAlternate());</span>
+<span class="nc" id="L94">            destination.setDisplayConsequenceType(origin.getDisplayConsequenceType());</span>
+<span class="nc" id="L95">            destination.setConsequenceTypes(origin.getConsequenceTypes());</span>
+<span class="nc" id="L96">            destination.setConservation(origin.getConservation());</span>
+<span class="nc" id="L97">            destination.setGeneExpression(origin.getGeneExpression());</span>
+<span class="nc" id="L98">            destination.setGeneTraitAssociation(origin.getGeneTraitAssociation());</span>
+<span class="nc" id="L99">            destination.setGeneDrugInteraction(origin.getGeneDrugInteraction());</span>
+<span class="nc" id="L100">            destination.setVariantTraitAssociation(origin.getVariantTraitAssociation());</span>
+<span class="nc" id="L101">            destination.setFunctionalScore(origin.getFunctionalScore());</span>
+        }
+<span class="nc" id="L103">    }</span>
+
+    // TODO: use a external class for this (this method could be added to GenomicVariant class)
+    private Variant getGenomicVariant(Variant variant) {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (variant.getAlternate().equals(&quot;.&quot;)) {  // reference positions are not variants</span>
+<span class="nc" id="L108">            return null;</span>
+        } else {
+            String ref;
+            // large deletion
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            if (variant.getAlternate().equals(&quot;&lt;DEL&gt;&quot;)) {</span>
+                // .get(&quot;_&quot;) because studyId and fileId are empty strings when VariantSource is initialized at readInputFile
+<span class="nc" id="L114">                int end = Integer.valueOf(variant.getSourceEntries().get(&quot;_&quot;).getAttributes().get(&quot;END&quot;));</span>
+<span class="nc" id="L115">                ref = StringUtils.repeat(&quot;N&quot;, end - variant.getStart());</span>
+<span class="nc" id="L116">                return new Variant(variant.getChromosome(), variant.getStart(),</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                        ref, variant.getAlternate().equals(&quot;&quot;) ? &quot;-&quot; : variant.getAlternate());</span>
+                // TODO: structural variants are not yet properly handled. Implement and remove this patch asap
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            } else if (variant.getAlternate().startsWith(&quot;&lt;&quot;)</span>
+<span class="nc bnc" id="L120" title="All 4 branches missed.">                    || (variant.getAlternate().length() &gt; 1 &amp;&amp; variant.getReference().length() &gt; 1)) {</span>
+<span class="nc" id="L121">                return null;</span>
+            } else {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                ref = variant.getReference().equals(&quot;&quot;) ? &quot;-&quot; : variant.getReference();</span>
+<span class="nc" id="L124">                return new Variant(variant.getChromosome(), variant.getStart(),</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                        ref, variant.getAlternate().equals(&quot;&quot;) ? &quot;-&quot; : variant.getAlternate());</span>
+            }
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

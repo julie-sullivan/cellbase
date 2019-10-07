@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitRepositoryState.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common</a> &gt; <span class="el_source">GitRepositoryState.java</span></div><h1>GitRepositoryState.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.common;
+
+import java.io.IOException;
+import java.util.Properties;
+
+/**
+ * Created by fjlopez on 26/09/16.
+ */
+public class GitRepositoryState {
+    private static GitRepositoryState gitRepositoryState;
+
+    private String tags;                    // =${git.tags} // comma separated tag names
+    private String branch;                  // =${git.branch}
+    private String dirty;                   // =${git.dirty}
+    private String remoteOriginUrl;         // =${git.remote.origin.url}
+
+    private String commitId;                // =${git.commit.id.full} OR ${git.commit.id}
+    private String commitIdAbbrev;          // =${git.commit.id.abbrev}
+    private String describe;                // =${git.commit.id.describe}
+    private String describeShort;           // =${git.commit.id.describe-short}
+    private String commitUserName;          // =${git.commit.user.name}
+    private String commitUserEmail;         // =${git.commit.user.email}
+    private String commitMessageFull;       // =${git.commit.message.full}
+    private String commitMessageShort;      // =${git.commit.message.short}
+    private String commitTime;              // =${git.commit.time}
+    private String closestTagName;          // =${git.closest.tag.name}
+    private String closestTagCommitCount;   // =${git.closest.tag.commit.count}
+
+    private String buildUserName;           // =${git.build.user.name}
+    private String buildUserEmail;          // =${git.build.user.email}
+    private String buildTime;               // =${git.build.time}
+    private String buildHost;               // =${git.build.host}
+    private String buildVersion;             // =${git.build.version}
+
+    public static GitRepositoryState get() {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        if (gitRepositoryState == null) {</span>
+<span class="nc" id="L37">            Properties properties = new Properties();</span>
+            try {
+<span class="nc" id="L39">                properties.load(GitRepositoryState.class.getClassLoader().getResourceAsStream(&quot;git.properties&quot;));</span>
+<span class="nc" id="L40">            } catch (IOException e) {</span>
+<span class="nc" id="L41">                e.printStackTrace();</span>
+<span class="nc" id="L42">            }</span>
+
+<span class="nc" id="L44">            gitRepositoryState = new GitRepositoryState(properties);</span>
+        }
+<span class="nc" id="L46">        return gitRepositoryState;</span>
+    }
+
+<span class="nc" id="L49">    GitRepositoryState() {</span>
+<span class="nc" id="L50">    }</span>
+
+<span class="nc" id="L52">    private GitRepositoryState(Properties properties) {</span>
+<span class="nc" id="L53">        this.tags = properties.get(&quot;git.tags&quot;).toString();</span>
+<span class="nc" id="L54">        this.branch = properties.get(&quot;git.branch&quot;).toString();</span>
+<span class="nc" id="L55">        this.dirty = properties.get(&quot;git.dirty&quot;).toString();</span>
+<span class="nc" id="L56">        this.remoteOriginUrl = properties.get(&quot;git.remote.origin.url&quot;).toString();</span>
+
+<span class="nc" id="L58">        this.commitId = properties.get(&quot;git.commit.id&quot;).toString(); // OR properties.get(&quot;git.commit.id&quot;) depending on your configuration</span>
+<span class="nc" id="L59">        this.commitIdAbbrev = properties.get(&quot;git.commit.id.abbrev&quot;).toString();</span>
+<span class="nc" id="L60">        this.describe = properties.get(&quot;git.commit.id.describe&quot;).toString();</span>
+<span class="nc" id="L61">        this.describeShort = properties.get(&quot;git.commit.id.describe-short&quot;).toString();</span>
+<span class="nc" id="L62">        this.commitUserName = properties.get(&quot;git.commit.user.name&quot;).toString();</span>
+<span class="nc" id="L63">        this.commitUserEmail = properties.get(&quot;git.commit.user.email&quot;).toString();</span>
+<span class="nc" id="L64">        this.commitMessageFull = properties.get(&quot;git.commit.message.full&quot;).toString();</span>
+<span class="nc" id="L65">        this.commitMessageShort = properties.get(&quot;git.commit.message.short&quot;).toString();</span>
+<span class="nc" id="L66">        this.commitTime = properties.get(&quot;git.commit.time&quot;).toString();</span>
+<span class="nc" id="L67">        this.closestTagName = properties.get(&quot;git.closest.tag.name&quot;).toString();</span>
+<span class="nc" id="L68">        this.closestTagCommitCount = properties.get(&quot;git.closest.tag.commit.count&quot;).toString();</span>
+
+<span class="nc" id="L70">        this.buildUserName = properties.get(&quot;git.build.user.name&quot;).toString();</span>
+<span class="nc" id="L71">        this.buildUserEmail = properties.get(&quot;git.build.user.email&quot;).toString();</span>
+<span class="nc" id="L72">        this.buildTime = properties.get(&quot;git.build.time&quot;).toString();</span>
+<span class="nc" id="L73">        this.buildHost = properties.get(&quot;git.build.host&quot;).toString();</span>
+<span class="nc" id="L74">        this.buildVersion = properties.get(&quot;git.build.version&quot;).toString();</span>
+<span class="nc" id="L75">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L79">        return &quot;{\n&quot;</span>
+                + &quot;\ttags : '&quot; + tags + '\'' + &quot;,\n&quot;
+                + &quot;\tbranch : '&quot; + branch + '\'' + &quot;,\n&quot;
+                + &quot;\tdirty : '&quot; + dirty + '\'' + &quot;,\n&quot;
+                + &quot;\tremoteOriginUrl : '&quot; + remoteOriginUrl + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitId : '&quot; + commitId + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitIdAbbrev : '&quot; + commitIdAbbrev + '\'' + &quot;,\n&quot;
+                + &quot;\tdescribe : '&quot; + describe + '\'' + &quot;,\n&quot;
+                + &quot;\tdescribeShort : '&quot; + describeShort + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitUserName : '&quot; + commitUserName + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitUserEmail : '&quot; + commitUserEmail + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitMessageFull : '&quot; + commitMessageFull + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitMessageShort : '&quot; + commitMessageShort + '\'' + &quot;,\n&quot;
+                + &quot;\tcommitTime : '&quot; + commitTime + '\'' + &quot;,\n&quot;
+                + &quot;\tclosestTagName : '&quot; + closestTagName + '\'' + &quot;,\n&quot;
+                + &quot;\tclosestTagCommitCount : '&quot; + closestTagCommitCount + '\'' + &quot;,\n&quot;
+                + &quot;\tbuildUserName : '&quot; + buildUserName + '\'' + &quot;,\n&quot;
+                + &quot;\tbuildUserEmail : '&quot; + buildUserEmail + '\'' + &quot;,\n&quot;
+                + &quot;\tbuildTime : '&quot; + buildTime + '\'' + &quot;,\n&quot;
+                + &quot;\tbuildHost : '&quot; + buildHost + '\'' + &quot;,\n&quot;
+                + &quot;\tbuildVersion : '&quot; + buildVersion + '\'' + &quot;,\n&quot;
+                + '}';
+    }
+
+    /* Generate setters and getters here */
+    public static GitRepositoryState getGitRepositoryState() {
+<span class="nc" id="L105">        return gitRepositoryState;</span>
+    }
+
+    public String getTags() {
+<span class="nc" id="L109">        return tags;</span>
+    }
+
+    public String getBranch() {
+<span class="nc" id="L113">        return branch;</span>
+    }
+
+    public String getDirty() {
+<span class="nc" id="L117">        return dirty;</span>
+    }
+
+    public String getRemoteOriginUrl() {
+<span class="nc" id="L121">        return remoteOriginUrl;</span>
+    }
+
+    public String getCommitId() {
+<span class="nc" id="L125">        return commitId;</span>
+    }
+
+    public String getCommitIdAbbrev() {
+<span class="nc" id="L129">        return commitIdAbbrev;</span>
+    }
+
+    public String getDescribe() {
+<span class="nc" id="L133">        return describe;</span>
+    }
+
+    public String getDescribeShort() {
+<span class="nc" id="L137">        return describeShort;</span>
+    }
+
+    public String getCommitUserName() {
+<span class="nc" id="L141">        return commitUserName;</span>
+    }
+
+    public String getCommitUserEmail() {
+<span class="nc" id="L145">        return commitUserEmail;</span>
+    }
+
+    public String getCommitMessageFull() {
+<span class="nc" id="L149">        return commitMessageFull;</span>
+    }
+
+    public String getCommitMessageShort() {
+<span class="nc" id="L153">        return commitMessageShort;</span>
+    }
+
+    public String getCommitTime() {
+<span class="nc" id="L157">        return commitTime;</span>
+    }
+
+    public String getClosestTagName() {
+<span class="nc" id="L161">        return closestTagName;</span>
+    }
+
+    public String getClosestTagCommitCount() {
+<span class="nc" id="L165">        return closestTagCommitCount;</span>
+    }
+
+    public String getBuildUserName() {
+<span class="nc" id="L169">        return buildUserName;</span>
+    }
+
+    public String getBuildUserEmail() {
+<span class="nc" id="L173">        return buildUserEmail;</span>
+    }
+
+    public String getBuildTime() {
+<span class="nc" id="L177">        return buildTime;</span>
+    }
+
+    public String getBuildHost() {
+<span class="nc" id="L181">        return buildHost;</span>
+    }
+
+    public String getBuildVersion() {
+<span class="nc" id="L185">        return buildVersion;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

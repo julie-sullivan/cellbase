@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConservedRegionFeature.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.formats</a> &gt; <span class="el_source">ConservedRegionFeature.java</span></div><h1>ConservedRegionFeature.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform.formats;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author lcruz
+ * @since 31/10/2014
+ */
+@Deprecated
+public class ConservedRegionFeature {
+    private String chromosome;
+    private int start;
+    private int end;
+    private int chunk;
+    private List&lt;ConservedRegionSource&gt; sources;
+
+<span class="nc" id="L34">    public ConservedRegionFeature(String chromosome, int start, int end, int chunk) {</span>
+<span class="nc" id="L35">        this.chromosome = chromosome;</span>
+<span class="nc" id="L36">        this.start = start;</span>
+<span class="nc" id="L37">        this.end = end;</span>
+<span class="nc" id="L38">        this.chunk = chunk;</span>
+<span class="nc" id="L39">        this.sources = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L40">    }</span>
+
+    public String getChromosome() {
+<span class="nc" id="L43">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L47">        this.chromosome = chromosome;</span>
+<span class="nc" id="L48">    }</span>
+
+    public int getStart() {
+<span class="nc" id="L51">        return start;</span>
+    }
+
+    public void setStart(int start) {
+<span class="nc" id="L55">        this.start = start;</span>
+<span class="nc" id="L56">    }</span>
+
+    public int getEnd() {
+<span class="nc" id="L59">        return end;</span>
+    }
+
+    public void setEnd(int end) {
+<span class="nc" id="L63">        this.end = end;</span>
+<span class="nc" id="L64">    }</span>
+
+    public int getChunk() {
+<span class="nc" id="L67">        return chunk;</span>
+    }
+
+    public void setChunk(int chunk) {
+<span class="nc" id="L71">        this.chunk = chunk;</span>
+<span class="nc" id="L72">    }</span>
+
+    public List&lt;ConservedRegionSource&gt; getSources() {
+<span class="nc" id="L75">        return sources;</span>
+    }
+
+    public void setSources(List&lt;ConservedRegionSource&gt; sources) {
+<span class="nc" id="L79">        this.sources = sources;</span>
+<span class="nc" id="L80">    }</span>
+
+    public void addSource(String type, List&lt;Float&gt; values) {
+<span class="nc" id="L83">        this.sources.add(new ConservedRegionSource(type, values));</span>
+<span class="nc" id="L84">    }</span>
+
+    public static class ConservedRegionSource {
+        private String type;
+        private List&lt;Float&gt; values;
+
+<span class="nc" id="L90">        public ConservedRegionSource(String type, List&lt;Float&gt; values) {</span>
+<span class="nc" id="L91">            this.type = type;</span>
+<span class="nc" id="L92">            this.values = values;</span>
+<span class="nc" id="L93">        }</span>
+
+        public String getType() {
+<span class="nc" id="L96">            return type;</span>
+        }
+
+        public void setType(String type) {
+<span class="nc" id="L100">            this.type = type;</span>
+<span class="nc" id="L101">        }</span>
+
+        public List&lt;Float&gt; getValues() {
+<span class="nc" id="L104">            return values;</span>
+        }
+
+        public void setValues(List&lt;Float&gt; values) {
+<span class="nc" id="L108">            this.values = values;</span>
+<span class="nc" id="L109">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

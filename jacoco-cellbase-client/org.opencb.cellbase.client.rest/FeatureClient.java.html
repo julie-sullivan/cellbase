@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeatureClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.rest</a> &gt; <span class="el_source">FeatureClient.java</span></div><h1>FeatureClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.rest;
+
+import org.opencb.cellbase.client.config.ClientConfiguration;
+import org.opencb.cellbase.client.rest.models.GroupByFields;
+import org.opencb.cellbase.client.rest.models.GroupCount;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResponse;
+
+import java.io.IOException;
+
+/**
+ * Created by swaathi on 20/05/16.
+ */
+public class FeatureClient&lt;T&gt; extends ParentRestClient&lt;T&gt; {
+
+    public FeatureClient(String species, String assembly, ClientConfiguration configuration) {
+<span class="fc" id="L18">        super(species, assembly, configuration);</span>
+<span class="fc" id="L19">    }</span>
+
+
+    public  QueryResponse&lt;T&gt; next(String id) throws IOException {
+<span class="nc" id="L23">        return execute(id, &quot;next&quot;, null, clazz);</span>
+    }
+
+    public QueryResponse&lt;T&gt; search(Query query, QueryOptions queryOptions) throws IOException {
+<span class="fc" id="L27">        return execute(&quot;search&quot;, query, queryOptions, clazz);</span>
+    }
+
+    public QueryResponse&lt;GroupByFields&gt; group(Query query, QueryOptions queryOptions) throws IOException {
+<span class="fc" id="L31">        return execute(&quot;group&quot;, query, queryOptions, GroupByFields.class);</span>
+    }
+
+    public QueryResponse&lt;GroupCount&gt; groupCount(Query query, QueryOptions queryOptions) throws IOException {
+<span class="fc" id="L35">        return execute(&quot;group&quot;, query, queryOptions, GroupCount.class);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

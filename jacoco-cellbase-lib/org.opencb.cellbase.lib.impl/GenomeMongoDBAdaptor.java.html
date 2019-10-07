@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenomeMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">GenomeMongoDBAdaptor.java</span></div><h1>GenomeMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.MongoClient;
+import com.mongodb.QueryBuilder;
+import com.mongodb.client.model.Filters;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.variant.avro.Cytoband;
+import org.opencb.cellbase.core.api.GenomeDBAdaptor;
+import org.opencb.cellbase.core.common.DNASequenceUtils;
+import org.opencb.biodata.models.core.GenomeSequenceFeature;
+import org.opencb.biodata.models.core.GenomicScoreRegion;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+/**
+ * Created by imedina on 07/12/15.
+ */
+public class GenomeMongoDBAdaptor extends MongoDBAdaptor implements GenomeDBAdaptor {
+
+    private MongoDBCollection genomeInfoMongoDBCollection;
+    private MongoDBCollection conservationMongoDBCollection;
+<span class="fc" id="L47">    private static final Object CYTOBANDS = &quot;cytobands&quot;;</span>
+<span class="fc" id="L48">    private static final Object START = &quot;start&quot;;</span>
+    private static final String END = &quot;end&quot;;
+    private static final String STAIN = &quot;stain&quot;;
+    private static final String NAME = &quot;name&quot;;
+<span class="fc" id="L52">    private static final Object CHROMOSOMES = &quot;chromosomes&quot;;</span>
+<span class="fc" id="L53">    private Document genomeInfo = null;</span>
+
+    public GenomeMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L56">        super(species, assembly, mongoDataStore);</span>
+
+<span class="fc" id="L58">        genomeInfoMongoDBCollection = mongoDataStore.getCollection(&quot;genome_info&quot;);</span>
+<span class="fc" id="L59">        mongoDBCollection = mongoDataStore.getCollection(&quot;genome_sequence&quot;);</span>
+<span class="fc" id="L60">        conservationMongoDBCollection = mongoDataStore.getCollection(&quot;conservation&quot;);</span>
+
+<span class="fc" id="L62">        logger.debug(&quot;GenomeMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L63">    }</span>
+
+    @Override
+    public QueryResult getGenomeInfo(QueryOptions queryOptions) {
+<span class="nc" id="L67">        return genomeInfoMongoDBCollection.find(new Document(), queryOptions);</span>
+//        return genomeInfoMongoDBCollection.find(new Document(), new QueryOptions());
+    }
+
+    @Override
+    public QueryResult getChromosomeInfo(String chromosomeId, QueryOptions queryOptions) {
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (queryOptions == null) {</span>
+<span class="nc" id="L74">            queryOptions = new QueryOptions(&quot;include&quot;, Collections.singletonList(&quot;chromosomes.$&quot;));</span>
+        } else {
+<span class="fc" id="L76">            queryOptions.addToListOption(&quot;include&quot;, &quot;chromosomes.$&quot;);</span>
+        }
+<span class="fc" id="L78">        Document dbObject = new Document(&quot;chromosomes&quot;, new Document(&quot;$elemMatch&quot;, new Document(&quot;name&quot;, chromosomeId)));</span>
+<span class="fc" id="L79">        return executeQuery(chromosomeId, dbObject, queryOptions, genomeInfoMongoDBCollection);</span>
+    }
+
+    @Override
+    public QueryResult&lt;Cytoband&gt; getCytobands(Region region, QueryOptions queryOptions) {
+
+<span class="fc" id="L85">        List&lt;Cytoband&gt; cytobandList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L86">        long dbStartTime = System.currentTimeMillis();</span>
+<span class="fc" id="L87">        long dbTime = System.currentTimeMillis() - dbStartTime;</span>
+<span class="fc" id="L88">        Document chromosomeInfo = getOneChromosomeInfo(region.getChromosome());</span>
+        // May not have info for specified chromosome, e.g. 17_KI270729v1_random
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (chromosomeInfo != null) {</span>
+<span class="fc" id="L91">            List&lt;Document&gt; cytobandDocumentList = (List&lt;Document&gt;) chromosomeInfo.get(CYTOBANDS);</span>
+<span class="fc" id="L92">            int i = 0;</span>
+<span class="fc bfc" id="L93" title="All 4 branches covered.">            while (i &lt; cytobandDocumentList.size() &amp;&amp; ((int) cytobandDocumentList.get(i).get(START)) &lt;= region.getEnd()) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">                if (((int) cytobandDocumentList.get(i).get(END)) &gt;= region.getStart()) {</span>
+<span class="fc" id="L95">                    cytobandList.add(new Cytoband(region.getChromosome(),</span>
+<span class="fc" id="L96">                            (String) cytobandDocumentList.get(i).get(STAIN),</span>
+<span class="fc" id="L97">                            (String) cytobandDocumentList.get(i).get(NAME),</span>
+<span class="fc" id="L98">                            (Integer) cytobandDocumentList.get(i).get(START),</span>
+<span class="fc" id="L99">                            (Integer) cytobandDocumentList.get(i).get(END)));</span>
+                }
+<span class="fc" id="L101">                i++;</span>
+            }
+        }
+<span class="fc" id="L104">        QueryResult queryResult = new QueryResult(region.toString(), (int) dbTime, cytobandList.size(),</span>
+<span class="fc" id="L105">                cytobandList.size(), null, null, cytobandList);</span>
+
+<span class="fc" id="L107">        return queryResult;</span>
+
+    }
+
+    private Document getOneChromosomeInfo(String chromosome) {
+<span class="fc" id="L112">        Document genomeInfoVariable = getGenomeInfoVariable();</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if (genomeInfoVariable != null) {</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            for (Document document : (List&lt;Document&gt;) genomeInfoVariable.get(CHROMOSOMES)) {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                if (document.get(NAME).equals(chromosome)) {</span>
+<span class="fc" id="L116">                    return document;</span>
+                }
+<span class="fc" id="L118">            }</span>
+        }
+<span class="nc" id="L120">        return null;</span>
+    }
+
+    private Document getGenomeInfoVariable() {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (genomeInfo == null) {</span>
+<span class="fc" id="L125">            QueryResult&lt;Document&gt; queryResult = genomeInfoMongoDBCollection.find(new Document(), null);</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            if (queryResult.getNumResults() &gt; 0) {</span>
+<span class="fc" id="L127">                genomeInfo = genomeInfoMongoDBCollection.find(new Document(), null).getResult().get(0);</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">                for (Document chromosomeDocument : (List&lt;Document&gt;) genomeInfo.get(CHROMOSOMES)) {</span>
+<span class="fc" id="L129">                    ((List&lt;Document&gt;) chromosomeDocument.get(CYTOBANDS))</span>
+<span class="fc" id="L130">                            .sort((c1, c2) -&gt; Integer.compare((int) c1.get(START), (int) c2.get(START)));</span>
+<span class="fc" id="L131">                }</span>
+            }
+        }
+<span class="fc" id="L134">        return genomeInfo;</span>
+    }
+
+    @Deprecated
+    @Override
+    public QueryResult&lt;GenomeSequenceFeature&gt; getGenomicSequence(Query query, QueryOptions queryOptions) {
+//        QueryResult&lt;Document&gt; queryResult = nativeGet(query, queryOptions);
+//        List&lt;Document&gt; queryResultList = queryResult.getResult();
+//
+//        QueryResult&lt;GenomeSequenceFeature&gt; result = new QueryResult&lt;&gt;();
+//
+//        if (queryResultList != null &amp;&amp; !queryResultList.isEmpty()) {
+//            Region region = Region.parseRegion(query.getString(QueryParams.REGION.key()));
+//
+//            StringBuilder stringBuilder = new StringBuilder();
+//            for (Document document : queryResult.getResult()) {
+//                stringBuilder.append(document.getString(&quot;sequence&quot;));
+//            }
+//            int startIndex = region.getStart() % MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE;
+//            int length = region.getEnd() - region.getStart() + 1;
+//            String sequence = stringBuilder.toString().substring(startIndex, startIndex + length);
+//
+//            String strand = &quot;1&quot;;
+//            String queryStrand= (query.getString(&quot;strand&quot;) != null) ? query.getString(&quot;strand&quot;) : &quot;1&quot;;
+//            if (queryStrand.equals(&quot;-1&quot;) || queryStrand.equals(&quot;-&quot;)) {
+//                sequence = DNASequenceUtils.reverseComplement(sequence);
+//                strand = &quot;-1&quot;;
+//            }
+//
+//            String sequenceType = queryResult.getResult().get(0).getString(&quot;sequenceType&quot;);
+//            String assembly = queryResult.getResult().get(0).getString(&quot;assembly&quot;);
+//
+//            result.setResult(Collections.singletonList(new GenomeSequenceFeature(
+//              region.getChromosome(), region.getStart(), region.getEnd(), Integer.parseInt(strand), sequenceType, assembly, sequence)
+//            ));
+//        }
+
+<span class="fc" id="L171">        return getSequence(Region.parseRegion(query.getString(QueryParams.REGION.key())), queryOptions);</span>
+    }
+
+    @Override
+    public QueryResult&lt;GenomeSequenceFeature&gt; getSequence(Region region, QueryOptions queryOptions) {
+<span class="fc" id="L176">        Query query = new Query(QueryParams.REGION.key(), region.toString());</span>
+<span class="fc" id="L177">        QueryResult&lt;Document&gt; queryResult = nativeGet(query, queryOptions);</span>
+<span class="fc" id="L178">        List&lt;Document&gt; queryResultList = queryResult.getResult();</span>
+
+<span class="fc" id="L180">        QueryResult&lt;GenomeSequenceFeature&gt; result = new QueryResult&lt;&gt;(region.toString());</span>
+
+<span class="pc bpc" id="L182" title="1 of 4 branches missed.">        if (queryResultList != null &amp;&amp; !queryResultList.isEmpty()) {</span>
+//            Region region = Region.parseRegion(query.getString(QueryParams.REGION.key()));
+
+<span class="fc" id="L185">            StringBuilder stringBuilder = new StringBuilder();</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">            for (Document document : queryResult.getResult()) {</span>
+<span class="fc" id="L187">                stringBuilder.append(document.getString(&quot;sequence&quot;));</span>
+<span class="fc" id="L188">            }</span>
+
+            // The first chunk does contain 1 nt less than the rest and is 0-indexed - The rest of chunks contain
+            // GENOME_SEQUENCE_CHUNK_SIZE nts and are 1 indexed (position 0 contains the GENOME_SEQUENCE_CHUNK_SIZE) nt
+<span class="fc bfc" id="L192" title="All 2 branches covered.">            int startIndex = (region.getStart() &lt; MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE)</span>
+<span class="fc" id="L193">                    ? (region.getStart() - 1) % MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE</span>
+<span class="fc" id="L194">                    : region.getStart() % MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE;</span>
+<span class="fc" id="L195">            int length = region.getEnd() - region.getStart() + 1;</span>
+            // If end is out of the right boundary, there will be no chunks containing the right boundary. This means the
+            // length of stringBuilder will be &lt; than &quot;end&quot;, since the for above will have just appended the chunks
+            // available
+<span class="fc" id="L199">            String sequence = stringBuilder</span>
+<span class="fc" id="L200">                    .toString()</span>
+<span class="fc" id="L201">                    .substring(startIndex, Math.min(startIndex + length, stringBuilder.length()));</span>
+
+<span class="fc" id="L203">            String strand = &quot;1&quot;;</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">            String queryStrand= (query.getString(&quot;strand&quot;) != null) ? query.getString(&quot;strand&quot;) : &quot;1&quot;;</span>
+<span class="pc bpc" id="L205" title="2 of 4 branches missed.">            if (queryStrand.equals(&quot;-1&quot;) || queryStrand.equals(&quot;-&quot;)) {</span>
+<span class="nc" id="L206">                sequence = DNASequenceUtils.reverseComplement(sequence);</span>
+<span class="nc" id="L207">                strand = &quot;-1&quot;;</span>
+            }
+
+<span class="fc" id="L210">            String sequenceType = queryResult.getResult().get(0).getString(&quot;sequenceType&quot;);</span>
+<span class="fc" id="L211">            String assembly = queryResult.getResult().get(0).getString(&quot;assembly&quot;);</span>
+
+<span class="fc" id="L213">            result.setResult(Collections.singletonList(new GenomeSequenceFeature(</span>
+<span class="fc" id="L214">                    region.getChromosome(), region.getStart(), region.getEnd(), Integer.parseInt(strand), sequenceType, assembly, sequence)</span>
+            ));
+        }
+
+<span class="fc" id="L218">        return result;</span>
+    }
+
+    @Override
+//    public List&lt;QueryResult&lt;ConservationScoreRegion&gt;&gt; getConservation(List&lt;Region&gt; regionList, QueryOptions options) {
+    public List&lt;QueryResult&lt;GenomicScoreRegion&lt;Float&gt;&gt;&gt; getConservation(List&lt;Region&gt; regionList, QueryOptions options) {
+        //TODO not finished yet
+<span class="nc" id="L225">        List&lt;Document&gt; queries = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L226">        List&lt;String&gt; ids = new ArrayList&lt;&gt;(regionList.size());</span>
+        List&lt;String&gt; integerChunkIds;
+
+<span class="nc" id="L229">        List&lt;Region&gt; regions = regionList;</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        for (Region region : regions) {</span>
+<span class="nc" id="L231">            integerChunkIds = new ArrayList&lt;&gt;();</span>
+            // positions below 1 are not allowed
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (region.getStart() &lt; 1) {</span>
+<span class="nc" id="L234">                region.setStart(1);</span>
+            }
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            if (region.getEnd() &lt; 1) {</span>
+<span class="nc" id="L237">                region.setEnd(1);</span>
+            }
+
+            // Max region size is 10000bp
+<span class="nc bnc" id="L241" title="All 2 branches missed.">            if (region.getEnd() - region.getStart() &gt; 10000) {</span>
+<span class="nc" id="L242">                region.setEnd(region.getStart() + 10000);</span>
+            }
+
+            QueryBuilder builder;
+<span class="nc" id="L246">            int regionChunkStart = getChunkId(region.getStart(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="nc" id="L247">            int regionChunkEnd = getChunkId(region.getEnd(), MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if (regionChunkStart == regionChunkEnd) {</span>
+<span class="nc" id="L249">                builder = QueryBuilder.start(&quot;_chunkIds&quot;)</span>
+<span class="nc" id="L250">                        .is(getChunkIdPrefix(region.getChromosome(), region.getStart(),</span>
+                                MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE));
+            } else {
+//                for (int chunkId = regionChunkStart; chunkId &lt;= regionChunkEnd; chunkId++) {
+////                    integerChunkIds.add(chunkId);
+//                    integerChunkIds.add(region.getChromosomeInfo() + &quot;_&quot; + chunkId + &quot;_&quot; + this.chunkSize/1000 + &quot;k&quot;);
+//                }
+//                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(integerChunkIds);
+<span class="nc" id="L258">                builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosome()).and(&quot;end&quot;)</span>
+<span class="nc" id="L259">                        .greaterThanEquals(region.getStart()).and(&quot;start&quot;).lessThanEquals(region.getEnd());</span>
+            }
+//            QueryBuilder builder = QueryBuilder.start(&quot;chromosome&quot;).is(region.getChromosomeInfo()).and(&quot;chunkId&quot;).in(hunkIds);
+            /****/
+
+<span class="nc" id="L264">            queries.add(new Document(builder.get().toMap()));</span>
+<span class="nc" id="L265">            ids.add(region.toString());</span>
+<span class="nc" id="L266">        }</span>
+
+<span class="nc" id="L268">        List&lt;QueryResult&gt; queryResults = executeQueryList2(ids, queries, options, conservationMongoDBCollection);</span>
+//        List&lt;QueryResult&lt;ConservationScoreRegion&gt;&gt; conservationQueryResults = new ArrayList&lt;&gt;();
+<span class="nc" id="L270">        List&lt;QueryResult&lt;GenomicScoreRegion&lt;Float&gt;&gt;&gt; conservationQueryResults = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        for (int i = 0; i &lt; regions.size(); i++) {</span>
+<span class="nc" id="L273">            Region region = regions.get(i);</span>
+<span class="nc" id="L274">            QueryResult queryResult = queryResults.get(i);</span>
+//            QueryResult&lt;ConservationScoreRegion&gt; conservationQueryResult = new QueryResult&lt;&gt;();
+<span class="nc" id="L276">            QueryResult&lt;GenomicScoreRegion&lt;Float&gt;&gt; conservationQueryResult = new QueryResult&lt;&gt;();</span>
+
+//            BasicDBList list = (BasicDBList) queryResult.getResult();
+<span class="nc" id="L279">            List list = queryResult.getResult();</span>
+
+<span class="nc" id="L281">            Map&lt;String, List&lt;Float&gt;&gt; typeMap = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            for (int j = 0; j &lt; list.size(); j++) {</span>
+<span class="nc" id="L283">                Document chunk = (Document) list.get(j);</span>
+<span class="nc" id="L284">                String source = chunk.getString(&quot;source&quot;);</span>
+                List&lt;Float&gt; valuesList;
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                if (!typeMap.containsKey(source)) {</span>
+<span class="nc" id="L287">                    valuesList = new ArrayList&lt;&gt;(region.getEnd() - region.getStart() + 1);</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                    for (int val = 0; val &lt; region.getEnd() - region.getStart() + 1; val++) {</span>
+<span class="nc" id="L289">                        valuesList.add(null);</span>
+                    }
+<span class="nc" id="L291">                    typeMap.put(source, valuesList);</span>
+                } else {
+<span class="nc" id="L293">                    valuesList = typeMap.get(source);</span>
+                }
+
+//                BasicDBList valuesChunk = (BasicDBList) chunk.get(&quot;values&quot;);
+<span class="nc" id="L297">                ArrayList valuesChunk = chunk.get(&quot;values&quot;, ArrayList.class);</span>
+
+<span class="nc" id="L299">                int pos = 0;</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                if (region.getStart() &gt; chunk.getInteger(&quot;start&quot;)) {</span>
+<span class="nc" id="L301">                    pos = region.getStart() - chunk.getInteger(&quot;start&quot;);</span>
+                }
+
+<span class="nc bnc" id="L304" title="All 4 branches missed.">                for (; pos &lt; valuesChunk.size() &amp;&amp; (pos + chunk.getInteger(&quot;start&quot;) &lt;= region.getEnd()); pos++) {</span>
+<span class="nc" id="L305">                    valuesList.set(pos + chunk.getInteger(&quot;start&quot;) - region.getStart(), new Float((Double) valuesChunk.get(pos)));</span>
+                }
+            }
+
+//            BasicDBList resultList = new BasicDBList();
+//            List&lt;ConservationScoreRegion&gt; resultList = new ArrayList&lt;&gt;();
+<span class="nc" id="L311">            List&lt;GenomicScoreRegion&lt;Float&gt;&gt; resultList = new ArrayList&lt;&gt;();</span>
+//            ConservationScoreRegion conservedRegionChunk;
+            GenomicScoreRegion&lt;Float&gt; conservedRegionChunk;
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            for (Map.Entry&lt;String, List&lt;Float&gt;&gt; elem : typeMap.entrySet()) {</span>
+//                conservedRegionChunk = new ConservationScoreRegion(region.getChromosome(), region.getStart(), region.getEnd(),
+//                        elem.getKey(), elem.getValue());
+<span class="nc" id="L317">                conservedRegionChunk = new GenomicScoreRegion&lt;&gt;(region.getChromosome(), region.getStart(), region.getEnd(),</span>
+<span class="nc" id="L318">                        elem.getKey(), elem.getValue());</span>
+<span class="nc" id="L319">                resultList.add(conservedRegionChunk);</span>
+<span class="nc" id="L320">            }</span>
+//            queryResult.setResult(resultList);
+<span class="nc" id="L322">            conservationQueryResult.setResult(resultList);</span>
+<span class="nc" id="L323">            conservationQueryResults.add(conservationQueryResult);</span>
+        }
+
+<span class="nc" id="L326">        return conservationQueryResults;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L331">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L336">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L337">        return mongoDBCollection.count(bson);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L342">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L343">        return mongoDBCollection.distinct(field, bson);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L348">        return null;</span>
+    }
+
+    @Override
+    public QueryResult get(Query query, QueryOptions options) {
+<span class="nc" id="L353">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="fc" id="L358">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L359">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L360">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator iterator(Query query, QueryOptions options) {
+<span class="nc" id="L365">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L370">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L371">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L376">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L381">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List fields, QueryOptions options) {
+<span class="nc" id="L386">        return null;</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer action, QueryOptions options) {
+
+<span class="nc" id="L392">    }</span>
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L395">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L397">        createRegionQuery(query, GenomeDBAdaptor.QueryParams.REGION.key(),</span>
+                MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE, andBsonList);
+
+<span class="pc bpc" id="L400" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L401">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L403">            return new Document();</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

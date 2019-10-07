@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QueryCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">QueryCommandExecutor.java</span></div><h1>QueryCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.opencb.cellbase.core.api.*;
+import org.opencb.biodata.models.core.GenomeSequenceFeature;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Iterator;
+
+/**
+ * Created by imedina on 20/02/15.
+ *
+ * @author Javier Lopez fjlopez@ebi.ac.uk;
+ */
+public class QueryCommandExecutor extends CommandExecutor {
+
+    private DBAdaptorFactory dbAdaptorFactory;
+
+    private CliOptionsParser.QueryCommandOptions queryCommandOptions;
+
+    private ObjectMapper objectMapper;
+    private Path outputFile;
+
+    public QueryCommandExecutor(CliOptionsParser.QueryCommandOptions queryCommandOptions) {
+<span class="nc" id="L49">        super(queryCommandOptions.commonOptions.logLevel, queryCommandOptions.commonOptions.verbose,</span>
+                queryCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L52">        this.queryCommandOptions = queryCommandOptions;</span>
+<span class="nc" id="L53">        objectMapper = new ObjectMapper();</span>
+<span class="nc" id="L54">    }</span>
+
+
+    @Override
+    public void execute() {
+<span class="nc" id="L59">        dbAdaptorFactory = new org.opencb.cellbase.lib.impl.MongoDBAdaptorFactory(configuration);</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if (queryCommandOptions.limit == 0) {</span>
+<span class="nc" id="L62">            queryCommandOptions.limit = 10;</span>
+        }
+
+<span class="nc" id="L65">        Query query = createQuery();</span>
+<span class="nc" id="L66">        QueryOptions queryOptions = createQueryOptions();</span>
+
+<span class="nc" id="L68">        PrintStream output = System.out;</span>
+<span class="nc bnc" id="L69" title="All 4 branches missed.">        if (queryCommandOptions.output != null &amp;&amp; !queryCommandOptions.output.isEmpty()) {</span>
+<span class="nc" id="L70">            outputFile = Paths.get(queryCommandOptions.output);</span>
+<span class="nc bnc" id="L71" title="All 4 branches missed.">            if (Files.exists(outputFile.getParent()) &amp;&amp; Files.isDirectory(outputFile.getParent())) {</span>
+                try {
+<span class="nc" id="L73">                    output = new PrintStream(outputFile.toString());</span>
+<span class="nc" id="L74">                } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L75">                    e.printStackTrace();</span>
+<span class="nc" id="L76">                }</span>
+            }
+        }
+
+
+        try {
+<span class="nc bnc" id="L82" title="All 30 branches missed.">            switch (queryCommandOptions.category) {</span>
+                case &quot;genome&quot;:
+<span class="nc" id="L84">                    executeGenomeQuery(query, queryOptions, output);</span>
+<span class="nc" id="L85">                    break;</span>
+                case &quot;gene&quot;:
+<span class="nc" id="L87">                    executeGeneQuery(query, queryOptions, output);</span>
+<span class="nc" id="L88">                    break;</span>
+                case &quot;variation&quot;:
+<span class="nc" id="L90">                    executeVariationQuery(query, queryOptions, output);</span>
+<span class="nc" id="L91">                    break;</span>
+                case &quot;protein&quot;:
+<span class="nc" id="L93">                    executeProteinQuery(query, queryOptions, output);</span>
+<span class="nc" id="L94">                    break;</span>
+                case &quot;regulatory_region&quot;:
+<span class="nc" id="L96">                    executeRegulatoryRegionQuery(query, queryOptions, output);</span>
+<span class="nc" id="L97">                    break;</span>
+                case &quot;transcript&quot;:
+<span class="nc" id="L99">                    executeTranscriptQuery(query, queryOptions, output);</span>
+<span class="nc" id="L100">                    break;</span>
+                case &quot;conservation&quot;:
+<span class="nc" id="L102">                    break;</span>
+                default:
+                    break;
+            }
+<span class="nc" id="L106">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L107">            e.printStackTrace();</span>
+<span class="nc" id="L108">        }</span>
+
+<span class="nc" id="L110">        output.close();</span>
+<span class="nc" id="L111">    }</span>
+
+    private void executeGenomeQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L114">        GenomeDBAdaptor genomeDBAdaptor = dbAdaptorFactory.getGenomeDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L117" title="All 10 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L119">                    genomeDBAdaptor.getGenomeInfo(queryOptions);</span>
+<span class="nc" id="L120">                    break;</span>
+                case &quot;sequence&quot;:
+<span class="nc" id="L122">                    QueryResult&lt;GenomeSequenceFeature&gt; genomicSequence = genomeDBAdaptor.getGenomicSequence(query, queryOptions);</span>
+<span class="nc" id="L123">                    output.println(objectMapper.writeValueAsString(genomicSequence));</span>
+<span class="nc" id="L124">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L129">    }</span>
+
+
+    private void executeGeneQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L133">        GeneDBAdaptor geneDBAdaptor = dbAdaptorFactory.getGeneDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc" id="L135">        executeFeatureAggregation(geneDBAdaptor, query, queryOptions, output);</span>
+
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L138" title="All 10 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L140">                    query.append(GeneDBAdaptor.QueryParams.ID.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L141">                    Iterator iterator = geneDBAdaptor.nativeIterator(query, queryOptions);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L143">                        Object next = iterator.next();</span>
+<span class="nc" id="L144">                        output.println(objectMapper.writeValueAsString(next));</span>
+<span class="nc" id="L145">                    }</span>
+                    break;
+                case &quot;variation&quot;:
+<span class="nc" id="L148">                    VariantDBAdaptor variantDBAdaptor = dbAdaptorFactory.getVariationDBAdaptor(queryCommandOptions.species);</span>
+<span class="nc" id="L149">                    query.append(VariantDBAdaptor.QueryParams.GENE.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L150">                    variantDBAdaptor.forEach(query, entry -&gt; {</span>
+                        try {
+<span class="nc" id="L152">                            output.println(objectMapper.writeValueAsString(entry));</span>
+<span class="nc" id="L153">                        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L154">                            e.printStackTrace();</span>
+<span class="nc" id="L155">                        }</span>
+<span class="nc" id="L156">                    }, queryOptions);</span>
+<span class="nc" id="L157">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L162">    }</span>
+
+    private void executeVariationQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L165">        VariantDBAdaptor variantDBAdaptor = dbAdaptorFactory.getVariationDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc" id="L167">        executeFeatureAggregation(variantDBAdaptor, query, queryOptions, output);</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L170" title="All 6 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L172">                    query.append(VariantDBAdaptor.QueryParams.ID.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L173">                    Iterator iterator = variantDBAdaptor.nativeIterator(query, queryOptions);</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L175">                        Object next = iterator.next();</span>
+<span class="nc" id="L176">                        output.println(objectMapper.writeValueAsString(next));</span>
+<span class="nc" id="L177">                    }</span>
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L183">    }</span>
+
+    private void executeProteinQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L186">        ProteinDBAdaptor proteinDBAdaptor = dbAdaptorFactory.getProteinDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc bnc" id="L188" title="All 4 branches missed.">        if (queryCommandOptions.distinct != null &amp;&amp; !queryCommandOptions.distinct.isEmpty()) {</span>
+<span class="nc" id="L189">            QueryResult distinct = proteinDBAdaptor.distinct(query, queryCommandOptions.distinct);</span>
+<span class="nc" id="L190">            output.println(objectMapper.writeValueAsString(distinct));</span>
+<span class="nc" id="L191">            return;</span>
+        }
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if (queryCommandOptions.count) {</span>
+<span class="nc" id="L195">            QueryResult count = proteinDBAdaptor.count(query);</span>
+<span class="nc" id="L196">            output.println(objectMapper.writeValueAsString(count));</span>
+<span class="nc" id="L197">            return;</span>
+        }
+
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L201" title="All 10 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L203">                    query.append(ProteinDBAdaptor.QueryParams.NAME.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L204">                    Iterator iterator = proteinDBAdaptor.nativeIterator(query, queryOptions);</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L206">                        Object next = iterator.next();</span>
+<span class="nc" id="L207">                        output.println(objectMapper.writeValueAsString(next));</span>
+<span class="nc" id="L208">                    }</span>
+                    break;
+                case &quot;substitution-scores&quot;:
+<span class="nc" id="L211">                    QueryResult substitutionScores = proteinDBAdaptor.getSubstitutionScores(query, queryOptions);</span>
+<span class="nc" id="L212">                    output.println(objectMapper.writeValueAsString(substitutionScores));</span>
+<span class="nc" id="L213">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L218">    }</span>
+
+
+
+
+    private void executeRegulatoryRegionQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L224">        RegulationDBAdaptor regulationDBAdaptor = dbAdaptorFactory.getRegulationDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L227" title="All 6 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L229">                    query.append(RegulationDBAdaptor.QueryParams.NAME.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L230">                    Iterator iterator = regulationDBAdaptor.nativeIterator(query, queryOptions);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L232">                        Object next = iterator.next();</span>
+<span class="nc" id="L233">                        output.println(objectMapper.writeValueAsString(next));</span>
+<span class="nc" id="L234">                    }</span>
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L240">    }</span>
+
+    private void executeTranscriptQuery(Query query, QueryOptions queryOptions, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L243">        TranscriptDBAdaptor transcriptDBAdaptor = dbAdaptorFactory.getTranscriptDBAdaptor(queryCommandOptions.species);</span>
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if (queryCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L246" title="All 6 branches missed.">            switch (queryCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L248">                    query.append(TranscriptDBAdaptor.QueryParams.ID.key(), queryCommandOptions.id);</span>
+<span class="nc" id="L249">                    Iterator iterator = transcriptDBAdaptor.nativeIterator(query, queryOptions);</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L251">                        Object next = iterator.next();</span>
+<span class="nc" id="L252">                        output.println(objectMapper.writeValueAsString(next));</span>
+<span class="nc" id="L253">                    }</span>
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L259">    }</span>
+
+    private void executeFeatureAggregation(FeatureDBAdaptor featureDBAdaptor, Query query, QueryOptions queryOptions, PrintStream output)
+            throws JsonProcessingException {
+
+<span class="nc bnc" id="L264" title="All 4 branches missed.">        if (queryCommandOptions.distinct != null &amp;&amp; !queryCommandOptions.distinct.isEmpty()) {</span>
+<span class="nc" id="L265">            QueryResult distinct = featureDBAdaptor.distinct(query, queryCommandOptions.distinct);</span>
+<span class="nc" id="L266">            output.println(objectMapper.writeValueAsString(distinct));</span>
+<span class="nc" id="L267">            return;</span>
+        }
+
+<span class="nc bnc" id="L270" title="All 4 branches missed.">        if (queryCommandOptions.groupBy != null &amp;&amp; !queryCommandOptions.groupBy.isEmpty()) {</span>
+<span class="nc" id="L271">            QueryResult groupBy = featureDBAdaptor.groupBy(query, queryCommandOptions.groupBy, queryOptions);</span>
+<span class="nc" id="L272">            output.println(objectMapper.writeValueAsString(groupBy));</span>
+<span class="nc" id="L273">            return;</span>
+        }
+
+<span class="nc bnc" id="L276" title="All 4 branches missed.">        if (queryCommandOptions.rank != null &amp;&amp; !queryCommandOptions.rank.isEmpty()) {</span>
+<span class="nc" id="L277">            QueryResult rank = featureDBAdaptor.rank(query, queryCommandOptions.rank, queryCommandOptions.limit, true);</span>
+<span class="nc" id="L278">            output.println(objectMapper.writeValueAsString(rank));</span>
+<span class="nc" id="L279">            return;</span>
+        }
+
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        if (queryCommandOptions.count) {</span>
+<span class="nc" id="L283">            QueryResult count = featureDBAdaptor.count(query);</span>
+<span class="nc" id="L284">            output.println(objectMapper.writeValueAsString(count));</span>
+<span class="nc" id="L285">            return;</span>
+        }
+
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        if (queryCommandOptions.histogram) {</span>
+<span class="nc" id="L289">            QueryResult histogram = featureDBAdaptor.getIntervalFrequencies(query, queryCommandOptions.interval, queryOptions);</span>
+<span class="nc" id="L290">            output.println(objectMapper.writeValueAsString(histogram));</span>
+<span class="nc" id="L291">            return;</span>
+        }
+
+<span class="nc" id="L294">    }</span>
+
+    private Query createQuery() {
+<span class="nc" id="L297">        Query query = new Query();</span>
+
+        // we first append region CLI parameter, if specified in 'options' it will be overwritten
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        if (queryCommandOptions.region != null) {</span>
+<span class="nc" id="L301">            query.append(&quot;region&quot;, queryCommandOptions.region);</span>
+        }
+
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        for (String key : queryCommandOptions.options.keySet()) {</span>
+<span class="nc" id="L305">            query.append(key, queryCommandOptions.options.get(key));</span>
+<span class="nc" id="L306">        }</span>
+<span class="nc" id="L307">        return query;</span>
+    }
+
+    private QueryOptions createQueryOptions() {
+<span class="nc" id="L311">        QueryOptions queryOptions = new QueryOptions();</span>
+<span class="nc" id="L312">        queryOptions.append(&quot;include&quot;, queryCommandOptions.include);</span>
+<span class="nc bnc" id="L313" title="All 4 branches missed.">        if (queryCommandOptions.exclude != null &amp;&amp; !queryCommandOptions.exclude.isEmpty()) {</span>
+<span class="nc" id="L314">            queryOptions.append(&quot;exclude&quot;, queryCommandOptions.exclude + &quot;,_id,_chunkIds&quot;);</span>
+        } else {
+<span class="nc" id="L316">            queryOptions.append(&quot;exclude&quot;, &quot;_id,_chunkIds&quot;);</span>
+        }
+<span class="nc" id="L318">        queryOptions.append(&quot;skip&quot;, queryCommandOptions.skip);</span>
+<span class="nc" id="L319">        queryOptions.append(&quot;limit&quot;, queryCommandOptions.limit);</span>
+<span class="nc" id="L320">        queryOptions.append(&quot;count&quot;, queryCommandOptions.count);</span>
+<span class="nc" id="L321">        return queryOptions;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HgvsCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation.hgvs</a> &gt; <span class="el_source">HgvsCalculator.java</span></div><h1>HgvsCalculator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation.hgvs;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.core.Exon;
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.biodata.models.core.Transcript;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+import org.opencb.cellbase.core.api.GenomeDBAdaptor;
+import org.opencb.cellbase.core.variant.annotation.UnsupportedURLVariantFormat;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 26/01/17.
+ */
+public class HgvsCalculator {
+
+<span class="nc" id="L25">    private static Logger logger = LoggerFactory.getLogger(HgvsCalculator.class);</span>
+    protected static final int NEIGHBOURING_SEQUENCE_SIZE = 100;
+    protected GenomeDBAdaptor genomeDBAdaptor;
+
+<span class="nc" id="L29">    public HgvsCalculator(GenomeDBAdaptor genomeDBAdaptor) {</span>
+<span class="nc" id="L30">        this.genomeDBAdaptor = genomeDBAdaptor;</span>
+<span class="nc" id="L31">    }</span>
+
+    // If allele is greater than this use allele length.
+    private static final int MAX_ALLELE_LENGTH = 4;
+
+<span class="nc" id="L36">    private static final VariantNormalizer NORMALIZER = new VariantNormalizer(false, false,</span>
+            false);
+
+
+    public List&lt;String&gt; run(Variant variant, List&lt;Gene&gt; geneList) {
+<span class="nc" id="L41">        return this.run(variant, geneList, true);</span>
+    }
+
+    public List&lt;String&gt; run(Variant variant, List&lt;Gene&gt; geneList, boolean normalize) {
+<span class="nc" id="L45">        List&lt;String&gt; hgvsList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        for (Gene gene : geneList) {</span>
+<span class="nc" id="L47">            hgvsList.addAll(this.run(variant, gene, normalize));</span>
+<span class="nc" id="L48">        }</span>
+
+<span class="nc" id="L50">        return hgvsList;</span>
+    }
+
+    public List&lt;String&gt; run(Variant variant, Gene gene) {
+<span class="nc" id="L54">        return run(variant, gene, true);</span>
+    }
+
+    public List&lt;String&gt; run(Variant variant, Gene gene, boolean normalize) {
+<span class="nc" id="L58">        List&lt;String&gt; hgvsList = new ArrayList&lt;&gt;(gene.getTranscripts().size());</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        for (Transcript transcript : gene.getTranscripts()) {</span>
+<span class="nc" id="L60">            hgvsList.addAll(this.run(variant, transcript, gene.getId(), normalize));</span>
+<span class="nc" id="L61">        }</span>
+
+<span class="nc" id="L63">        return hgvsList;</span>
+    }
+
+    protected List&lt;String&gt; run(Variant variant, Transcript transcript, String geneId, boolean normalize) {
+        // Check variant falls within transcript coords
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        if (variant.getStart() &lt;= transcript.getEnd() &amp;&amp; variant.getEnd() &gt;= transcript.getStart()) {</span>
+            // We cannot know the type of variant before normalization has been carried out
+<span class="nc" id="L70">            Variant normalizedVariant = normalize(variant, normalize);</span>
+<span class="nc" id="L71">            HgvsCalculator hgvsCalculator = getHgvsCalculator(normalizedVariant);</span>
+            // Can be null if there's no hgvs implementation for the variant type
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (hgvsCalculator != null) {</span>
+                // Normalization set to false - if needed, it would have been done already two lines above
+<span class="nc" id="L75">                return hgvsCalculator.run(normalizedVariant, transcript, geneId, false);</span>
+            }
+        }
+<span class="nc" id="L78">        return Collections.emptyList();</span>
+    }
+
+    private HgvsCalculator getHgvsCalculator(Variant normalizedVariant) {
+//        switch (VariantAnnotationUtils.getVariantType(normalizedVariant)) {
+<span class="nc bnc" id="L83" title="All 3 branches missed.">        switch (normalizedVariant.getType()) {</span>
+            case SNV:
+<span class="nc" id="L85">                return new HgvsSNVCalculator(genomeDBAdaptor);</span>
+            case INDEL:
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (StringUtils.isBlank(normalizedVariant.getReference())) {</span>
+<span class="nc" id="L88">                    return new HgvsInsertionCalculator(genomeDBAdaptor);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                } else if (StringUtils.isBlank(normalizedVariant.getAlternate())) {</span>
+<span class="nc" id="L90">                    return new HgvsDeletionCalculator(genomeDBAdaptor);</span>
+                } else {
+<span class="nc" id="L92">                    logger.debug(&quot;No HGVS implementation available for variant MNV. Returning empty list of HGVS &quot;</span>
+                            + &quot;identifiers.&quot;);
+<span class="nc" id="L94">                    return null;</span>
+                }
+            default:
+<span class="nc" id="L97">                 logger.debug(&quot;No HGVS implementation available for structural variants. Found {}. Returning empty list&quot;</span>
+<span class="nc" id="L98">                        + &quot;  of HGVS identifiers.&quot;, normalizedVariant.getType());</span>
+<span class="nc" id="L99">                return null;</span>
+        }
+    }
+
+    protected Variant normalize(Variant variant, boolean normalize) {
+        Variant normalizedVariant;
+        // Convert VCF-style variant to HGVS-style.
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (normalize) {</span>
+<span class="nc" id="L107">            List&lt;Variant&gt; normalizedVariantList = NORMALIZER.apply(Collections.singletonList(variant));</span>
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            if (normalizedVariantList != null &amp;&amp; !normalizedVariantList.isEmpty()) {</span>
+<span class="nc" id="L109">                normalizedVariant = normalizedVariantList.get(0);</span>
+            } else {
+<span class="nc" id="L111">                throw new UnsupportedURLVariantFormat(&quot;Variant &quot; + variant.toString() + &quot; cannot be properly normalized. &quot;</span>
+                        + &quot; Please check.&quot;);
+            }
+<span class="nc" id="L114">        } else {</span>
+<span class="nc" id="L115">            normalizedVariant = variant;</span>
+        }
+<span class="nc" id="L117">        return normalizedVariant;</span>
+    }
+
+    protected boolean isCoding(Transcript transcript) {
+        // 0 in the cdnaCodingEnd means that the transcript doesn't
+        // have a coding end &lt;==&gt; is non coding. Just annotating
+        // coding transcripts in a first approach
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        return transcript.getCdnaCodingEnd() != 0;</span>
+    }
+
+    protected void setRangeCoordsAndAlleles(int genomicStart, int genomicEnd, String genomicReference,
+                                          String genomicAlternate, Transcript transcript,
+                                          HgvsStringBuilder hgvsStringBuilder) {
+        int start;
+        int end;
+        String reference;
+        String alternate;
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (&quot;+&quot;.equals(transcript.getStrand())) {</span>
+<span class="nc" id="L135">            start = genomicStart;</span>
+            // TODO: probably needs +-1 bp adjust
+//            end = variant.getStart() + variant.getReference().length() - 1;
+<span class="nc" id="L138">            end = genomicEnd;</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            reference = genomicReference.length() &gt; MAX_ALLELE_LENGTH</span>
+<span class="nc" id="L140">                    ? String.valueOf(genomicReference.length()) : genomicReference;</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            alternate = genomicAlternate.length() &gt; MAX_ALLELE_LENGTH</span>
+<span class="nc" id="L142">                    ? String.valueOf(genomicAlternate.length()) : genomicAlternate;</span>
+        } else {
+<span class="nc" id="L144">            end = genomicStart;</span>
+            // TODO: probably needs +-1 bp adjust
+<span class="nc" id="L146">            start = genomicEnd;</span>
+//            start = variant.getStart() + variant.getReference().length() - 1;
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            reference = genomicReference.length() &gt; MAX_ALLELE_LENGTH</span>
+<span class="nc" id="L149">                    ? String.valueOf(genomicReference.length())</span>
+<span class="nc" id="L150">                    : reverseComplementary(genomicReference);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            alternate = genomicAlternate.length() &gt; MAX_ALLELE_LENGTH</span>
+<span class="nc" id="L152">                    ? String.valueOf(genomicAlternate.length())</span>
+<span class="nc" id="L153">                    : reverseComplementary(genomicAlternate);</span>
+        }
+<span class="nc" id="L155">        hgvsStringBuilder.setReference(reference);</span>
+<span class="nc" id="L156">        hgvsStringBuilder.setAlternate(alternate);</span>
+<span class="nc" id="L157">        hgvsStringBuilder.setCdnaStart(genomicToCdnaCoord(transcript, start));</span>
+<span class="nc" id="L158">        hgvsStringBuilder.setCdnaEnd(genomicToCdnaCoord(transcript, end));</span>
+<span class="nc" id="L159">    }</span>
+
+    private String reverseComplementary(String string) {
+<span class="nc" id="L162">        StringBuilder stringBuilder = new StringBuilder(string).reverse();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        for (int i = 0; i &lt; stringBuilder.length(); i++) {</span>
+<span class="nc" id="L164">            stringBuilder.setCharAt(i, VariantAnnotationUtils.COMPLEMENTARY_NT.get(stringBuilder.charAt(i)));</span>
+        }
+<span class="nc" id="L166">        return stringBuilder.toString();</span>
+    }
+
+    /**
+     * Justify an indel to the left or right along a sequence 'seq'.
+     * @param variant Variant object that needs to be justified. It will get modified accordingly.
+     * @param startOffset relative start position of the variant within genomicSequence (0-based).
+     * @param endOffset relative end position of the variant within genomicSequence (0-based, startOffset=endOffset
+     *                 for insertions).
+     * @param allele String containing the allele that needs to be justified.
+     * @param genomicSequence String containing the genomic sequence around the variant.getStart() position
+     *                       (+-NEIGHBOURING_SEQUENCE_SIZE).
+     * @param strand String {&quot;+&quot;, &quot;-&quot;}.
+     */
+    protected void justify(Variant variant, int startOffset, int endOffset, String allele, String genomicSequence,
+                         String strand) {
+<span class="nc" id="L182">        StringBuilder stringBuilder = new StringBuilder(allele);</span>
+        // Justify to the left
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (&quot;-&quot;.equals(strand)) {</span>
+<span class="nc bnc" id="L185" title="All 4 branches missed.">            while (startOffset &gt; 0 &amp;&amp; genomicSequence.charAt(startOffset - 1) == stringBuilder.charAt(stringBuilder.length() - 1)) {</span>
+<span class="nc" id="L186">                stringBuilder.deleteCharAt(stringBuilder.length() - 1);</span>
+<span class="nc" id="L187">                stringBuilder.insert(0, genomicSequence.charAt(startOffset - 1));</span>
+<span class="nc" id="L188">                startOffset--;</span>
+<span class="nc" id="L189">                endOffset--;</span>
+<span class="nc" id="L190">                variant.setStart(variant.getStart() - 1);</span>
+<span class="nc" id="L191">                variant.setEnd(variant.getEnd() - 1);</span>
+            }
+        // Justify to the right
+        } else {
+<span class="nc bnc" id="L195" title="All 4 branches missed.">            while ((endOffset + 1) &lt; genomicSequence.length() &amp;&amp; genomicSequence.charAt(endOffset + 1) == stringBuilder.charAt(0)) {</span>
+<span class="nc" id="L196">                stringBuilder.deleteCharAt(0);</span>
+<span class="nc" id="L197">                stringBuilder.append(genomicSequence.charAt(endOffset + 1));</span>
+<span class="nc" id="L198">                startOffset++;</span>
+<span class="nc" id="L199">                endOffset++;</span>
+<span class="nc" id="L200">                variant.setStart(variant.getStart() + 1);</span>
+<span class="nc" id="L201">                variant.setEnd(variant.getEnd() + 1);</span>
+            }
+        }
+        // Insertion
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (variant.getReference().isEmpty()) {</span>
+<span class="nc" id="L206">            variant.setAlternate(stringBuilder.toString());</span>
+        // Deletion
+        } else {
+<span class="nc" id="L209">            variant.setReference(stringBuilder.toString());</span>
+        }
+<span class="nc" id="L211">    }</span>
+
+    protected CdnaCoord genomicToCdnaCoord(Transcript transcript, int genomicPosition) {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (isCoding(transcript)) {</span>
+<span class="nc" id="L215">            return genomicToCdnaCoordInCodingTranscript(transcript, genomicPosition);</span>
+        } else {
+<span class="nc" id="L217">            return genomicToCdnaCoordInNonCodingTranscript(transcript, genomicPosition);</span>
+        }
+
+    }
+
+    private CdnaCoord genomicToCdnaCoordInNonCodingTranscript(Transcript transcript, int genomicPosition) {
+<span class="nc" id="L223">        CdnaCoord cdnaCoord = new CdnaCoord();</span>
+<span class="nc" id="L224">        List&lt;Exon&gt; exonList = transcript.getExons();</span>
+
+        // Get the closest exon to the position, measured as the exon that presents the closest start OR end coordinate
+        // to the position
+        // Careful using GENOMIC coordinates
+<span class="nc" id="L229">        Exon nearestExon = exonList.stream().min(Comparator.comparing(exon -&gt;</span>
+<span class="nc" id="L230">                Math.min(Math.abs(genomicPosition - exon.getStart()),</span>
+<span class="nc" id="L231">                        Math.abs(genomicPosition - exon.getEnd())))).get();</span>
+
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+            // Must now check which the closest edge of the exon is to the position: start or end to know which of them
+            // to use as a reference
+            // Careful using GENOMIC coordinates
+            // Non-exonic variant: intronic
+            // ------p------S||||||E------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (genomicPosition - nearestExon.getStart() &lt; 0) {</span>
+                // offset must be negative
+<span class="nc" id="L241">                cdnaCoord.setOffset(genomicPosition - nearestExon.getStart()); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L242">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getStart()));</span>
+<span class="nc" id="L243">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            // Exonic variant
+            // -------------S|||p||E------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            } else if (genomicPosition - nearestExon.getEnd() &lt; 0) {</span>
+                // no offset
+<span class="nc" id="L248">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, genomicPosition));</span>
+<span class="nc" id="L249">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            // Non-exonic variant: intronic, intergenic
+            // -------------S||||||E-----p------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+            } else {
+                // offset must be positive
+<span class="nc" id="L254">                cdnaCoord.setOffset(genomicPosition - nearestExon.getEnd()); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L255">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()));</span>
+<span class="nc" id="L256">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            }
+        } else {
+            // Must now check which the closest edge of the exon is to the position: start or end to know which of them
+            // to use as a reference
+            // Careful using GENOMIC coordinates
+            // Non-exonic variant: intronic, intergenic
+            // ------p------E||||||S------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L264" title="All 2 branches missed.">            if (genomicPosition - nearestExon.getStart() &lt; 0) {</span>
+                // offset must be positive
+<span class="nc" id="L266">                cdnaCoord.setOffset(nearestExon.getStart() - genomicPosition); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L267">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getStart()));</span>
+<span class="nc" id="L268">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            // Exonic variant
+            // -------------E|||p||S------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            } else if (genomicPosition - nearestExon.getEnd() &lt; 0) {</span>
+                // no offset
+<span class="nc" id="L273">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, genomicPosition));</span>
+<span class="nc" id="L274">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            // Non-exonic variant: intronic, intergenic
+            // -------------E||||||S-----p------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+            } else {
+                // offset must be negative
+<span class="nc" id="L279">                cdnaCoord.setOffset(nearestExon.getEnd() - genomicPosition); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L280">                cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()));</span>
+<span class="nc" id="L281">                cdnaCoord.setLandmark(CdnaCoord.Landmark.TRANSCRIPT_START);</span>
+            }
+        }
+
+<span class="nc" id="L285">        return cdnaCoord;</span>
+
+    }
+
+    private CdnaCoord genomicToCdnaCoordInCodingTranscript(Transcript transcript, int genomicPosition) {
+<span class="nc" id="L290">        CdnaCoord cdnaCoord = new CdnaCoord();</span>
+<span class="nc" id="L291">        List&lt;Exon&gt; exonList = transcript.getExons();</span>
+
+        // Get the closest exon to the position, measured as the exon that presents the closest start OR end coordinate
+        // to the position
+        // Careful using GENOMIC coordinates
+<span class="nc" id="L296">        Exon nearestExon = exonList.stream().min(Comparator.comparing(exon -&gt;</span>
+<span class="nc" id="L297">                Math.min(Math.abs(genomicPosition - exon.getStart()),</span>
+<span class="nc" id="L298">                        Math.abs(genomicPosition - exon.getEnd())))).get();</span>
+
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+            // Must now check which the closest edge of the exon is to the position: start or end to know which of them
+            // to use as a reference
+            // Careful using GENOMIC coordinates
+            // Non-exonic variant: intronic
+            // ------p------S||||||E------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            if (genomicPosition - nearestExon.getStart() &lt; 0) {</span>
+                // Before coding start
+<span class="nc bnc" id="L308" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L309">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getStart());</span>
+<span class="nc" id="L310">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getStart()) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L311">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // After coding end
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L314">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getStart());</span>
+<span class="nc" id="L315">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getStart()) - transcript.getCdnaCodingEnd());</span>
+<span class="nc" id="L316">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // offset must be negative
+<span class="nc" id="L320">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getStart()); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L321">                    cdnaCoord.setReferencePosition(nearestExon.getCdsStart());</span>
+<span class="nc" id="L322">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            // Exonic variant
+            // -------------S|||p||E------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L326" title="All 2 branches missed.">            } else if (genomicPosition - nearestExon.getEnd() &lt; 0) {</span>
+                // Before coding start
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L329">                    cdnaCoord.setOffset(getCdnaPosition(transcript, genomicPosition) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L330">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // After coding end
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L333">                    cdnaCoord.setOffset(getCdnaPosition(transcript, genomicPosition) - transcript.getCdnaCodingEnd());</span>
+<span class="nc" id="L334">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // no offset
+<span class="nc" id="L338">                    cdnaCoord.setReferencePosition(nearestExon.getCdsStart()</span>
+<span class="nc" id="L339">                            + genomicPosition - nearestExon.getGenomicCodingStart());</span>
+<span class="nc" id="L340">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            // Non-exonic variant: intronic, intergenic
+            // -------------S||||||E-----p------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+            } else {
+                // Before coding start
+<span class="nc bnc" id="L346" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L347">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getEnd());</span>
+<span class="nc" id="L348">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L349">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // After coding end
+<span class="nc bnc" id="L351" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L352">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getEnd());</span>
+<span class="nc" id="L353">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()) - transcript.getCdnaCodingEnd());</span>
+<span class="nc" id="L354">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // offset must be positive
+<span class="nc" id="L358">                    cdnaCoord.setOffset(genomicPosition - nearestExon.getEnd()); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L359">                    cdnaCoord.setReferencePosition(nearestExon.getCdsEnd());</span>
+<span class="nc" id="L360">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            }
+        } else {
+            // Must now check which the closest edge of the exon is to the position: start or end to know which of them
+            // to use as a reference
+            // Careful using GENOMIC coordinates
+            // Non-exonic variant: intronic, intergenic
+            // ------p------E||||||S------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L369" title="All 2 branches missed.">            if (genomicPosition - nearestExon.getStart() &lt; 0) {</span>
+                // Before (genomic) coding start
+<span class="nc bnc" id="L371" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L372">                    cdnaCoord.setOffset(nearestExon.getStart() - genomicPosition);</span>
+<span class="nc" id="L373">                    cdnaCoord.setReferencePosition(transcript.getCdnaCodingEnd() - getCdnaPosition(transcript, nearestExon.getStart()));</span>
+<span class="nc" id="L374">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // After (genomic) coding end
+<span class="nc bnc" id="L376" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L377">                    cdnaCoord.setOffset(nearestExon.getStart() - genomicPosition);</span>
+<span class="nc" id="L378">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getStart()) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L379">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // offset must be positive
+<span class="nc" id="L383">                    cdnaCoord.setOffset(nearestExon.getStart() - genomicPosition); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L384">                    cdnaCoord.setReferencePosition(nearestExon.getCdsEnd());</span>
+<span class="nc" id="L385">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            // Exonic variant
+            // -------------E|||p||S------------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+<span class="nc bnc" id="L389" title="All 2 branches missed.">            } else if (genomicPosition - nearestExon.getEnd() &lt; 0) {</span>
+                // Before (genomic) coding start
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L392">                    cdnaCoord.setOffset(getCdnaPosition(transcript, genomicPosition) - transcript.getCdnaCodingEnd());</span>
+<span class="nc" id="L393">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // After (genomic) coding end
+<span class="nc bnc" id="L395" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L396">                    cdnaCoord.setOffset(getCdnaPosition(transcript, genomicPosition) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L397">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // no offset
+<span class="nc" id="L401">                    cdnaCoord.setReferencePosition(nearestExon.getCdsStart() + nearestExon.getGenomicCodingEnd() - genomicPosition);</span>
+<span class="nc" id="L402">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            // Non-exonic variant: intronic, intergenic
+            // -------------E||||||S-----p------; p = genomicPosition, S = nearestExon.getStart, E = nearestExon.getEnd
+            } else {
+                // Before (genomic) coding start
+<span class="nc bnc" id="L408" title="All 2 branches missed.">                if (genomicPosition &lt; transcript.getGenomicCodingStart())  {</span>
+<span class="nc" id="L409">                    cdnaCoord.setOffset(nearestExon.getEnd() - genomicPosition);</span>
+<span class="nc" id="L410">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()) - transcript.getCdnaCodingEnd());</span>
+<span class="nc" id="L411">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_STOP_CODON);</span>
+                // After (genomic) coding end
+<span class="nc bnc" id="L413" title="All 2 branches missed.">                } else if (genomicPosition &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L414">                    cdnaCoord.setOffset(nearestExon.getEnd() - genomicPosition);</span>
+<span class="nc" id="L415">                    cdnaCoord.setReferencePosition(getCdnaPosition(transcript, nearestExon.getEnd()) - transcript.getCdnaCodingStart());</span>
+<span class="nc" id="L416">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                // Within coding start and end
+                } else {
+                    // offset must be negative
+<span class="nc" id="L420">                    cdnaCoord.setOffset(nearestExon.getEnd() - genomicPosition); // TODO: probably needs +-1 bp adjust</span>
+<span class="nc" id="L421">                    cdnaCoord.setReferencePosition(nearestExon.getCdsStart());</span>
+<span class="nc" id="L422">                    cdnaCoord.setLandmark(CdnaCoord.Landmark.CDNA_START_CODON);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L427">        return cdnaCoord;</span>
+    }
+
+    private int getCdnaPosition(Transcript transcript, int genomicPosition) {
+
+<span class="nc" id="L432">        int i = 0;</span>
+<span class="nc" id="L433">        int cdnaPosition = 0;</span>
+<span class="nc" id="L434">        List&lt;Exon&gt; exonList = transcript.getExons();</span>
+
+        // Sum the part that corresponds to the exon where genomicPosition is located
+<span class="nc bnc" id="L437" title="All 2 branches missed.">        if (&quot;+&quot;.equals(transcript.getStrand())) {</span>
+<span class="nc bnc" id="L438" title="All 4 branches missed.">            while (i &lt; exonList.size() &amp;&amp; genomicPosition &gt; exonList.get(i).getEnd()) {</span>
+<span class="nc" id="L439">                cdnaPosition += (exonList.get(i).getEnd() - exonList.get(i).getStart() + 1);</span>
+<span class="nc" id="L440">                i++;</span>
+            }
+<span class="nc" id="L442">            return cdnaPosition + genomicPosition - exonList.get(i).getStart() + 1;</span>
+        } else {
+<span class="nc bnc" id="L444" title="All 4 branches missed.">            while (i &lt; exonList.size() &amp;&amp; genomicPosition &lt; exonList.get(i).getStart()) {</span>
+<span class="nc" id="L445">                cdnaPosition += (exonList.get(i).getEnd() - exonList.get(i).getStart() + 1);</span>
+<span class="nc" id="L446">                i++;</span>
+            }
+<span class="nc" id="L448">            return cdnaPosition + exonList.get(i).getEnd() - genomicPosition + 1;</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

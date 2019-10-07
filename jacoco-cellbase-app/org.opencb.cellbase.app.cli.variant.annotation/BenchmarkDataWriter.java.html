@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BenchmarkDataWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">BenchmarkDataWriter.java</span></div><h1>BenchmarkDataWriter.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import org.apache.commons.lang3.tuple.Pair;
+import org.opencb.biodata.models.variant.avro.ConsequenceType;
+import org.opencb.biodata.models.variant.avro.SequenceOntologyTerm;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.commons.io.DataWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
+
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+
+/**
+ * Created by fjlopez on 07/04/16.
+ */
+public class BenchmarkDataWriter implements DataWriter&lt;Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;&gt; {
+
+    private String annotator1Name;
+    private String annotator2Name;
+    private Path outdir;
+    private BufferedWriter nonRegulatorydiff1Bw;
+    private BufferedWriter regulatorydiff1Bw;
+    private BufferedWriter nonRegulatorydiff2Bw;
+    private BufferedWriter regulatorydiff2Bw;
+    private BufferedWriter annotation1Bw;
+    private BufferedWriter annotation2Bw;
+    private ObjectWriter jsonObjectWriter;
+
+    private Map&lt;String, Integer&gt; overallSummaryStats;
+    private Map&lt;String, Integer&gt; annotator1SummaryStats;
+    private Map&lt;String, Integer&gt; annotator2SummaryStats;
+    private static final String TOTAL_VARIANTS = &quot;totalVariants&quot;;
+    private static final String TOTAL_NON_REGULATORY_ANNOTATIONS = &quot;totalNonRegulatoryAnnotations&quot;;
+    private static final String TOTAL_REGULATORY_ANNOTATIONS = &quot;totalRegulatoryAnnotations&quot;;
+    private static final String TOTAL_ANNOTATIONS = &quot;totalAnnotations&quot;;
+    private static final String TOTAL_NON_REGULATORY_DIFF_VARIANTS = &quot;totalNonRegulatoryDiffVariants&quot;;
+    private static final String TOTAL_REGULATORY_DIFF_VARIANTS = &quot;totalRegulatoryDiffVariants&quot;;
+    private static final String TOTAL_DIFF_VARIANTS = &quot;totalDiffVariants&quot;;
+    private static final String TOTAL_DIFF_NON_REGULATORY_SO_TERMS = &quot;totalDiffNonRegulatorySOTerms&quot;;
+    private static final String TOTAL_DIFF_REGULATORY_SO_TERMS = &quot;totalDiffRegulatorySOTerms&quot;;
+    private static final String TOTAL_DIFF_SO_TERMS = &quot;totalDiffSOTerms&quot;;
+
+    private Map&lt;String, Integer&gt; countsBySOTerm1;
+    private Map&lt;String, Integer&gt; countsBySOTerm2;
+
+<span class="nc" id="L64">    private int totalVariants = 0;</span>
+<span class="nc" id="L65">    private int totalAnnotations1 = 0;</span>
+<span class="nc" id="L66">    private int totalAnnotations2 = 0;</span>
+<span class="nc" id="L67">    private int totalDiffVariants = 0;</span>
+<span class="nc" id="L68">    private int totalDiff1SequenceOntologyTerms = 0;</span>
+<span class="nc" id="L69">    private int totalDiff2SequenceOntologyTerms = 0;</span>
+    private Logger logger;
+
+
+<span class="nc" id="L73">    public BenchmarkDataWriter(String annotator1Name, String annotator2Name, Path outdir) {</span>
+<span class="nc" id="L74">        logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="nc" id="L75">        this.annotator1Name = annotator1Name;</span>
+<span class="nc" id="L76">        this.annotator2Name = annotator2Name;</span>
+<span class="nc" id="L77">        this.outdir = outdir;</span>
+
+        // To store overall stats
+<span class="nc" id="L80">        overallSummaryStats = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L81">        overallSummaryStats.put(TOTAL_VARIANTS, 0);</span>
+<span class="nc" id="L82">        overallSummaryStats.put(TOTAL_NON_REGULATORY_DIFF_VARIANTS, 0);</span>
+<span class="nc" id="L83">        overallSummaryStats.put(TOTAL_REGULATORY_DIFF_VARIANTS, 0);</span>
+<span class="nc" id="L84">        overallSummaryStats.put(TOTAL_DIFF_VARIANTS, 0);</span>
+
+        // To store annotator 1 stats
+<span class="nc" id="L87">        annotator1SummaryStats = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L88">        annotator1SummaryStats.put(TOTAL_NON_REGULATORY_ANNOTATIONS, 0);</span>
+<span class="nc" id="L89">        annotator1SummaryStats.put(TOTAL_REGULATORY_ANNOTATIONS, 0);</span>
+<span class="nc" id="L90">        annotator1SummaryStats.put(TOTAL_ANNOTATIONS, 0);</span>
+<span class="nc" id="L91">        annotator1SummaryStats.put(TOTAL_DIFF_NON_REGULATORY_SO_TERMS, 0);</span>
+<span class="nc" id="L92">        annotator1SummaryStats.put(TOTAL_DIFF_REGULATORY_SO_TERMS, 0);</span>
+<span class="nc" id="L93">        annotator1SummaryStats.put(TOTAL_DIFF_SO_TERMS, 0);</span>
+
+        // To store annotator 2 stats
+<span class="nc" id="L96">        annotator2SummaryStats = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L97">        annotator2SummaryStats.put(TOTAL_NON_REGULATORY_ANNOTATIONS, 0);</span>
+<span class="nc" id="L98">        annotator2SummaryStats.put(TOTAL_REGULATORY_ANNOTATIONS, 0);</span>
+<span class="nc" id="L99">        annotator2SummaryStats.put(TOTAL_ANNOTATIONS, 0);</span>
+<span class="nc" id="L100">        annotator2SummaryStats.put(TOTAL_DIFF_NON_REGULATORY_SO_TERMS, 0);</span>
+<span class="nc" id="L101">        annotator2SummaryStats.put(TOTAL_DIFF_REGULATORY_SO_TERMS, 0);</span>
+<span class="nc" id="L102">        annotator2SummaryStats.put(TOTAL_DIFF_SO_TERMS, 0);</span>
+
+        // Counts breakdown by SO term
+<span class="nc" id="L105">        countsBySOTerm1 = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L106">        countsBySOTerm2 = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L107">    }</span>
+
+    @Override
+    public boolean open() {
+        try {
+            // Files that will contain differences on SO terms (annotator 1)
+<span class="nc" id="L113">            OutputStream os = new GZIPOutputStream(Files.newOutputStream(outdir.resolve(&quot;diff_non_regulatory_&quot;</span>
+                    + annotator1Name + &quot;.tsv.gz&quot;), CREATE, APPEND));
+<span class="nc" id="L115">            nonRegulatorydiff1Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+<span class="nc" id="L116">            os = new GZIPOutputStream(Files.newOutputStream(outdir.resolve(&quot;diff_regulatory_&quot; + annotator1Name</span>
+                    + &quot;.tsv.gz&quot;), CREATE, APPEND));
+<span class="nc" id="L118">            regulatorydiff1Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+
+            // Files that will contain differences on SO terms (annotator 2)
+<span class="nc" id="L121">            os = new GZIPOutputStream(Files.newOutputStream(outdir.resolve(&quot;diff_non_regulatory_&quot; + annotator2Name</span>
+                    + &quot;.tsv.gz&quot;), CREATE, APPEND));
+<span class="nc" id="L123">            nonRegulatorydiff2Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+<span class="nc" id="L124">            os = new GZIPOutputStream(Files.newOutputStream(outdir.resolve(&quot;diff_regulatory_&quot; + annotator2Name</span>
+                    + &quot;.tsv.gz&quot;), CREATE, APPEND));
+<span class="nc" id="L126">            regulatorydiff2Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+
+            // Files that will contain whole variant objects for those variants with conflicting annotation
+<span class="nc" id="L129">            os = new GZIPOutputStream(Files.newOutputStream(outdir.resolve(&quot;annotation_&quot; + annotator1Name + &quot;.json.gz&quot;),</span>
+                    CREATE, APPEND));
+<span class="nc" id="L131">            annotation1Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+<span class="nc" id="L132">            os = Files.newOutputStream(outdir.resolve(&quot;annotation_&quot; + annotator2Name + &quot;.json&quot;), CREATE, APPEND);</span>
+<span class="nc" id="L133">            annotation2Bw = new BufferedWriter(new OutputStreamWriter(os));</span>
+<span class="nc" id="L134">        } catch (IOException e) {</span>
+<span class="nc" id="L135">            e.printStackTrace();</span>
+<span class="nc" id="L136">            return false;</span>
+<span class="nc" id="L137">        }</span>
+<span class="nc" id="L138">        return true;</span>
+    }
+
+    @Override
+    public boolean close() {
+        try {
+<span class="nc" id="L144">            nonRegulatorydiff1Bw.close();</span>
+<span class="nc" id="L145">            regulatorydiff1Bw.close();</span>
+<span class="nc" id="L146">            nonRegulatorydiff2Bw.close();</span>
+<span class="nc" id="L147">            regulatorydiff2Bw.close();</span>
+<span class="nc" id="L148">            annotation1Bw.close();</span>
+<span class="nc" id="L149">            annotation2Bw.close();</span>
+<span class="nc" id="L150">        } catch (IOException e) {</span>
+<span class="nc" id="L151">            e.printStackTrace();</span>
+<span class="nc" id="L152">            return false;</span>
+<span class="nc" id="L153">        }</span>
+<span class="nc" id="L154">        return true;</span>
+    }
+
+    @Override
+    public boolean pre() {
+<span class="nc" id="L159">        ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L160">        jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="nc" id="L161">        jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="nc" id="L162">        jsonObjectWriter = jsonObjectMapper.writer();</span>
+<span class="nc" id="L163">        return true;</span>
+    }
+
+    @Override
+    public boolean post() {
+
+       try {
+<span class="nc" id="L170">           BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outdir.resolve(&quot;summary.tsv&quot;))));</span>
+<span class="nc" id="L171">           bw.write(&quot;Total number of checked variants\t&quot; + overallSummaryStats.get(TOTAL_VARIANTS) + &quot;\n&quot;);</span>
+<span class="nc" id="L172">           bw.write(&quot;Total number of annotations provided by &quot; + annotator1Name + &quot;\t&quot;</span>
+<span class="nc" id="L173">                   + annotator1SummaryStats.get(TOTAL_ANNOTATIONS) + &quot;\n&quot;);</span>
+<span class="nc" id="L174">           bw.write(&quot;Total number of annotations provided by &quot; + annotator2Name + &quot;\t&quot;</span>
+<span class="nc" id="L175">                   + annotator2SummaryStats.get(TOTAL_ANNOTATIONS) + &quot;\n&quot;);</span>
+<span class="nc" id="L176">           bw.write(&quot;Total number of non-regulatory annotations provided by &quot; + annotator1Name + &quot;\t&quot;</span>
+<span class="nc" id="L177">                   + annotator1SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS) + &quot;\n&quot;);</span>
+<span class="nc" id="L178">           bw.write(&quot;Total number of non-regulatory annotations provided by &quot; + annotator2Name + &quot;\t&quot;</span>
+<span class="nc" id="L179">                   + annotator2SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS) + &quot;\n&quot;);</span>
+<span class="nc" id="L180">           bw.write(&quot;Total number of regulatory annotations provided by &quot; + annotator1Name + &quot;\t&quot;</span>
+<span class="nc" id="L181">                   + annotator1SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS) + &quot;\n&quot;);</span>
+<span class="nc" id="L182">           bw.write(&quot;Total number of regulatory annotations provided by &quot; + annotator2Name + &quot;\t&quot;</span>
+<span class="nc" id="L183">                   + annotator2SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS) + &quot;\n\n&quot;);</span>
+
+           // Coincidence variant level
+<span class="nc" id="L186">           bw.write(&quot;################# Coincidence at variant level #################\t\n&quot;);</span>
+<span class="nc" id="L187">           bw.write(&quot;Total number of variants with conflicting annotation\t&quot;</span>
+<span class="nc" id="L188">                   + overallSummaryStats.get(TOTAL_DIFF_VARIANTS) + &quot;/&quot; + overallSummaryStats.get(TOTAL_VARIANTS) + &quot;\t&quot;</span>
+<span class="nc" id="L189">                   + (100 - overallSummaryStats.get(TOTAL_DIFF_VARIANTS) * 100.0 / overallSummaryStats.get(TOTAL_VARIANTS))</span>
+                   + &quot;% coincidence\n&quot;);
+<span class="nc" id="L191">           bw.write(&quot;Total number of variants with conflicting non-regulatory annotation\t&quot;</span>
+<span class="nc" id="L192">                   + overallSummaryStats.get(TOTAL_NON_REGULATORY_DIFF_VARIANTS) + &quot;/&quot; + overallSummaryStats.get(TOTAL_VARIANTS) + &quot;\t&quot;</span>
+<span class="nc" id="L193">                   + (100 - overallSummaryStats.get(TOTAL_NON_REGULATORY_DIFF_VARIANTS) * 100.0 / overallSummaryStats.get(TOTAL_VARIANTS))</span>
+                   + &quot;% coincidence\n&quot;);
+<span class="nc" id="L195">           bw.write(&quot;Total number of variants with conflicting regulatory annotation\t&quot;</span>
+<span class="nc" id="L196">                   + overallSummaryStats.get(TOTAL_REGULATORY_DIFF_VARIANTS) + &quot;/&quot; + overallSummaryStats.get(TOTAL_VARIANTS) + &quot;\t&quot;</span>
+<span class="nc" id="L197">                   + (100 - overallSummaryStats.get(TOTAL_REGULATORY_DIFF_VARIANTS) * 100.0 / overallSummaryStats.get(TOTAL_VARIANTS))</span>
+                   + &quot;% coincidence\n\n&quot;);
+
+           // Coincidence annotation level (annotator 1)
+<span class="nc" id="L201">           bw.write(&quot;################# Coincidence at SO term level - &quot; + annotator1Name + &quot; annotations #################\t\n&quot;);</span>
+<span class="nc" id="L202">           bw.write(&quot;Total annotations provided by &quot; + annotator1Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L203">                   + annotator2Name + &quot;\t&quot; + annotator1SummaryStats.get(TOTAL_DIFF_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L204">                   + annotator1SummaryStats.get(TOTAL_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L205">                   + (100 - annotator1SummaryStats.get(TOTAL_DIFF_SO_TERMS) * 100.0</span>
+<span class="nc" id="L206">                   / annotator1SummaryStats.get(TOTAL_ANNOTATIONS)) + &quot;% coincidence\n&quot;);</span>
+<span class="nc" id="L207">           bw.write(&quot;Total non-regulatory annotations provided by &quot; + annotator1Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L208">                   + annotator2Name + &quot;\t&quot; + annotator1SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L209">                   + annotator1SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L210">                   + (100 - annotator1SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L211">                   / annotator1SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS)) + &quot;% coincidence\n&quot;);</span>
+<span class="nc" id="L212">           bw.write(&quot;Total regulatory annotations provided by &quot; + annotator1Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L213">                   + annotator2Name + &quot;\t&quot; + annotator1SummaryStats.get(TOTAL_DIFF_REGULATORY_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L214">                   + annotator1SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L215">                   + (100 - annotator1SummaryStats.get(TOTAL_DIFF_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L216">                   / annotator1SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS)) + &quot;% coincidence\n\n&quot;);</span>
+
+           // Coincidence annotation level (annotator 2)
+<span class="nc" id="L219">           bw.write(&quot;################# Coincidence at SO term level - &quot; + annotator2Name + &quot; annotations #################\t\n&quot;);</span>
+<span class="nc" id="L220">           bw.write(&quot;Total annotations provided by &quot; + annotator2Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L221">                   + annotator1Name + &quot;\t&quot; + annotator2SummaryStats.get(TOTAL_DIFF_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L222">                   + annotator2SummaryStats.get(TOTAL_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L223">                   + (100 - annotator2SummaryStats.get(TOTAL_DIFF_SO_TERMS) * 100.0</span>
+<span class="nc" id="L224">                   / annotator2SummaryStats.get(TOTAL_ANNOTATIONS)) + &quot;% coincidence\n&quot;);</span>
+<span class="nc" id="L225">           bw.write(&quot;Total non-regulatory annotations provided by &quot; + annotator2Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L226">                   + annotator1Name + &quot;\t&quot; + annotator2SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L227">                   + annotator2SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L228">                   + (100 - annotator2SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L229">                   / annotator2SummaryStats.get(TOTAL_NON_REGULATORY_ANNOTATIONS)) + &quot;% coincidence\n&quot;);</span>
+<span class="nc" id="L230">           bw.write(&quot;Total regulatory annotations provided by &quot; + annotator2Name + &quot; and not provided by &quot;</span>
+<span class="nc" id="L231">                   + annotator1Name + &quot;\t&quot; + annotator2SummaryStats.get(TOTAL_DIFF_REGULATORY_SO_TERMS) + &quot;/&quot;</span>
+<span class="nc" id="L232">                   + annotator2SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS) + &quot;\t&quot;</span>
+<span class="nc" id="L233">                   + (100 - annotator2SummaryStats.get(TOTAL_DIFF_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L234">                   / annotator2SummaryStats.get(TOTAL_REGULATORY_ANNOTATIONS)) + &quot;% coincidence\n&quot;);</span>
+<span class="nc" id="L235">           bw.close();</span>
+
+<span class="nc" id="L237">           writeCountsBySOTerm(countsBySOTerm1, &quot;diff_counts_by_SO_term_&quot; + annotator1Name + &quot;.tsv&quot;);</span>
+<span class="nc" id="L238">           writeCountsBySOTerm(countsBySOTerm2, &quot;diff_counts_by_SO_term_&quot; + annotator2Name + &quot;.tsv&quot;);</span>
+<span class="nc" id="L239">        } catch (IOException e) {</span>
+<span class="nc" id="L240">            e.printStackTrace();</span>
+<span class="nc" id="L241">        }</span>
+
+
+<span class="nc" id="L244">        return true;</span>
+    }
+
+    private void writeCountsBySOTerm(Map&lt;String, Integer&gt; countsBySOTerm, String fileName) throws IOException {
+<span class="nc" id="L248">        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outdir.resolve(fileName))));</span>
+<span class="nc" id="L249">        List&lt;String&gt; sortedSOTerms = countsBySOTerm.entrySet()</span>
+<span class="nc" id="L250">                .stream()</span>
+<span class="nc" id="L251">                .sorted((e1, e2) -&gt; e2.getValue().compareTo(e1.getValue())) // custom Comparator</span>
+<span class="nc" id="L252">                .map(e -&gt; e.getKey())</span>
+<span class="nc" id="L253">                .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">        for (String soTerm : sortedSOTerms) {</span>
+<span class="nc" id="L255">            bw.write(soTerm + &quot;\t&quot; + countsBySOTerm.get(soTerm) + &quot;\n&quot;);</span>
+<span class="nc" id="L256">        }</span>
+<span class="nc" id="L257">        bw.close();</span>
+<span class="nc" id="L258">    }</span>
+
+    @Override
+    public boolean write(Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt; variantAnnotationDiffPair) {
+        // Write differing sequence ontology terms
+<span class="nc" id="L263">        writeSequenceOntologyTerms(nonRegulatorydiff1Bw, regulatorydiff1Bw, variantAnnotationDiffPair.getLeft());</span>
+<span class="nc" id="L264">        writeSequenceOntologyTerms(nonRegulatorydiff2Bw, regulatorydiff2Bw, variantAnnotationDiffPair.getRight());</span>
+        // Write full variant annotations for conflicting variants only - i.e. variants with differing annotations
+<span class="nc bnc" id="L266" title="All 4 branches missed.">        if (!(variantAnnotationDiffPair.getLeft().isEmpty() &amp;&amp; variantAnnotationDiffPair.getRight().isEmpty())) {</span>
+            try {
+<span class="nc" id="L268">                annotation1Bw.write(jsonObjectWriter</span>
+<span class="nc" id="L269">                        .writeValueAsString(variantAnnotationDiffPair.getLeft().getVariantAnnotation()) + &quot;\n&quot;);</span>
+<span class="nc" id="L270">                annotation2Bw.write(jsonObjectWriter</span>
+<span class="nc" id="L271">                        .writeValueAsString(variantAnnotationDiffPair.getRight().getVariantAnnotation()) + &quot;\n&quot;);</span>
+<span class="nc" id="L272">            } catch (IOException e) {</span>
+<span class="nc" id="L273">                e.printStackTrace();</span>
+<span class="nc" id="L274">                return false;</span>
+<span class="nc" id="L275">            }</span>
+        }
+
+<span class="nc" id="L278">        updateSummaryStats(variantAnnotationDiffPair);</span>
+
+<span class="nc" id="L280">        return true;</span>
+    }
+
+    private void updateSummaryStats(Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt; variantAnnotationDiffPair) {
+
+        // Count total number of conflicting variants
+<span class="nc bnc" id="L286" title="All 4 branches missed.">        if (!(variantAnnotationDiffPair.getLeft().isEmpty() &amp;&amp; variantAnnotationDiffPair.getRight().isEmpty())) {</span>
+<span class="nc" id="L287">            increment(overallSummaryStats, TOTAL_DIFF_VARIANTS, 1);</span>
+        }
+
+        // Update annotator-dependent counts - some overall stats will be updated as well
+<span class="nc" id="L291">        updateAnnotatorSummaryStats(variantAnnotationDiffPair.getLeft(), annotator1SummaryStats, countsBySOTerm1);</span>
+<span class="nc" id="L292">        updateAnnotatorSummaryStats(variantAnnotationDiffPair.getRight(), annotator2SummaryStats, countsBySOTerm2);</span>
+
+        // Count total number of processed variants
+<span class="nc" id="L295">        increment(overallSummaryStats, TOTAL_VARIANTS, 1);</span>
+
+<span class="nc" id="L297">        int sum = 0;</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">        for (String soName : countsBySOTerm2.keySet()) {</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            if (!isRegulatory(soName)) {</span>
+<span class="nc" id="L300">                sum += countsBySOTerm2.get(soName);</span>
+            }
+<span class="nc" id="L302">        }</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (!annotator2SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS).equals(sum)) {</span>
+<span class="nc" id="L304">            int a = 1;</span>
+        }
+<span class="nc" id="L306">    }</span>
+
+    private void updateAnnotatorSummaryStats(VariantAnnotationDiff variantAnnotationDiff,
+                                             Map&lt;String, Integer&gt; summaryStats, Map&lt;String, Integer&gt; countsBySOTerm) {
+
+<span class="nc" id="L311">        boolean regulatoryDifferenceFound = false;</span>
+<span class="nc" id="L312">        boolean nonRegulatoryDifferenceFound = false;</span>
+
+        // Count number of conflicting annotations provided by each annotator
+<span class="nc bnc" id="L315" title="All 2 branches missed.">        if (variantAnnotationDiff.getSequenceOntology() != null) {</span>
+<span class="nc" id="L316">            increment(summaryStats, TOTAL_DIFF_SO_TERMS, variantAnnotationDiff.getSequenceOntology().size());</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            for (SequenceOntologyTermComparisonObject comparisonObject : variantAnnotationDiff.getSequenceOntology()) {</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">                if (isRegulatory(comparisonObject.getName())) {</span>
+<span class="nc" id="L319">                    increment(summaryStats, TOTAL_DIFF_REGULATORY_SO_TERMS, 1);</span>
+<span class="nc" id="L320">                    regulatoryDifferenceFound = true;</span>
+                } else {
+<span class="nc" id="L322">                    increment(summaryStats, TOTAL_DIFF_NON_REGULATORY_SO_TERMS, 1);</span>
+<span class="nc" id="L323">                    nonRegulatoryDifferenceFound = true;</span>
+                }
+<span class="nc bnc" id="L325" title="All 2 branches missed.">                if (countsBySOTerm.containsKey(comparisonObject.getName())) {</span>
+<span class="nc" id="L326">                    increment(countsBySOTerm, comparisonObject.getName(), 1);</span>
+                } else {
+<span class="nc" id="L328">                    countsBySOTerm.put(comparisonObject.getName(), 1);</span>
+                }
+<span class="nc" id="L330">            }</span>
+        }
+
+        // Go through all annotations and update the counts
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        for (ConsequenceType consequenceType : variantAnnotationDiff.getVariantAnnotation().getConsequenceTypes()) {</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            for (SequenceOntologyTerm sequenceOntologyTerm : consequenceType.getSequenceOntologyTerms()) {</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                if (isRegulatory(sequenceOntologyTerm.getName())) {</span>
+<span class="nc" id="L337">                    increment(summaryStats, TOTAL_REGULATORY_ANNOTATIONS, 1);</span>
+                } else {
+<span class="nc" id="L339">                    increment(summaryStats, TOTAL_NON_REGULATORY_ANNOTATIONS, 1);</span>
+                }
+<span class="nc" id="L341">            }</span>
+<span class="nc" id="L342">            increment(summaryStats, TOTAL_ANNOTATIONS, consequenceType.getSequenceOntologyTerms().size());</span>
+<span class="nc" id="L343">        }</span>
+
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        if (regulatoryDifferenceFound) {</span>
+<span class="nc" id="L346">            increment(overallSummaryStats, TOTAL_REGULATORY_DIFF_VARIANTS, 1);</span>
+        }
+<span class="nc bnc" id="L348" title="All 2 branches missed.">        if (nonRegulatoryDifferenceFound) {</span>
+<span class="nc" id="L349">            increment(overallSummaryStats, TOTAL_NON_REGULATORY_DIFF_VARIANTS, 1);</span>
+        }
+<span class="nc" id="L351">    }</span>
+
+    private void increment(Map&lt;String, Integer&gt; map, String key, Integer incrementValue) {
+<span class="nc" id="L354">        map.put(key, map.get(key) + incrementValue);</span>
+<span class="nc" id="L355">    }</span>
+
+    private boolean isRegulatory(String soName) {
+<span class="nc bnc" id="L358" title="All 2 branches missed.">        return (soName.equals(VariantAnnotationUtils.REGULATORY_REGION_VARIANT)</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">                || soName.equals(VariantAnnotationUtils.TF_BINDING_SITE_VARIANT));</span>
+    }
+
+    private void writeSequenceOntologyTerms(BufferedWriter nonRegulatoryBw, BufferedWriter regulatoryBw,
+                                            VariantAnnotationDiff variantAnnotationDiff) {
+        try {
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            if (variantAnnotationDiff.getSequenceOntology() != null) {</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">                for (SequenceOntologyTermComparisonObject comparisonObject : variantAnnotationDiff.getSequenceOntology()) {</span>
+<span class="nc" id="L367">                    StringBuilder stringBuilder = new StringBuilder(variantAnnotationDiff.getVariantAnnotation().getChromosome());</span>
+<span class="nc" id="L368">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc" id="L369">                    stringBuilder.append(variantAnnotationDiff.getVariantAnnotation().getStart());</span>
+<span class="nc" id="L370">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc" id="L371">                    stringBuilder.append(variantAnnotationDiff.getVariantAnnotation().getReference());</span>
+<span class="nc" id="L372">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc" id="L373">                    stringBuilder.append(variantAnnotationDiff.getVariantAnnotation().getAlternate());</span>
+<span class="nc" id="L374">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">                    stringBuilder.append(comparisonObject.getTranscriptId() != null ? comparisonObject.getTranscriptId() : &quot;&quot;);</span>
+<span class="nc" id="L376">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc" id="L377">                    stringBuilder.append(comparisonObject.getName());</span>
+<span class="nc" id="L378">                    stringBuilder.append(&quot;\t&quot;);</span>
+<span class="nc" id="L379">                    stringBuilder.append(comparisonObject.getAccession());</span>
+<span class="nc" id="L380">                    stringBuilder.append(&quot;\n&quot;);</span>
+
+                    // Expected many differences depending on the regulatory source databases used by the annotators.
+                    // Better separate regulatory_region_variant annotations
+<span class="nc bnc" id="L384" title="All 2 branches missed.">                    if (isRegulatory(comparisonObject.getName())) {</span>
+<span class="nc" id="L385">                        regulatoryBw.write(stringBuilder.toString());</span>
+                    } else {
+<span class="nc" id="L387">                        nonRegulatoryBw.write(stringBuilder.toString());</span>
+                    }
+<span class="nc" id="L389">                }</span>
+            }
+<span class="nc" id="L391">        } catch (IOException | NullPointerException e) {</span>
+            try {
+<span class="nc" id="L393">                logger.error(&quot;Variant failing: {}\n&quot;, jsonObjectWriter</span>
+<span class="nc" id="L394">                        .writeValueAsString(variantAnnotationDiff.getVariantAnnotation()));</span>
+<span class="nc" id="L395">            } catch (JsonProcessingException e1) {</span>
+<span class="nc" id="L396">                e1.printStackTrace();</span>
+<span class="nc" id="L397">            }</span>
+<span class="nc" id="L398">            e.printStackTrace();</span>
+<span class="nc" id="L399">        }</span>
+<span class="nc" id="L400">    }</span>
+
+    @Override
+    public boolean write(List&lt;Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt;&gt; list) {
+<span class="nc bnc" id="L404" title="All 2 branches missed.">        if (list != null) {</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">            for (Pair&lt;VariantAnnotationDiff, VariantAnnotationDiff&gt; variantAnnotationDiffPair : list) {</span>
+<span class="nc" id="L406">                write(variantAnnotationDiffPair);</span>
+
+<span class="nc bnc" id="L408" title="All 2 branches missed.">                if ((overallSummaryStats.get(TOTAL_VARIANTS) % 3000) == 0) {</span>
+<span class="nc" id="L409">                    logger.info(&quot;{} variants checked&quot;, overallSummaryStats.get(TOTAL_VARIANTS));</span>
+                }
+<span class="nc bnc" id="L411" title="All 2 branches missed.">                if ((overallSummaryStats.get(TOTAL_VARIANTS) % 10000) == 0) {</span>
+<span class="nc" id="L412">                    logger.info(&quot;Total number (%) of variants with conflicting annotation: {}/{} ({}% coincidence)&quot;,</span>
+<span class="nc" id="L413">                            overallSummaryStats.get(TOTAL_DIFF_VARIANTS),</span>
+<span class="nc" id="L414">                            overallSummaryStats.get(TOTAL_VARIANTS),</span>
+<span class="nc" id="L415">                            100 - overallSummaryStats.get(TOTAL_DIFF_VARIANTS) * 100.0 / overallSummaryStats.get(TOTAL_VARIANTS));</span>
+<span class="nc" id="L416">                    logger.info(&quot;Total number (%) of variants with conflicting non-regulatory annotation: {}/{} ({}% coincidence)&quot;,</span>
+<span class="nc" id="L417">                            overallSummaryStats.get(TOTAL_NON_REGULATORY_DIFF_VARIANTS),</span>
+<span class="nc" id="L418">                            overallSummaryStats.get(TOTAL_VARIANTS),</span>
+<span class="nc" id="L419">                            100 - overallSummaryStats.get(TOTAL_NON_REGULATORY_DIFF_VARIANTS) * 100.0</span>
+<span class="nc" id="L420">                                    / overallSummaryStats.get(TOTAL_VARIANTS));</span>
+<span class="nc" id="L421">                    logger.info(&quot;Total number (%) of variants with conflicting regulatory annotation: {}/{} ({}% coincidence)&quot;,</span>
+<span class="nc" id="L422">                            overallSummaryStats.get(TOTAL_REGULATORY_DIFF_VARIANTS),</span>
+<span class="nc" id="L423">                            overallSummaryStats.get(TOTAL_VARIANTS),</span>
+<span class="nc" id="L424">                            100 - overallSummaryStats.get(TOTAL_REGULATORY_DIFF_VARIANTS) * 100.0</span>
+<span class="nc" id="L425">                                    / overallSummaryStats.get(TOTAL_VARIANTS));</span>
+<span class="nc" id="L426">                    logger.info(&quot;Total non-regulatory annotations provided by {} and not provided by {}: {}/{} ({}% coincidence)&quot;,</span>
+                            annotator1Name,
+                            annotator2Name,
+<span class="nc" id="L429">                            annotator1SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS),</span>
+<span class="nc" id="L430">                            annotator1SummaryStats.get(TOTAL_ANNOTATIONS),</span>
+<span class="nc" id="L431">                            100 - annotator1SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L432">                                    / annotator1SummaryStats.get(TOTAL_ANNOTATIONS));</span>
+<span class="nc" id="L433">                    logger.info(&quot;Total non-regulatory annotations provided by {} and not provided by {}: {}/{} ({}% coincidence)&quot;,</span>
+                            annotator2Name,
+                            annotator1Name,
+<span class="nc" id="L436">                            annotator2SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS),</span>
+<span class="nc" id="L437">                            annotator2SummaryStats.get(TOTAL_ANNOTATIONS),</span>
+<span class="nc" id="L438">                            100 - annotator2SummaryStats.get(TOTAL_DIFF_NON_REGULATORY_SO_TERMS) * 100.0</span>
+<span class="nc" id="L439">                                    / annotator2SummaryStats.get(TOTAL_ANNOTATIONS));</span>
+                }
+<span class="nc" id="L441">            }</span>
+<span class="nc" id="L442">            return true;</span>
+        } else {
+<span class="nc" id="L444">            logger.warn(&quot;list of VariantAnnotationDiff is null&quot;);</span>
+        }
+<span class="nc" id="L446">        return false;</span>
+
+    }
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

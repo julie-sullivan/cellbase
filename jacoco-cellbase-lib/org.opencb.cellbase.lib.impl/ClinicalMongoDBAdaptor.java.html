@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinicalMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">ClinicalMongoDBAdaptor.java</span></div><h1>ClinicalMongoDBAdaptor.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.MongoClient;
+import com.mongodb.client.model.Filters;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.cellbase.core.api.ClinicalDBAdaptor;
+import org.opencb.cellbase.core.variant.ClinicalPhasedQueryManager;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+/**
+ * Created by fjlopez on 06/12/16.
+ */
+public class ClinicalMongoDBAdaptor extends MongoDBAdaptor implements ClinicalDBAdaptor&lt;Variant&gt; {
+
+    private static final String PRIVATE_TRAIT_FIELD = &quot;_traits&quot;;
+    private static final String PRIVATE_CLINICAL_FIELDS = &quot;_featureXrefs,_traits&quot;;
+    private static final String SEPARATOR = &quot;,&quot;;
+<span class="fc" id="L29">    private static ClinicalPhasedQueryManager phasedQueryManager</span>
+            = new ClinicalPhasedQueryManager();
+
+    public ClinicalMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L33">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L34">        mongoDBCollection = mongoDataStore.getCollection(&quot;clinical_variants&quot;);</span>
+
+<span class="fc" id="L36">        logger.debug(&quot;ClinicalMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L37">    }</span>
+
+    @Override
+    public QueryResult&lt;Variant&gt; next(Query query, QueryOptions options) {
+<span class="nc" id="L41">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L46">        return null;</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L51">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+//        Bson bsonQuery = parseQuery(query);
+//        return groupBy(bsonQuery, field, &quot;name&quot;, options);
+<span class="nc" id="L58">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+//        Bson bsonQuery = parseQuery(query);
+//        return groupBy(bsonQuery, fields, &quot;name&quot;, options);
+<span class="nc" id="L65">        return null;</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc" id="L70">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L75">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L80">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L81">        return mongoDBCollection.count(bson);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L86">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L87">        return mongoDBCollection.distinct(field, bson);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L92">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Variant&gt; get(Query query, QueryOptions options) {
+<span class="fc" id="L97">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L98">        QueryOptions parsedOptions = parseQueryOptions(options, query);</span>
+<span class="fc" id="L99">        parsedOptions = addPrivateExcludeOptions(parsedOptions, PRIVATE_CLINICAL_FIELDS);</span>
+<span class="fc" id="L100">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()).toJson());</span>
+<span class="fc" id="L101">        logger.debug(&quot;queryOptions: {}&quot;, options.toJson());</span>
+<span class="fc" id="L102">        return mongoDBCollection.find(bson, null, Variant.class, parsedOptions);</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="fc" id="L107">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L108">        QueryOptions parsedOptions = parseQueryOptions(options, query);</span>
+<span class="fc" id="L109">        parsedOptions = addPrivateExcludeOptions(parsedOptions, PRIVATE_CLINICAL_FIELDS);</span>
+<span class="fc" id="L110">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()).toJson());</span>
+<span class="fc" id="L111">        logger.debug(&quot;queryOptions: {}&quot;, options.toJson());</span>
+<span class="fc" id="L112">        return mongoDBCollection.find(bson, parsedOptions);</span>
+    }
+
+    @Override
+    public Iterator&lt;Variant&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L117">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L122">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L123">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+<span class="nc" id="L128">        Objects.requireNonNull(action);</span>
+<span class="nc" id="L129">        Iterator iterator = nativeIterator(query, options);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L131">            action.accept(iterator.next());</span>
+        }
+<span class="nc" id="L133">    }</span>
+
+    private QueryOptions parseQueryOptions(QueryOptions options, Query query) {
+<span class="pc bpc" id="L136" title="1 of 4 branches missed.">        if (options != null &amp;&amp; !options.isEmpty()) {</span>
+<span class="fc" id="L137">            QueryOptions parsedQueryOptions = new QueryOptions(options);</span>
+<span class="fc" id="L138">            List&lt;String&gt; sortFields = options.getAsStringList(QueryOptions.SORT);</span>
+<span class="pc bpc" id="L139" title="1 of 4 branches missed.">            if (sortFields != null &amp;&amp; !sortFields.isEmpty()) {</span>
+<span class="fc" id="L140">                Document sortDocument = new Document();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                for (String field : sortFields) {</span>
+<span class="fc" id="L142">                    sortDocument.put(field, 1);</span>
+<span class="fc" id="L143">                }</span>
+<span class="fc" id="L144">                parsedQueryOptions.put(QueryOptions.SORT, sortDocument);</span>
+            }
+            // TODO: Improve
+            // numTotalResults cannot be enabled when including multiple clinsig values
+            // search is too slow and would otherwise raise timeouts
+<span class="fc" id="L149">            List&lt;String&gt; clinsigList = query.getAsStringList(QueryParams.CLINICALSIGNIFICANCE.key());</span>
+<span class="pc bpc" id="L150" title="2 of 4 branches missed.">            if (clinsigList != null &amp;&amp; clinsigList.size() &gt; 1) {</span>
+<span class="nc" id="L151">                parsedQueryOptions.put(QueryOptions.SKIP_COUNT, true);</span>
+            }
+            // TODO: Improve
+            // numTotalResults cannot be enabled when including multiple trait values
+            // search is too slow and would otherwise raise timeouts
+<span class="fc" id="L156">            List&lt;String&gt; traitList = query.getAsStringList(QueryParams.TRAIT.key());</span>
+<span class="pc bpc" id="L157" title="2 of 4 branches missed.">            if (traitList != null &amp;&amp; traitList.size() &gt; 1) {</span>
+<span class="nc" id="L158">                parsedQueryOptions.put(QueryOptions.SKIP_COUNT, true);</span>
+            }
+<span class="fc" id="L160">            return parsedQueryOptions;</span>
+        }
+<span class="fc" id="L162">        return new QueryOptions();</span>
+    }
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L166">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L167">        createRegionQuery(query, QueryParams.REGION.key(), andBsonList);</span>
+<span class="fc" id="L168">        createOrQuery(query, VariantMongoDBAdaptor.QueryParams.ID.key(), &quot;annotation.id&quot;, andBsonList);</span>
+<span class="fc" id="L169">        createOrQuery(query, QueryParams.CHROMOSOME.key(), &quot;chromosome&quot;, andBsonList);</span>
+<span class="fc" id="L170">        createImprecisePositionQuery(query, QueryParams.CI_START_LEFT.key(), QueryParams.CI_START_RIGHT.key(),</span>
+                &quot;sv.ciStartLeft&quot;, &quot;sv.ciStartRight&quot;, andBsonList);
+<span class="fc" id="L172">        createImprecisePositionQuery(query, QueryParams.CI_END_LEFT.key(), QueryParams.CI_END_RIGHT.key(),</span>
+                &quot;sv.ciEndLeft&quot;, &quot;sv.ciEndRight&quot;, andBsonList);
+<span class="fc" id="L174">        createOrQuery(query, QueryParams.START.key(), &quot;start&quot;, andBsonList, QueryValueType.INTEGER);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        if (query.containsKey(QueryParams.REFERENCE.key())) {</span>
+<span class="fc" id="L176">            createOrQuery(query.getAsStringList(QueryParams.REFERENCE.key()), &quot;reference&quot;, andBsonList);</span>
+        }
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        if (query.containsKey(QueryParams.ALTERNATE.key())) {</span>
+<span class="fc" id="L179">            createOrQuery(query.getAsStringList(QueryParams.ALTERNATE.key()), &quot;alternate&quot;, andBsonList);</span>
+        }
+
+<span class="fc" id="L182">        createOrQuery(query, QueryParams.FEATURE.key(), &quot;_featureXrefs&quot;, andBsonList);</span>
+<span class="fc" id="L183">        createOrQuery(query, QueryParams.SO.key(),</span>
+                &quot;annotation.consequenceTypes.sequenceOntologyTerms.name&quot;, andBsonList);
+<span class="fc" id="L185">        createOrQuery(query, QueryParams.SOURCE.key(),</span>
+                &quot;annotation.traitAssociation.source.name&quot;, andBsonList);
+<span class="fc" id="L187">        createOrQuery(query, QueryParams.ACCESSION.key(), &quot;annotation.traitAssociation.id&quot;, andBsonList);</span>
+<span class="fc" id="L188">        createOrQuery(query, QueryParams.TYPE.key(), &quot;type&quot;, andBsonList);</span>
+<span class="fc" id="L189">        createOrQuery(query, QueryParams.CONSISTENCY_STATUS.key(),</span>
+                &quot;annotation.traitAssociation.consistencyStatus&quot;, andBsonList);
+<span class="fc" id="L191">        createOrQuery(query, QueryParams.CLINICALSIGNIFICANCE.key(),</span>
+                &quot;annotation.traitAssociation.variantClassification.clinicalSignificance&quot;, andBsonList);
+<span class="fc" id="L193">        createOrQuery(query, QueryParams.MODE_INHERITANCE.key(),</span>
+                &quot;annotation.traitAssociation.heritableTraits.inheritanceMode&quot;, andBsonList);
+<span class="fc" id="L195">        createOrQuery(query, QueryParams.ALLELE_ORIGIN.key(),</span>
+                &quot;annotation.traitAssociation.alleleOrigin&quot;, andBsonList);
+
+<span class="fc" id="L198">        createTraitQuery(query.getString(QueryParams.TRAIT.key()), andBsonList);</span>
+
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L201">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L203">            return new Document();</span>
+        }
+    }
+
+    private void createTraitQuery(String keywordString, List&lt;Bson&gt; andBsonList) {
+        // Avoid creating a text empty query, otherwise results will never be returned
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        if (StringUtils.isNotBlank(keywordString)) {</span>
+<span class="fc" id="L210">            keywordString = keywordString.toLowerCase();</span>
+<span class="fc" id="L211">            createOrQuery(Arrays.asList(keywordString.split(SEPARATOR)), PRIVATE_TRAIT_FIELD, andBsonList);</span>
+        }
+//        for (String keyword : keywords) {
+//            andBsonList.add(Filters.regex(PRIVATE_TRAIT_FIELD, keyword, &quot;i&quot;));
+//        }
+<span class="fc" id="L216">    }</span>
+
+    private void createImprecisePositionQuery(Query query, String leftQueryParam, String rightQueryParam,
+                                              String leftLimitMongoField, String righLimitMongoField,
+                                              List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L221" title="3 of 6 branches missed.">        if (query != null &amp;&amp; query.getString(leftQueryParam) != null &amp;&amp; !query.getString(leftQueryParam).isEmpty()</span>
+<span class="nc bnc" id="L222" title="All 4 branches missed.">                &amp;&amp; query.getString(rightQueryParam) != null &amp;&amp; !query.getString(rightQueryParam).isEmpty()) {</span>
+<span class="nc" id="L223">            int leftQueryValue = query.getInt(leftQueryParam);</span>
+<span class="nc" id="L224">            int rightQueryValue = query.getInt(rightQueryParam);</span>
+<span class="nc" id="L225">            andBsonList.add(Filters.lte(leftLimitMongoField, rightQueryValue));</span>
+<span class="nc" id="L226">            andBsonList.add(Filters.gte(righLimitMongoField, leftQueryValue));</span>
+        }
+<span class="fc" id="L228">    }</span>
+
+    public List&lt;QueryResult&gt; getPhenotypeGeneRelations(Query query, QueryOptions queryOptions) {
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        Set&lt;String&gt; sourceContent = query.getAsStringList(QueryParams.SOURCE.key()) != null</span>
+<span class="nc" id="L233">                ? new HashSet&lt;&gt;(query.getAsStringList(QueryParams.SOURCE.key())) : null;</span>
+<span class="nc" id="L234">        List&lt;QueryResult&gt; queryResultList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L235" title="All 4 branches missed.">        if (sourceContent == null || sourceContent.contains(&quot;clinvar&quot;)) {</span>
+<span class="nc" id="L236">            queryResultList.add(getClinvarPhenotypeGeneRelations(queryOptions));</span>
+
+        }
+<span class="nc bnc" id="L239" title="All 4 branches missed.">        if (sourceContent == null || sourceContent.contains(&quot;gwas&quot;)) {</span>
+<span class="nc" id="L240">            queryResultList.add(getGwasPhenotypeGeneRelations(queryOptions));</span>
+        }
+
+<span class="nc" id="L243">        return queryResultList;</span>
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getAlleleOriginLabels() {
+
+<span class="nc" id="L249">        List&lt;String&gt; alleleOriginLabels = Arrays.stream(AlleleOrigin.values())</span>
+<span class="nc" id="L250">                .map((value) -&gt; value.name()).collect(Collectors.toList());</span>
+
+<span class="nc" id="L252">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;String&gt;(&quot;allele_origin_labels&quot;, 0,</span>
+<span class="nc" id="L253">                alleleOriginLabels.size(), alleleOriginLabels.size(), null, null,</span>
+                alleleOriginLabels);
+
+<span class="nc" id="L256">        return queryResult;</span>
+
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getModeInheritanceLabels() {
+
+<span class="nc" id="L263">        List&lt;String&gt; modeInheritanceLabels = Arrays.stream(ModeOfInheritance.values())</span>
+<span class="nc" id="L264">                .map((value) -&gt; value.name()).collect(Collectors.toList());</span>
+
+<span class="nc" id="L266">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;String&gt;(&quot;mode_inheritance_labels&quot;, 0,</span>
+<span class="nc" id="L267">                modeInheritanceLabels.size(), modeInheritanceLabels.size(), null, null,</span>
+                modeInheritanceLabels);
+
+<span class="nc" id="L270">        return queryResult;</span>
+
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getClinsigLabels() {
+
+<span class="nc" id="L277">        List&lt;String&gt; clinsigLabels = Arrays.stream(ClinicalSignificance.values())</span>
+<span class="nc" id="L278">                .map((value) -&gt; value.name()).collect(Collectors.toList());</span>
+
+<span class="nc" id="L280">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;String&gt;(&quot;clinsig_labels&quot;, 0,</span>
+<span class="nc" id="L281">                clinsigLabels.size(), clinsigLabels.size(), null, null,</span>
+                clinsigLabels);
+
+<span class="nc" id="L284">        return queryResult;</span>
+
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getConsistencyLabels() {
+
+<span class="nc" id="L291">        List&lt;String&gt; consistencyLabels = Arrays.stream(ConsistencyStatus.values())</span>
+<span class="nc" id="L292">                .map((value) -&gt; value.name()).collect(Collectors.toList());</span>
+
+<span class="nc" id="L294">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;String&gt;(&quot;consistency_labels&quot;, 0,</span>
+<span class="nc" id="L295">                consistencyLabels.size(), consistencyLabels.size(), null, null,</span>
+                consistencyLabels);
+
+<span class="nc" id="L298">        return queryResult;</span>
+
+    }
+
+    @Override
+    public QueryResult&lt;String&gt; getVariantTypes() {
+
+<span class="nc" id="L305">        List&lt;String&gt; variantTypes = Arrays.stream(VariantType.values())</span>
+<span class="nc" id="L306">                .map((value) -&gt; value.name()).collect(Collectors.toList());</span>
+
+<span class="nc" id="L308">        QueryResult&lt;String&gt; queryResult = new QueryResult&lt;String&gt;(&quot;variant_types&quot;, 0,</span>
+<span class="nc" id="L309">                variantTypes.size(), variantTypes.size(), null, null,</span>
+                variantTypes);
+
+<span class="nc" id="L312">        return queryResult;</span>
+
+    }
+
+    private QueryResult getClinvarPhenotypeGeneRelations(QueryOptions queryOptions) {
+
+<span class="nc" id="L318">        List&lt;Bson&gt; pipeline = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L319">        pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;clinvarSet.referenceClinVarAssertion.clinVarAccession.acc&quot;,</span>
+<span class="nc" id="L320">                new Document(&quot;$exists&quot;, 1))));</span>
+//        pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;clinvarSet&quot;, new Document(&quot;$exists&quot;, 1))));
+<span class="nc" id="L322">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$clinvarSet.referenceClinVarAssertion.measureSet.measure&quot;));</span>
+<span class="nc" id="L323">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$clinvarSet.referenceClinVarAssertion.measureSet.measure.measureRelationship&quot;));</span>
+<span class="nc" id="L324">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$clinvarSet.referenceClinVarAssertion.measureSet.measure.measureRelationship.symbol&quot;));</span>
+<span class="nc" id="L325">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$clinvarSet.referenceClinVarAssertion.traitSet.trait&quot;));</span>
+<span class="nc" id="L326">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$clinvarSet.referenceClinVarAssertion.traitSet.trait.name&quot;));</span>
+<span class="nc" id="L327">        Document groupFields = new Document();</span>
+<span class="nc" id="L328">        groupFields.put(&quot;_id&quot;, &quot;$clinvarSet.referenceClinVarAssertion.traitSet.trait.name.elementValue.value&quot;);</span>
+<span class="nc" id="L329">        groupFields.put(&quot;associatedGenes&quot;,</span>
+                new Document(&quot;$addToSet&quot;,
+                        &quot;$clinvarSet.referenceClinVarAssertion.measureSet.measure.measureRelationship.symbol.elementValue.value&quot;));
+<span class="nc" id="L332">        pipeline.add(new Document(&quot;$group&quot;, groupFields));</span>
+<span class="nc" id="L333">        Document fields = new Document();</span>
+<span class="nc" id="L334">        fields.put(&quot;_id&quot;, 0);</span>
+<span class="nc" id="L335">        fields.put(&quot;phenotype&quot;, &quot;$_id&quot;);</span>
+<span class="nc" id="L336">        fields.put(&quot;associatedGenes&quot;, 1);</span>
+<span class="nc" id="L337">        pipeline.add(new Document(&quot;$project&quot;, fields));</span>
+
+<span class="nc" id="L339">        return executeAggregation2(&quot;&quot;, pipeline, queryOptions);</span>
+
+    }
+
+    private QueryResult getGwasPhenotypeGeneRelations(QueryOptions queryOptions) {
+
+<span class="nc" id="L345">        List&lt;Bson&gt; pipeline = new ArrayList&lt;&gt;();</span>
+        // Select only GWAS documents
+<span class="nc" id="L347">        pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;snpIdCurrent&quot;, new Document(&quot;$exists&quot;, 1))));</span>
+<span class="nc" id="L348">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$studies&quot;));</span>
+<span class="nc" id="L349">        pipeline.add(new Document(&quot;$unwind&quot;, &quot;$studies.traits&quot;));</span>
+<span class="nc" id="L350">        Document groupFields = new Document();</span>
+<span class="nc" id="L351">        groupFields.put(&quot;_id&quot;, &quot;$studies.traits.diseaseTrait&quot;);</span>
+<span class="nc" id="L352">        groupFields.put(&quot;associatedGenes&quot;, new Document(&quot;$addToSet&quot;, &quot;$reportedGenes&quot;));</span>
+<span class="nc" id="L353">        pipeline.add(new Document(&quot;$group&quot;, groupFields));</span>
+<span class="nc" id="L354">        Document fields = new Document();</span>
+<span class="nc" id="L355">        fields.put(&quot;_id&quot;, 0);</span>
+<span class="nc" id="L356">        fields.put(&quot;phenotype&quot;, &quot;$_id&quot;);</span>
+<span class="nc" id="L357">        fields.put(&quot;associatedGenes&quot;, 1);</span>
+<span class="nc" id="L358">        pipeline.add(new Document(&quot;$project&quot;, fields));</span>
+
+<span class="nc" id="L360">        return executeAggregation2(&quot;&quot;, pipeline, queryOptions);</span>
+    }
+
+    public List&lt;QueryResult&lt;Variant&gt;&gt; getByVariant(List&lt;Variant&gt; variants, QueryOptions queryOptions) {
+<span class="fc" id="L364">        List&lt;QueryResult&lt;Variant&gt;&gt; results = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">        for (Variant variant: variants) {</span>
+<span class="fc" id="L366">            results.add(getByVariant(variant, queryOptions));</span>
+<span class="fc" id="L367">        }</span>
+
+<span class="pc bpc" id="L369" title="2 of 4 branches missed.">        if (queryOptions.get(QueryParams.PHASE.key()) != null &amp;&amp; (Boolean) queryOptions.get(QueryParams.PHASE.key())) {</span>
+<span class="fc" id="L370">            results = phasedQueryManager.run(variants, results);</span>
+
+        }
+<span class="fc" id="L373">        return results;</span>
+    }
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

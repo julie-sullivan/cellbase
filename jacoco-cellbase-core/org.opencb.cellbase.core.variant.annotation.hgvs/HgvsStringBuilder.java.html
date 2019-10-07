@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HgvsStringBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation.hgvs</a> &gt; <span class="el_source">HgvsStringBuilder.java</span></div><h1>HgvsStringBuilder.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation.hgvs;
+
+/**
+ * Created by fjlopez on 26/01/17.
+ */
+
+import org.apache.commons.lang.NotImplementedException;
+
+/**
+ * Builder to get the hgvs identifier properly formatted.
+ */
+public class HgvsStringBuilder {
+
+<span class="nc" id="L14">    enum Kind { CODING, NON_CODING }</span>
+
+    // HGVS string parts
+    private String prefix;
+    private String chromosome;
+    private String transcriptId;
+    private String geneId;
+    private Kind kind;
+    private String mutationType;
+    private int start;
+    private int end;
+    private String reference; // reference allele
+    private String alternate; // alternate allele
+
+    // cDNA-specific fields
+    private CdnaCoord cdnaStart;
+    private CdnaCoord cdnaEnd;
+
+<span class="nc" id="L32">    public HgvsStringBuilder() {</span>
+
+<span class="nc" id="L34">    }</span>
+
+    public String getPrefix() {
+<span class="nc" id="L37">        return prefix;</span>
+    }
+
+    public void setPrefix(String prefix) {
+<span class="nc" id="L41">        this.prefix = prefix;</span>
+<span class="nc" id="L42">    }</span>
+
+    public String getChromosome() {
+<span class="nc" id="L45">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L49">        this.chromosome = chromosome;</span>
+<span class="nc" id="L50">    }</span>
+
+    public String getTranscriptId() {
+<span class="nc" id="L53">        return transcriptId;</span>
+    }
+
+    public void setTranscriptId(String transcriptId) {
+<span class="nc" id="L57">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L58">    }</span>
+
+    public String getGeneId() {
+<span class="nc" id="L61">        return geneId;</span>
+    }
+
+    public void setGeneId(String geneId) {
+<span class="nc" id="L65">        this.geneId = geneId;</span>
+<span class="nc" id="L66">    }</span>
+
+    public Kind getKind() {
+<span class="nc" id="L69">        return kind;</span>
+    }
+
+    public void setKind(Kind kind) {
+<span class="nc" id="L73">        this.kind = kind;</span>
+<span class="nc" id="L74">    }</span>
+
+    public String getMutationType() {
+<span class="nc" id="L77">        return mutationType;</span>
+    }
+
+    public void setMutationType(String mutationType) {
+<span class="nc" id="L81">        this.mutationType = mutationType;</span>
+<span class="nc" id="L82">    }</span>
+
+    public int getStart() {
+<span class="nc" id="L85">        return start;</span>
+    }
+
+    public void setStart(int start) {
+<span class="nc" id="L89">        this.start = start;</span>
+<span class="nc" id="L90">    }</span>
+
+    public int getEnd() {
+<span class="nc" id="L93">        return end;</span>
+    }
+
+    public void setEnd(int end) {
+<span class="nc" id="L97">        this.end = end;</span>
+<span class="nc" id="L98">    }</span>
+
+    public String getReference() {
+<span class="nc" id="L101">        return reference;</span>
+    }
+
+    public void setReference(String reference) {
+<span class="nc" id="L105">        this.reference = reference;</span>
+<span class="nc" id="L106">    }</span>
+
+    public String getAlternate() {
+<span class="nc" id="L109">        return alternate;</span>
+    }
+
+    public void setAlternate(String alternate) {
+<span class="nc" id="L113">        this.alternate = alternate;</span>
+<span class="nc" id="L114">    }</span>
+
+    public CdnaCoord getCdnaStart() {
+<span class="nc" id="L117">        return cdnaStart;</span>
+    }
+
+    public void setCdnaStart(CdnaCoord cdnaStart) {
+<span class="nc" id="L121">        this.cdnaStart = cdnaStart;</span>
+<span class="nc" id="L122">    }</span>
+
+    public CdnaCoord getCdnaEnd() {
+<span class="nc" id="L125">        return cdnaEnd;</span>
+    }
+
+    public void setCdnaEnd(CdnaCoord cdnaEnd) {
+<span class="nc" id="L129">        this.cdnaEnd = cdnaEnd;</span>
+<span class="nc" id="L130">    }</span>
+
+    /**
+     * Generate a HGVS string.
+     * @return String containing an HGVS formatted variant representation
+     */
+    public String format() {
+//
+
+<span class="nc" id="L139">        StringBuilder allele = new StringBuilder();</span>
+<span class="nc" id="L140">        allele.append(formatPrefix());  // if use_prefix else ''</span>
+<span class="nc" id="L141">        allele.append(&quot;:&quot;);</span>
+
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (kind.equals(Kind.CODING)) {</span>
+<span class="nc" id="L144">            allele.append(&quot;c.&quot;).append(formatCdna());</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        } else if (kind.equals(Kind.NON_CODING)) {</span>
+<span class="nc" id="L146">            allele.append(&quot;n.&quot;).append(formatCdna());</span>
+//    elif self.kind == 'p':
+//    allele = 'p.' + self.format_protein()
+//    elif self.kind == 'g':
+//    allele = 'g.' + self.format_genome()
+        } else {
+<span class="nc" id="L152">            throw new NotImplementedException(&quot;HGVS calculation not implemented for variant &quot; + chromosome + &quot;:&quot;</span>
+                    + start + &quot;:&quot; + reference + &quot;:&quot; + alternate + &quot;; kind: &quot; + kind);
+        }
+//            if prefix:
+<span class="nc" id="L156">        return allele.toString();</span>
+//        else:
+//                return allele
+    }
+
+    /**
+     * Generate HGVS trancript/geneId prefix.
+     * Some examples of full hgvs names with transcriptId include:
+     * NM_007294.3:c.2207A&gt;C
+     * NM_007294.3(BRCA1):c.2207A&gt;C
+     */
+    private String formatPrefix() {
+//        if use_gene and self.geneId:
+<span class="nc" id="L169">        StringBuilder stringBuilder = new StringBuilder(transcriptId);</span>
+<span class="nc" id="L170">        stringBuilder.append(&quot;(&quot;).append(geneId).append(&quot;)&quot;);</span>
+
+<span class="nc" id="L172">        return stringBuilder.toString();</span>
+//        return self.transcriptId
+    }
+
+    /**
+     * Generate HGVS cDNA allele.
+     * Some examples include:
+     * Substitution: 101A&gt;C,
+     * Indel: 3428delCinsTA, 1000_1003delATG, 1000_1001insATG
+     */
+    private String formatCdna() {
+<span class="nc" id="L183">        return formatCdnaCoords() + formatDnaAllele();</span>
+    }
+
+    /**
+     * Generate HGVS DNA allele.
+     * @return
+     */
+    private String formatDnaAllele() {
+
+//        We are not considering this case since would mean there's no variant
+//        if self.mutation_type == '=':
+//            #No change.
+//            #example:
+//        101 A =
+//        return self.ref_allele + '='
+
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (&quot;&gt;&quot;.equals(mutationType)) {</span>
+            // SNP.
+            // example:
+            // 101 A &gt; C
+<span class="nc" id="L203">            return reference + '&gt;' + alternate;</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        } else if (&quot;delins&quot;.equals(mutationType)) {</span>
+            // Indel.
+            // example:
+            // 112_117d elAGGTCAinsTG, 112_117d elinsTG
+<span class="nc" id="L208">            return &quot;del&quot; + reference + &quot;ins&quot; + alternate;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        } else if (&quot;del&quot;.equals(mutationType)) {</span>
+            // Delete, duplication.
+            // example:
+            // 1000_1003d elATG, 1000_1003d upATG
+<span class="nc" id="L213">            return mutationType + reference;</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        } else if (&quot;dup&quot;.equals(mutationType)) {</span>
+            // Insertion normalized as duplication
+            // example:
+            // &quot;ENST00000382869.3:c.1735+32dupA&quot;
+<span class="nc" id="L218">            return mutationType + alternate;</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        } else if (&quot;ins&quot;.equals(mutationType)) {</span>
+            // Insert.
+            // example:
+            // 1000_1001 insATG
+<span class="nc" id="L223">            return mutationType + alternate;</span>
+        } else {
+<span class="nc" id="L225">            throw new AssertionError(&quot;unknown mutation type: '&quot; + mutationType + &quot;'&quot;);</span>
+        }
+    }
+
+    /**
+     * Generate HGVS cDNA coordinates string.
+     */
+    private String formatCdnaCoords() {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (cdnaStart.equals(cdnaEnd)) {</span>
+<span class="nc" id="L234">            return cdnaStart.toString();</span>
+        } else {
+<span class="nc" id="L236">            return cdnaStart.toString() + &quot;_&quot; + cdnaEnd.toString();</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

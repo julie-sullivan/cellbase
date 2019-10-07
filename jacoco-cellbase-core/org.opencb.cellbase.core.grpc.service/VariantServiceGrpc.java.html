@@ -1,0 +1,465 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantServiceGrpc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.grpc.service</a> &gt; <span class="el_source">VariantServiceGrpc.java</span></div><h1>VariantServiceGrpc.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.grpc.service;
+
+import static io.grpc.stub.ClientCalls.asyncUnaryCall;
+import static io.grpc.stub.ClientCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ClientCalls.blockingUnaryCall;
+import static io.grpc.stub.ClientCalls.blockingServerStreamingCall;
+import static io.grpc.stub.ClientCalls.futureUnaryCall;
+import static io.grpc.MethodDescriptor.generateFullMethodName;
+import static io.grpc.stub.ServerCalls.asyncUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall;
+
+/**
+ */
+@javax.annotation.Generated(
+    value = &quot;by gRPC proto compiler (version 1.0.1)&quot;,
+    comments = &quot;Source: protobuf/opencb/service/variant_service.proto&quot;)
+public class VariantServiceGrpc {
+
+<span class="nc" id="L25">  private VariantServiceGrpc() {}</span>
+
+  public static final String SERVICE_NAME = &quot;protobuf.opencb.service.VariantService&quot;;
+
+  // Static method descriptors that strictly reflect the proto.
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L32">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; METHOD_COUNT =</span>
+<span class="nc" id="L33">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L35">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;count&quot;),
+<span class="nc" id="L37">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L38">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L41">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; METHOD_DISTINCT =</span>
+<span class="nc" id="L42">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L44">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;distinct&quot;),
+<span class="nc" id="L46">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L47">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L50">      org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; METHOD_FIRST =</span>
+<span class="nc" id="L51">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L53">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;first&quot;),
+<span class="nc" id="L55">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L56">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.variant.protobuf.VariantProto.Variant.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L59">      org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; METHOD_NEXT =</span>
+<span class="nc" id="L60">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L62">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;next&quot;),
+<span class="nc" id="L64">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L65">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.variant.protobuf.VariantProto.Variant.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L68">      org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; METHOD_GET =</span>
+<span class="nc" id="L69">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L71">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;get&quot;),
+<span class="nc" id="L73">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L74">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.variant.protobuf.VariantProto.Variant.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L77">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; METHOD_GROUP_BY =</span>
+<span class="nc" id="L78">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L80">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.VariantService&quot;, &quot;groupBy&quot;),
+<span class="nc" id="L82">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L83">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse.getDefaultInstance()));</span>
+
+  /**
+   * Creates a new async stub that supports all call types for the service
+   */
+  public static VariantServiceStub newStub(io.grpc.Channel channel) {
+<span class="nc" id="L89">    return new VariantServiceStub(channel);</span>
+  }
+
+  /**
+   * Creates a new blocking-style stub that supports unary and streaming output calls on the service
+   */
+  public static VariantServiceBlockingStub newBlockingStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L97">    return new VariantServiceBlockingStub(channel);</span>
+  }
+
+  /**
+   * Creates a new ListenableFuture-style stub that supports unary and streaming output calls on the service
+   */
+  public static VariantServiceFutureStub newFutureStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L105">    return new VariantServiceFutureStub(channel);</span>
+  }
+
+  /**
+   */
+<span class="nc" id="L110">  public static abstract class VariantServiceImplBase implements io.grpc.BindableService {</span>
+
+    /**
+     */
+    public void count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; responseObserver) {
+<span class="nc" id="L116">      asyncUnimplementedUnaryCall(METHOD_COUNT, responseObserver);</span>
+<span class="nc" id="L117">    }</span>
+
+    /**
+     */
+    public void distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; responseObserver) {
+<span class="nc" id="L123">      asyncUnimplementedUnaryCall(METHOD_DISTINCT, responseObserver);</span>
+<span class="nc" id="L124">    }</span>
+
+    /**
+     */
+    public void first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L130">      asyncUnimplementedUnaryCall(METHOD_FIRST, responseObserver);</span>
+<span class="nc" id="L131">    }</span>
+
+    /**
+     */
+    public void next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L137">      asyncUnimplementedUnaryCall(METHOD_NEXT, responseObserver);</span>
+<span class="nc" id="L138">    }</span>
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L144">      asyncUnimplementedUnaryCall(METHOD_GET, responseObserver);</span>
+<span class="nc" id="L145">    }</span>
+
+    /**
+     */
+    public void groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; responseObserver) {
+<span class="nc" id="L151">      asyncUnimplementedUnaryCall(METHOD_GROUP_BY, responseObserver);</span>
+<span class="nc" id="L152">    }</span>
+
+    @java.lang.Override public io.grpc.ServerServiceDefinition bindService() {
+<span class="nc" id="L155">      return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())</span>
+<span class="nc" id="L156">          .addMethod(</span>
+            METHOD_COUNT,
+<span class="nc" id="L158">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt;(
+                  this, METHODID_COUNT)))
+<span class="nc" id="L163">          .addMethod(</span>
+            METHOD_DISTINCT,
+<span class="nc" id="L165">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt;(
+                  this, METHODID_DISTINCT)))
+<span class="nc" id="L170">          .addMethod(</span>
+            METHOD_FIRST,
+<span class="nc" id="L172">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;(
+                  this, METHODID_FIRST)))
+<span class="nc" id="L177">          .addMethod(</span>
+            METHOD_NEXT,
+<span class="nc" id="L179">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;(
+                  this, METHODID_NEXT)))
+<span class="nc" id="L184">          .addMethod(</span>
+            METHOD_GET,
+<span class="nc" id="L186">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;(
+                  this, METHODID_GET)))
+<span class="nc" id="L191">          .addMethod(</span>
+            METHOD_GROUP_BY,
+<span class="nc" id="L193">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt;(
+                  this, METHODID_GROUP_BY)))
+<span class="nc" id="L198">          .build();</span>
+    }
+  }
+
+  /**
+   */
+  public static final class VariantServiceStub extends io.grpc.stub.AbstractStub&lt;VariantServiceStub&gt; {
+    private VariantServiceStub(io.grpc.Channel channel) {
+<span class="nc" id="L206">      super(channel);</span>
+<span class="nc" id="L207">    }</span>
+
+    private VariantServiceStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L211">      super(channel, callOptions);</span>
+<span class="nc" id="L212">    }</span>
+
+    @java.lang.Override
+    protected VariantServiceStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L217">      return new VariantServiceStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public void count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; responseObserver) {
+<span class="nc" id="L224">      asyncUnaryCall(</span>
+<span class="nc" id="L225">          getChannel().newCall(METHOD_COUNT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L226">    }</span>
+
+    /**
+     */
+    public void distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; responseObserver) {
+<span class="nc" id="L232">      asyncUnaryCall(</span>
+<span class="nc" id="L233">          getChannel().newCall(METHOD_DISTINCT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L234">    }</span>
+
+    /**
+     */
+    public void first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L240">      asyncUnaryCall(</span>
+<span class="nc" id="L241">          getChannel().newCall(METHOD_FIRST, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L242">    }</span>
+
+    /**
+     */
+    public void next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L248">      asyncUnaryCall(</span>
+<span class="nc" id="L249">          getChannel().newCall(METHOD_NEXT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L250">    }</span>
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; responseObserver) {
+<span class="nc" id="L256">      asyncServerStreamingCall(</span>
+<span class="nc" id="L257">          getChannel().newCall(METHOD_GET, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L258">    }</span>
+
+    /**
+     */
+    public void groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; responseObserver) {
+<span class="nc" id="L264">      asyncUnaryCall(</span>
+<span class="nc" id="L265">          getChannel().newCall(METHOD_GROUP_BY, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L266">    }</span>
+  }
+
+  /**
+   */
+  public static final class VariantServiceBlockingStub extends io.grpc.stub.AbstractStub&lt;VariantServiceBlockingStub&gt; {
+    private VariantServiceBlockingStub(io.grpc.Channel channel) {
+<span class="nc" id="L273">      super(channel);</span>
+<span class="nc" id="L274">    }</span>
+
+    private VariantServiceBlockingStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L278">      super(channel, callOptions);</span>
+<span class="nc" id="L279">    }</span>
+
+    @java.lang.Override
+    protected VariantServiceBlockingStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L284">      return new VariantServiceBlockingStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L290">      return blockingUnaryCall(</span>
+<span class="nc" id="L291">          getChannel(), METHOD_COUNT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L297">      return blockingUnaryCall(</span>
+<span class="nc" id="L298">          getChannel(), METHOD_DISTINCT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.variant.protobuf.VariantProto.Variant first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L304">      return blockingUnaryCall(</span>
+<span class="nc" id="L305">          getChannel(), METHOD_FIRST, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.variant.protobuf.VariantProto.Variant next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L311">      return blockingUnaryCall(</span>
+<span class="nc" id="L312">          getChannel(), METHOD_NEXT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; get(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L319">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L320">          getChannel(), METHOD_GET, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L326">      return blockingUnaryCall(</span>
+<span class="nc" id="L327">          getChannel(), METHOD_GROUP_BY, getCallOptions(), request);</span>
+    }
+  }
+
+  /**
+   */
+  public static final class VariantServiceFutureStub extends io.grpc.stub.AbstractStub&lt;VariantServiceFutureStub&gt; {
+    private VariantServiceFutureStub(io.grpc.Channel channel) {
+<span class="nc" id="L335">      super(channel);</span>
+<span class="nc" id="L336">    }</span>
+
+    private VariantServiceFutureStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L340">      super(channel, callOptions);</span>
+<span class="nc" id="L341">    }</span>
+
+    @java.lang.Override
+    protected VariantServiceFutureStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L346">      return new VariantServiceFutureStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; count(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L353">      return futureUnaryCall(</span>
+<span class="nc" id="L354">          getChannel().newCall(METHOD_COUNT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; distinct(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L361">      return futureUnaryCall(</span>
+<span class="nc" id="L362">          getChannel().newCall(METHOD_DISTINCT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; first(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L369">      return futureUnaryCall(</span>
+<span class="nc" id="L370">          getChannel().newCall(METHOD_FIRST, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt; next(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L377">      return futureUnaryCall(</span>
+<span class="nc" id="L378">          getChannel().newCall(METHOD_NEXT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; groupBy(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L385">      return futureUnaryCall(</span>
+<span class="nc" id="L386">          getChannel().newCall(METHOD_GROUP_BY, getCallOptions()), request);</span>
+    }
+  }
+
+  private static final int METHODID_COUNT = 0;
+  private static final int METHODID_DISTINCT = 1;
+  private static final int METHODID_FIRST = 2;
+  private static final int METHODID_NEXT = 3;
+  private static final int METHODID_GET = 4;
+  private static final int METHODID_GROUP_BY = 5;
+
+  private static class MethodHandlers&lt;Req, Resp&gt; implements
+      io.grpc.stub.ServerCalls.UnaryMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ServerStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ClientStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.BidiStreamingMethod&lt;Req, Resp&gt; {
+    private final VariantServiceImplBase serviceImpl;
+    private final int methodId;
+
+<span class="nc" id="L405">    public MethodHandlers(VariantServiceImplBase serviceImpl, int methodId) {</span>
+<span class="nc" id="L406">      this.serviceImpl = serviceImpl;</span>
+<span class="nc" id="L407">      this.methodId = methodId;</span>
+<span class="nc" id="L408">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public void invoke(Req request, io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc bnc" id="L413" title="All 7 branches missed.">      switch (methodId) {</span>
+        case METHODID_COUNT:
+<span class="nc" id="L415">          serviceImpl.count((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt;) responseObserver);
+<span class="nc" id="L417">          break;</span>
+        case METHODID_DISTINCT:
+<span class="nc" id="L419">          serviceImpl.distinct((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt;) responseObserver);
+<span class="nc" id="L421">          break;</span>
+        case METHODID_FIRST:
+<span class="nc" id="L423">          serviceImpl.first((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;) responseObserver);
+<span class="nc" id="L425">          break;</span>
+        case METHODID_NEXT:
+<span class="nc" id="L427">          serviceImpl.next((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;) responseObserver);
+<span class="nc" id="L429">          break;</span>
+        case METHODID_GET:
+<span class="nc" id="L431">          serviceImpl.get((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.variant.protobuf.VariantProto.Variant&gt;) responseObserver);
+<span class="nc" id="L433">          break;</span>
+        case METHODID_GROUP_BY:
+<span class="nc" id="L435">          serviceImpl.groupBy((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt;) responseObserver);
+<span class="nc" id="L437">          break;</span>
+        default:
+<span class="nc" id="L439">          throw new AssertionError();</span>
+      }
+<span class="nc" id="L441">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public io.grpc.stub.StreamObserver&lt;Req&gt; invoke(
+        io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc" id="L447">      switch (methodId) {</span>
+        default:
+<span class="nc" id="L449">          throw new AssertionError();</span>
+      }
+    }
+  }
+
+  public static io.grpc.ServiceDescriptor getServiceDescriptor() {
+<span class="nc" id="L455">    return new io.grpc.ServiceDescriptor(SERVICE_NAME,</span>
+        METHOD_COUNT,
+        METHOD_DISTINCT,
+        METHOD_FIRST,
+        METHOD_NEXT,
+        METHOD_GET,
+        METHOD_GROUP_BY);
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

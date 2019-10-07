@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationDataReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">VariationDataReader.java</span></div><h1>VariationDataReader.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.cellbase.core.api.VariantDBAdaptor;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.io.DataReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 11/02/16.
+ */
+public class VariationDataReader implements DataReader&lt;Variant&gt; {
+
+    private VariantDBAdaptor dbAdaptor;
+    private Query query;
+    private QueryOptions options;
+    private Iterator&lt;Variant&gt; iterator;
+<span class="nc" id="L25">    private final Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="nc" id="L26">    private int nReadVariants = 0;</span>
+    private static final String VARIANT_STRING_PATTERN = &quot;[ACGT]*&quot;;
+
+<span class="nc" id="L29">    public VariationDataReader(VariantDBAdaptor dbAdaptor, Query query, QueryOptions options) {</span>
+<span class="nc" id="L30">        this.dbAdaptor = dbAdaptor;</span>
+<span class="nc" id="L31">        this.query = query;</span>
+<span class="nc" id="L32">        this.options = options;</span>
+<span class="nc" id="L33">    }</span>
+
+    public boolean open() {
+<span class="nc" id="L36">        return true;</span>
+    }
+
+    public boolean pre() {
+<span class="nc" id="L40">        this.iterator = dbAdaptor.iterator(query, options);</span>
+
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        return this.iterator != null;</span>
+    }
+
+    /**
+     * Performs one read of from a CellBase variation collection.
+     *
+     * @return  List of variants. It can be expected to contain only one variant.
+     */
+    public List&lt;Variant&gt; read() {
+<span class="nc" id="L51">        Variant variant = null;</span>
+<span class="nc" id="L52">        boolean valid = false;</span>
+<span class="nc bnc" id="L53" title="All 4 branches missed.">        while (iterator.hasNext() &amp;&amp; !valid) {</span>
+<span class="nc" id="L54">            variant = iterator.next();</span>
+<span class="nc" id="L55">            valid = isValid(variant);</span>
+        }
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (valid) {</span>
+            // New variants in the variation collection created during the update of the frequencies may not have
+            // the variant type set and this might cause NPE
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            if (variant.getType() == null) {</span>
+<span class="nc" id="L61">                variant.setType(variant.inferType(variant.getReference(), variant.getAlternate()));</span>
+            }
+<span class="nc" id="L63">            return Collections.singletonList(variant);</span>
+        } else {
+<span class="nc" id="L65">            return null;</span>
+        }
+    }
+
+    /**
+     * Checks whether a variant is valid.
+     *
+     * @param variant Variant object to be checked.
+     * @return   true/false depending on whether 'variant' does contain valid values. Currently just a simple check of
+     * reference/alternate attributes being strings of [A,C,G,T] of length &gt;= 0 is performed to detect cases such as
+     * 19:13318673:(CAG)4:(CAG)5 which are not currently supported by CellBase. Ref and alt alleles must be different
+     * as well for the variant to be valid. Functionality of the method may be improved in the future.
+     */
+    private boolean isValid(Variant variant) {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        return (variant.getReference().matches(VARIANT_STRING_PATTERN)</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                &amp;&amp; variant.getAlternate().matches(VARIANT_STRING_PATTERN)</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                &amp;&amp; !variant.getAlternate().equals(variant.getReference()));</span>
+    }
+
+    public List&lt;Variant&gt; read(int batchSize) {
+<span class="nc" id="L85">        List&lt;Variant&gt; listRecords = new ArrayList&lt;&gt;(batchSize);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        for (int i = 0; i &lt; batchSize; i++) {</span>
+<span class="nc" id="L87">            List&lt;Variant&gt; variants = this.read();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (variants != null) {</span>
+<span class="nc" id="L89">                listRecords.addAll(variants);</span>
+<span class="nc" id="L90">                nReadVariants += variants.size();</span>
+            } else {
+<span class="nc" id="L92">                logger.info(&quot;{} variants read&quot;, nReadVariants);</span>
+<span class="nc" id="L93">                return listRecords;</span>
+            }
+        }
+
+<span class="nc" id="L97">        logger.info(&quot;{} variants read&quot;, nReadVariants);</span>
+<span class="nc" id="L98">        return listRecords;</span>
+    }
+
+    public boolean post() {
+<span class="nc" id="L102">        return true;</span>
+    }
+
+    public boolean close() {
+<span class="nc" id="L106">        return true;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

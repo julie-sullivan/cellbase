@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractVariationFile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.variation</a> &gt; <span class="el_source">AbstractVariationFile.java</span></div><h1>AbstractVariationFile.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.variation;
+
+import com.google.common.base.Stopwatch;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.commons.utils.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Created by parce on 08/12/15.
+ */
+public abstract class AbstractVariationFile {
+
+    protected Logger logger;
+
+    protected Path variationDirectory;
+
+    protected String unprocessedFileName;
+    protected String preprocessedFileName;
+
+    protected BufferedReader fileReader;
+
+    protected int variationIdColumnIndex;
+    private boolean endOfFile;
+    private String[] lastReadLine;
+    private int lastReadVariationId;
+
+<span class="fc" id="L38">    public AbstractVariationFile(Path variationDirectory, String unprocessedFileName, String preprocessedFileName) {</span>
+<span class="fc" id="L39">        this.variationDirectory = variationDirectory;</span>
+<span class="fc" id="L40">        this.unprocessedFileName = unprocessedFileName;</span>
+<span class="fc" id="L41">        this.preprocessedFileName = preprocessedFileName;</span>
+<span class="fc" id="L42">        endOfFile = false;</span>
+<span class="fc" id="L43">        logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="fc" id="L44">    }</span>
+
+    public AbstractVariationFile(Path variationDirectory, String unprocessedFileName, String preprocessedFileName,
+                                 int variationIdColumnIndexInFile)  {
+<span class="fc" id="L48">        this(variationDirectory, unprocessedFileName, preprocessedFileName);</span>
+<span class="fc" id="L49">        this.variationIdColumnIndex = variationIdColumnIndexInFile;</span>
+<span class="fc" id="L50">    }</span>
+
+    public void createBufferedReader() throws IOException {
+<span class="fc" id="L53">        this.fileReader = getBufferedReader(preprocessedFileName);</span>
+<span class="fc" id="L54">    }</span>
+
+    protected BufferedReader getBufferedReader(String fileName) throws IOException {
+        Path inputFile;
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (Files.exists(variationDirectory.resolve(fileName))) {</span>
+<span class="fc" id="L59">            inputFile = variationDirectory.resolve(fileName);</span>
+        } else {
+<span class="nc" id="L61">            inputFile = variationDirectory.resolve(fileName + &quot;.gz&quot;);</span>
+        }
+<span class="fc" id="L63">        return FileUtils.newBufferedReader(inputFile);</span>
+    }
+
+    protected BufferedReader getUnprocessedFileBufferedReader() throws IOException {
+<span class="fc" id="L67">        return getBufferedReader(unprocessedFileName);</span>
+    }
+
+    public List&lt;String[]&gt; getVariationRelatedLines(int variationId) throws IOException {
+        List&lt;String[]&gt; variationRelatedLines;
+
+<span class="fc" id="L73">        readFileLinesUntilReachVariation(variationId);</span>
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">        if (endOfFile || variationIdExceededInFile(variationId)) {</span>
+<span class="fc" id="L75">            variationRelatedLines = Collections.EMPTY_LIST;</span>
+        } else {
+<span class="fc" id="L77">            variationRelatedLines = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L78" title="All 4 branches covered.">            while (!endOfFile &amp;&amp; !variationIdExceededInFile(variationId)) {</span>
+<span class="fc" id="L79">                variationRelatedLines.add(lastReadLine);</span>
+<span class="fc" id="L80">                readLineInVariationRelatedFile();</span>
+            }
+        }
+<span class="fc" id="L83">        return variationRelatedLines;</span>
+    }
+
+    private void readFileLinesUntilReachVariation(int variationId) throws IOException {
+<span class="pc bpc" id="L87" title="1 of 4 branches missed.">        while (!endOfFile &amp;&amp; !variationReachedInFile(variationId)) {</span>
+<span class="fc" id="L88">            readLineInVariationRelatedFile();</span>
+        }
+<span class="fc" id="L90">    }</span>
+
+    private void readLineInVariationRelatedFile() throws IOException {
+<span class="fc" id="L93">        String line = fileReader.readLine();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (line == null) {</span>
+<span class="fc" id="L95">            endOfFile = true;</span>
+        } else {
+<span class="fc" id="L97">            lastReadLine = line.split(&quot;\t&quot;, -1);</span>
+<span class="fc" id="L98">            lastReadVariationId = getVariationIdFromLastLineInVariationRelatedFile();</span>
+        }
+<span class="fc" id="L100">    }</span>
+
+    private int getVariationIdFromLastLineInVariationRelatedFile() {
+<span class="fc" id="L103">        return Integer.parseInt(lastReadLine[variationIdColumnIndex]);</span>
+    }
+
+    private boolean variationReachedInFile(int variationId) {
+<span class="pc bpc" id="L107" title="1 of 4 branches missed.">        return lastReadVariationId != -1 &amp;&amp; lastReadVariationId &gt;= variationId;</span>
+    }
+
+    private boolean variationIdExceededInFile(int variationId) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        return lastReadVariationId &gt; variationId;</span>
+    }
+
+    public void gunzip() throws IOException, InterruptedException {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (!existsZippedOrUnzippedFile(preprocessedFileName)) {</span>
+            // unzip variation file name for preprocess it later
+<span class="fc" id="L117">            gunzipFileIfNeeded(variationDirectory, unprocessedFileName);</span>
+        }
+<span class="fc" id="L119">    }</span>
+
+    protected boolean existsZippedOrUnzippedFile(String baseFilename) {
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        return Files.exists(variationDirectory.resolve(baseFilename))</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">                || Files.exists(variationDirectory.resolve(baseFilename + &quot;.gz&quot;));</span>
+    }
+
+    private void gunzipFileIfNeeded(Path directory, String fileName) throws IOException, InterruptedException {
+<span class="fc" id="L127">        Path zippedFile = directory.resolve(fileName + &quot;.gz&quot;);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        if (Files.exists(zippedFile)) {</span>
+<span class="fc" id="L129">            logger.info(&quot;Unzipping {} ...&quot;, zippedFile);</span>
+<span class="fc" id="L130">            Process process = Runtime.getRuntime().exec(&quot;gunzip &quot; + zippedFile.toAbsolutePath());</span>
+<span class="fc" id="L131">            process.waitFor();</span>
+<span class="fc" id="L132">        } else {</span>
+<span class="nc" id="L133">            Path unzippedFile = directory.resolve(fileName);</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            if (Files.exists(unzippedFile)) {</span>
+<span class="nc" id="L135">                logger.info(&quot;File {} was previously unzipped: skipping 'gunzip' for this file ...&quot;, unzippedFile);</span>
+            } else {
+<span class="nc" id="L137">                throw new FileNotFoundException(&quot;File &quot; + zippedFile + &quot; doesn't exist&quot;);</span>
+            }
+        }
+<span class="fc" id="L140">    }</span>
+
+    public void sort() throws IOException, InterruptedException {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (!existsZippedOrUnzippedFile(preprocessedFileName)) {</span>
+<span class="fc" id="L144">            Path sortedFile = variationDirectory.resolve(preprocessedFileName);</span>
+<span class="fc" id="L145">            Path unsortedFile = variationDirectory.resolve(unprocessedFileName);</span>
+<span class="fc" id="L146">            sortFileByNumericColumn(unsortedFile, sortedFile, variationIdColumnIndex);</span>
+        }
+<span class="fc" id="L148">    }</span>
+
+    protected void sortFileByNumericColumn(Path inputFile, Path outputFile, int columnIndex) throws InterruptedException, IOException {
+<span class="fc" id="L151">        logger.info(&quot;Sorting file {} into {} ...&quot;, inputFile, outputFile);</span>
+
+        // increment column index by 1, beacause Java indexes are 0-based and 'sort' command uses 1-based indexes
+<span class="fc" id="L154">        columnIndex++;</span>
+<span class="fc" id="L155">        ProcessBuilder pb = new ProcessBuilder(&quot;sort&quot;, &quot;-t&quot;, &quot;\t&quot;, &quot;-k&quot;, Integer.toString(columnIndex),</span>
+<span class="fc" id="L156">                &quot;-n&quot;, &quot;--stable&quot;, inputFile.toAbsolutePath().toString(), &quot;-T&quot;, variationDirectory.toString(),</span>
+<span class="fc" id="L157">                &quot;-o&quot;, outputFile.toAbsolutePath().toString());</span>
+<span class="fc" id="L158">        logger.debug(&quot;Executing '{}' ...&quot;, StringUtils.join(pb.command(), &quot; &quot;));</span>
+<span class="fc" id="L159">        Stopwatch stopwatch = Stopwatch.createStarted();</span>
+<span class="fc" id="L160">        Process process = pb.start();</span>
+<span class="fc" id="L161">        process.waitFor();</span>
+
+<span class="fc" id="L163">        int returnedValue = process.exitValue();</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (returnedValue != 0) {</span>
+<span class="nc" id="L165">            String errorMessage = IOUtils.toString(process.getErrorStream());</span>
+<span class="nc" id="L166">            logger.error(&quot;Error sorting {}&quot;, inputFile);</span>
+<span class="nc" id="L167">            logger.error(errorMessage);</span>
+<span class="nc" id="L168">            throw new RuntimeException(&quot;Error sorting &quot; + inputFile);</span>
+        }
+<span class="fc" id="L170">        logger.info(&quot;Sorted&quot;);</span>
+<span class="fc" id="L171">        logger.debug(&quot;Elapsed time sorting file: {}&quot;, stopwatch);</span>
+<span class="fc" id="L172">    }</span>
+
+    public void gzip() throws IOException, InterruptedException {
+<span class="fc" id="L175">        gzipFile(unprocessedFileName);</span>
+<span class="fc" id="L176">        gzipFile(preprocessedFileName);</span>
+<span class="fc" id="L177">    }</span>
+
+    private void gzipFile(String fileName) throws IOException, InterruptedException {
+<span class="fc" id="L180">        Path unzippedFile = variationDirectory.resolve(fileName);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (Files.exists(unzippedFile)) {</span>
+<span class="fc" id="L182">            logger.info(&quot;Compressing {}&quot;, unzippedFile.toAbsolutePath());</span>
+<span class="fc" id="L183">            Process process = Runtime.getRuntime().exec(&quot;gzip &quot; + unzippedFile.toAbsolutePath());</span>
+<span class="fc" id="L184">            process.waitFor();</span>
+        }
+<span class="fc" id="L186">    }</span>
+
+    public boolean existsZippedOrUnzippedFile() {
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        return Files.exists(variationDirectory.resolve(unprocessedFileName))</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                || Files.exists(variationDirectory.resolve(unprocessedFileName + &quot;.gz&quot;));</span>
+    }
+
+    public boolean isEmpty() throws IOException {
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (Files.exists(variationDirectory.resolve(unprocessedFileName))) {</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            return Files.size(variationDirectory.resolve(unprocessedFileName)) == 0;</span>
+        } else {
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">            return Files.size(variationDirectory.resolve(unprocessedFileName + &quot;.gz&quot;)) == 0;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

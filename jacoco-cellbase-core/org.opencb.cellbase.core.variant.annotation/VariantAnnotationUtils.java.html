@@ -1,0 +1,605 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantAnnotationUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation</a> &gt; <span class="el_source">VariantAnnotationUtils.java</span></div><h1>VariantAnnotationUtils.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.annotation.ConsequenceTypeMappings;
+import org.opencb.biodata.models.variant.annotation.exceptions.SOTermNotAvailableException;
+import org.opencb.biodata.models.variant.avro.*;
+
+import java.util.*;
+
+import static org.apache.tools.ant.taskdefs.Antlib.TAG;
+
+/**
+ * Created by fjlopez on 22/06/15.
+ */
+<span class="nc" id="L16">public class VariantAnnotationUtils {</span>
+
+    public static final char SEPARATOR_CHAR = ':';
+
+    public static final String THREEPRIME_OVERLAPPING_NCRNA = &quot;3prime_overlapping_ncrna&quot;;
+    public static final String IG_C_GENE = &quot;IG_C_gene&quot;;
+    public static final String IG_C_PSEUDOGENE = &quot;IG_C_pseudogene&quot;;
+    public static final String IG_D_GENE = &quot;IG_D_gene&quot;;
+    public static final String IG_J_GENE = &quot;IG_J_gene&quot;;
+    public static final String IG_J_PSEUDOGENE = &quot;IG_J_pseudogene&quot;;
+    public static final String IG_V_GENE = &quot;IG_V_gene&quot;;
+    public static final String IG_V_PSEUDOGENE = &quot;IG_V_pseudogene&quot;;
+    public static final String MT_RRNA = &quot;Mt_rRNA&quot;;
+    public static final String MT_TRNA = &quot;Mt_tRNA&quot;;
+    public static final String TR_C_GENE = &quot;TR_C_gene&quot;;
+    public static final String TR_D_GENE = &quot;TR_D_gene&quot;;
+    public static final String TR_J_GENE = &quot;TR_J_gene&quot;;
+    public static final String TR_J_PSEUDOGENE = &quot;TR_J_pseudogene&quot;;
+    public static final String TR_V_GENE = &quot;TR_V_gene&quot;;
+    public static final String TR_V_PSEUDOGENE = &quot;TR_V_pseudogene&quot;;
+    public static final String ANTISENSE = &quot;antisense&quot;;
+    public static final String LINCRNA = &quot;lincRNA&quot;;
+    public static final String MIRNA = &quot;miRNA&quot;;
+    public static final String MISC_RNA = &quot;misc_RNA&quot;;
+    public static final String POLYMORPHIC_PSEUDOGENE = &quot;polymorphic_pseudogene&quot;;
+    public static final String PROCESSED_PSEUDOGENE = &quot;processed_pseudogene&quot;;
+    public static final String PROCESSED_TRANSCRIPT = &quot;processed_transcript&quot;;
+    public static final String PROTEIN_CODING = &quot;protein_coding&quot;;
+    public static final String PSEUDOGENE = &quot;pseudogene&quot;;
+    public static final String RRNA = &quot;rRNA&quot;;
+    public static final String SENSE_INTRONIC = &quot;sense_intronic&quot;;
+    public static final String SENSE_OVERLAPPING = &quot;sense_overlapping&quot;;
+    public static final String SNRNA = &quot;snRNA&quot;;
+    public static final String SNORNA = &quot;snoRNA&quot;;
+    public static final String NONSENSE_MEDIATED_DECAY = &quot;nonsense_mediated_decay&quot;;
+    public static final String NMD_TRANSCRIPT_VARIANT = &quot;NMD_transcript_variant&quot;;
+    public static final String UNPROCESSED_PSEUDOGENE = &quot;unprocessed_pseudogene&quot;;
+    public static final String TRANSCRIBED_UNPROCESSED_PSEUDGENE = &quot;transcribed_unprocessed_pseudogene&quot;;
+    public static final String RETAINED_INTRON = &quot;retained_intron&quot;;
+    public static final String NON_STOP_DECAY = &quot;non_stop_decay&quot;;
+    public static final String UNITARY_PSEUDOGENE = &quot;unitary_pseudogene&quot;;
+    public static final String TRANSLATED_PROCESSED_PSEUDOGENE = &quot;translated_processed_pseudogene&quot;;
+    public static final String TRANSCRIBED_PROCESSED_PSEUDOGENE = &quot;transcribed_processed_pseudogene&quot;;
+    public static final String TRNA_PSEUDOGENE = &quot;tRNA_pseudogene&quot;;
+    public static final String SNORNA_PSEUDOGENE = &quot;snoRNA_pseudogene&quot;;
+    public static final String SNRNA_PSEUDOGENE = &quot;snRNA_pseudogene&quot;;
+    public static final String SCRNA_PSEUDOGENE = &quot;scRNA_pseudogene&quot;;
+    public static final String RRNA_PSEUDOGENE = &quot;rRNA_pseudogene&quot;;
+    public static final String MISC_RNA_PSEUDOGENE = &quot;misc_RNA_pseudogene&quot;;
+    public static final String MIRNA_PSEUDOGENE = &quot;miRNA_pseudogene&quot;;
+    public static final String NON_CODING = &quot;non_coding&quot;;
+    public static final String AMBIGUOUS_ORF = &quot;ambiguous_orf&quot;;
+    public static final String KNOWN_NCRNA = &quot;known_ncrna&quot;;
+    public static final String RETROTRANSPOSED = &quot;retrotransposed&quot;;
+    public static final String TRANSCRIBED_UNITARY_PSEUDOGENE = &quot;transcribed_unitary_pseudogene&quot;;
+    public static final String TRANSLATED_UNPROCESSED_PSEUDOGENE = &quot;translated_unprocessed_pseudogene&quot;;
+    public static final String LRG_GENE = &quot;LRG_gene&quot;;
+
+    public static final String INTERGENIC_VARIANT = &quot;intergenic_variant&quot;;
+    public static final String REGULATORY_REGION_VARIANT = &quot;regulatory_region_variant&quot;;
+    public static final String TF_BINDING_SITE_VARIANT = &quot;TF_binding_site_variant&quot;;
+    public static final String UPSTREAM_GENE_VARIANT = &quot;upstream_gene_variant&quot;;
+    public static final String TWOKB_UPSTREAM_VARIANT = &quot;2KB_upstream_variant&quot;;
+    public static final String DOWNSTREAM_GENE_VARIANT = &quot;downstream_gene_variant&quot;;
+    public static final String TWOKB_DOWNSTREAM_VARIANT = &quot;2KB_downstream_variant&quot;;
+    public static final String SPLICE_DONOR_VARIANT = &quot;splice_donor_variant&quot;;
+    public static final String SPLICE_ACCEPTOR_VARIANT = &quot;splice_acceptor_variant&quot;;
+    public static final String INTRON_VARIANT = &quot;intron_variant&quot;;
+    public static final String SPLICE_REGION_VARIANT = &quot;splice_region_variant&quot;;
+    public static final String FIVE_PRIME_UTR_VARIANT = &quot;5_prime_UTR_variant&quot;;
+    public static final String THREE_PRIME_UTR_VARIANT = &quot;3_prime_UTR_variant&quot;;
+    public static final String INCOMPLETE_TERMINAL_CODON_VARIANT = &quot;incomplete_terminal_codon_variant&quot;;
+    public static final String STOP_RETAINED_VARIANT = &quot;stop_retained_variant&quot;;
+    public static final String START_RETAINED_VARIANT = &quot;start_retained_variant&quot;;
+    public static final String SYNONYMOUS_VARIANT = &quot;synonymous_variant&quot;;
+    public static final String INITIATOR_CODON_VARIANT = &quot;initiator_codon_variant&quot;;
+    public static final String START_LOST = &quot;start_lost&quot;;
+    public static final String STOP_GAINED = &quot;stop_gained&quot;;
+    public static final String STOP_LOST = &quot;stop_lost&quot;;
+    public static final String MISSENSE_VARIANT = &quot;missense_variant&quot;;
+    public static final String MATURE_MIRNA_VARIANT = &quot;mature_miRNA_variant&quot;;
+    public static final String NON_CODING_TRANSCRIPT_EXON_VARIANT = &quot;non_coding_transcript_exon_variant&quot;;
+    public static final String NON_CODING_TRANSCRIPT_VARIANT = &quot;non_coding_transcript_variant&quot;;
+    public static final String INFRAME_INSERTION = &quot;inframe_insertion&quot;;
+    public static final String INFRAME_VARIANT = &quot;inframe_variant&quot;;
+    public static final String FRAMESHIFT_VARIANT = &quot;frameshift_variant&quot;;
+    public static final String CODING_SEQUENCE_VARIANT = &quot;coding_sequence_variant&quot;;
+    public static final String TRANSCRIPT_ABLATION = &quot;transcript_ablation&quot;;
+    public static final String TRANSCRIPT_AMPLIFICATION = &quot;transcript_amplification&quot;;
+    public static final String COPY_NUMBER_CHANGE = &quot;copy_number_change&quot;;
+    public static final String TERMINATOR_CODON_VARIANT = &quot;terminator_codon_variant&quot;;
+    public static final String FEATURE_TRUNCATION = &quot;feature_truncation&quot;;
+    public static final String FEATURE_VARIANT = &quot;feature_variant&quot;;
+    public static final String STRUCTURAL_VARIANT = &quot;structural_variant&quot;;
+    public static final String INFRAME_DELETION = &quot;inframe_deletion&quot;;
+
+    public static final String CDS_START_NF = &quot;cds_start_NF&quot;;
+    public static final String CDS_END_NF = &quot;cds_end_NF&quot;;
+
+<span class="nc" id="L115">    public static final Map&lt;String, Map&lt;String, Boolean&gt;&gt; IS_SYNONYMOUS_CODON = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L116">    public static final Map&lt;String, Map&lt;String, Boolean&gt;&gt; MT_IS_SYNONYMOUS_CODON = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L117">    public static final Map&lt;String, String&gt; SO_NAMES_CORRECTIONS = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L118">    public static final Map&lt;String, List&lt;String&gt;&gt; A_TO_CODON = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L119">    public static final Map&lt;String, List&lt;String&gt;&gt; MT_A_TO_CODON = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L120">    public static final Map&lt;String, String&gt; CODON_TO_A = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L121">    public static final Map&lt;String, String&gt; MT_CODON_TO_A = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L122">    public static final Map&lt;Character, Character&gt; COMPLEMENTARY_NT = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L123">    public static final Map&lt;Integer, String&gt; SIFT_DESCRIPTIONS = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L124">    public static final Map&lt;Integer, String&gt; POLYPHEN_DESCRIPTIONS = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L125">    public static final Map&lt;String, Integer&gt; SO_SEVERITY = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L126">    public static final Map&lt;String, AlleleOrigin&gt; ORIGIN_STRING_TO_ALLELE_ORIGIN = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L127">    public static final Set&lt;String&gt; CODING_SO_NAMES = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L128">    public static final Map&lt;String, ClinicalSignificance&gt; CLINVAR_CLINSIG_TO_ACMG = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L129">    public static final Map&lt;String, TraitAssociation&gt; CLINVAR_CLINSIG_TO_TRAIT_ASSOCIATION = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L130">    public static final HashMap&lt;String, ConsistencyStatus&gt; CLINVAR_REVIEW_TO_CONSISTENCY_STATUS = new HashMap&lt;&gt;();</span>
+    // Currently left empty since the only item within DrugResponseClassification that seemed to match any clinvar
+    // tag (&quot;responsive&quot;) was removed at some point from the model
+<span class="nc" id="L133">    public static final Map&lt;String, DrugResponseClassification&gt; CLINVAR_CLINSIG_TO_DRUG_RESPONSE = new HashMap&lt;&gt;();</span>
+
+<span class="nc" id="L135">    public static final HashMap&lt;Object, ModeOfInheritance&gt; MODEOFINHERITANCE_MAP = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L136">    public static final HashMap&lt;String, AlleleOrigin&gt; COSMIC_SOMATICSTATUS_TO_ALLELE_ORIGIN = new HashMap&lt;&gt;();</span>
+    private static final String ATG = &quot;ATG&quot;;
+    private static final String ATA = &quot;ATA&quot;;
+    private static final String TAA = &quot;TAA&quot;;
+    private static final String TAG = &quot;TAG&quot;;
+    private static final String AGA = &quot;AGA&quot;;
+    private static final String AGG = &quot;AGG&quot;;
+    private static final String TGA = &quot;TGA&quot;;
+
+    static {
+
+<span class="nc" id="L147">        MODEOFINHERITANCE_MAP.put(&quot;autosomal dominant inheritance&quot;, ModeOfInheritance.monoallelic);</span>
+<span class="nc" id="L148">        MODEOFINHERITANCE_MAP.put(&quot;autosomal dominant inheritance with maternal imprinting&quot;,</span>
+                ModeOfInheritance.monoallelic_maternally_imprinted);
+<span class="nc" id="L150">        MODEOFINHERITANCE_MAP.put(&quot;autosomal dominant inheritance with paternal imprinting&quot;,</span>
+                ModeOfInheritance.monoallelic_paternally_imprinted);
+<span class="nc" id="L152">        MODEOFINHERITANCE_MAP.put(&quot;autosomal recessive inheritance&quot;,</span>
+                ModeOfInheritance.biallelic);
+<span class="nc" id="L154">        MODEOFINHERITANCE_MAP.put(&quot;mitochondrial inheritance&quot;,</span>
+                ModeOfInheritance.mitochondrial);
+<span class="nc" id="L156">        MODEOFINHERITANCE_MAP.put(&quot;sex-limited autosomal dominant&quot;,</span>
+                ModeOfInheritance.monoallelic);
+<span class="nc" id="L158">        MODEOFINHERITANCE_MAP.put(&quot;x-linked dominant inheritance&quot;,</span>
+                ModeOfInheritance.xlinked_monoallelic);
+<span class="nc" id="L160">        MODEOFINHERITANCE_MAP.put(&quot;x-linked recessive inheritance&quot;,</span>
+                ModeOfInheritance.xlinked_biallelic);
+
+<span class="nc" id="L163">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;criteria_provided_conflicting_interpretations&quot;, ConsistencyStatus.conflict);</span>
+<span class="nc" id="L164">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;criteria_provided_multiple_submitters_no_conflicts&quot;, ConsistencyStatus.congruent);</span>
+<span class="nc" id="L165">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;criteria_provided_single_submitter&quot;, ConsistencyStatus.congruent);</span>
+<span class="nc" id="L166">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;reviewed_by_expert_panel&quot;, ConsistencyStatus.congruent);</span>
+<span class="nc" id="L167">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;conflicting interpretations&quot;, ConsistencyStatus.conflict);</span>
+<span class="nc" id="L168">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;no conflicts&quot;, ConsistencyStatus.congruent);</span>
+<span class="nc" id="L169">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;single submitter&quot;, ConsistencyStatus.congruent);</span>
+<span class="nc" id="L170">        CLINVAR_REVIEW_TO_CONSISTENCY_STATUS.put(&quot;reviewed by expert panel&quot;, ConsistencyStatus.congruent);</span>
+
+
+<span class="nc" id="L173">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;benign&quot;, ClinicalSignificance.benign);</span>
+<span class="nc" id="L174">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;likely benign&quot;, ClinicalSignificance.likely_benign);</span>
+<span class="nc" id="L175">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;conflicting interpretations of pathogenicity&quot;, ClinicalSignificance.uncertain_significance);</span>
+<span class="nc" id="L176">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;likely pathogenic&quot;, ClinicalSignificance.likely_pathogenic);</span>
+<span class="nc" id="L177">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;pathogenic&quot;, ClinicalSignificance.pathogenic);</span>
+<span class="nc" id="L178">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;uncertain significance&quot;, ClinicalSignificance.uncertain_significance);</span>
+<span class="nc" id="L179">        CLINVAR_CLINSIG_TO_ACMG.put(&quot;conflicting data from submitters&quot;, ClinicalSignificance.uncertain_significance);</span>
+
+<span class="nc" id="L181">        CLINVAR_CLINSIG_TO_TRAIT_ASSOCIATION.put(&quot;risk factor&quot;, TraitAssociation.established_risk_allele);</span>
+<span class="nc" id="L182">        CLINVAR_CLINSIG_TO_TRAIT_ASSOCIATION.put(&quot;protective&quot;, TraitAssociation.protective);</span>
+
+        ///////////////////////////////////////////////////////////////////////
+        /////   ClinVar and Cosmic allele origins to SO terms   ///////////////
+        ///////////////////////////////////////////////////////////////////////
+<span class="nc" id="L187">        ORIGIN_STRING_TO_ALLELE_ORIGIN.put(&quot;germline&quot;, AlleleOrigin.germline_variant);</span>
+<span class="nc" id="L188">        ORIGIN_STRING_TO_ALLELE_ORIGIN.put(&quot;maternal&quot;, AlleleOrigin.maternal_variant);</span>
+<span class="nc" id="L189">        ORIGIN_STRING_TO_ALLELE_ORIGIN.put(&quot;de novo&quot;, AlleleOrigin.de_novo_variant);</span>
+<span class="nc" id="L190">        ORIGIN_STRING_TO_ALLELE_ORIGIN.put(&quot;paternal&quot;, AlleleOrigin.paternal_variant);</span>
+<span class="nc" id="L191">        ORIGIN_STRING_TO_ALLELE_ORIGIN.put(&quot;somatic&quot;, AlleleOrigin.somatic_variant);</span>
+
+        ///////////////////////////////////////////////////////////////////////
+        /////   GENETIC CODE   ////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////
+<span class="nc" id="L196">        A_TO_CODON.put(&quot;ALA&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L197">        A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCT&quot;);</span>
+<span class="nc" id="L198">        A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCC&quot;);</span>
+<span class="nc" id="L199">        A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCA&quot;);</span>
+<span class="nc" id="L200">        A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCG&quot;);</span>
+<span class="nc" id="L201">        A_TO_CODON.put(&quot;ARG&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L202">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGT&quot;);</span>
+<span class="nc" id="L203">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGC&quot;);</span>
+<span class="nc" id="L204">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGA&quot;);</span>
+<span class="nc" id="L205">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGG&quot;);</span>
+<span class="nc" id="L206">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;AGA&quot;);</span>
+<span class="nc" id="L207">        A_TO_CODON.get(&quot;ARG&quot;).add(&quot;AGG&quot;);</span>
+<span class="nc" id="L208">        A_TO_CODON.put(&quot;ASN&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L209">        A_TO_CODON.get(&quot;ASN&quot;).add(&quot;AAT&quot;);</span>
+<span class="nc" id="L210">        A_TO_CODON.get(&quot;ASN&quot;).add(&quot;AAC&quot;);</span>
+<span class="nc" id="L211">        A_TO_CODON.put(&quot;ASP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L212">        A_TO_CODON.get(&quot;ASP&quot;).add(&quot;GAT&quot;);</span>
+<span class="nc" id="L213">        A_TO_CODON.get(&quot;ASP&quot;).add(&quot;GAC&quot;);</span>
+<span class="nc" id="L214">        A_TO_CODON.put(&quot;CYS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L215">        A_TO_CODON.get(&quot;CYS&quot;).add(&quot;TGT&quot;);</span>
+<span class="nc" id="L216">        A_TO_CODON.get(&quot;CYS&quot;).add(&quot;TGC&quot;);</span>
+<span class="nc" id="L217">        A_TO_CODON.put(&quot;GLN&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L218">        A_TO_CODON.get(&quot;GLN&quot;).add(&quot;CAA&quot;);</span>
+<span class="nc" id="L219">        A_TO_CODON.get(&quot;GLN&quot;).add(&quot;CAG&quot;);</span>
+<span class="nc" id="L220">        A_TO_CODON.put(&quot;GLU&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L221">        A_TO_CODON.get(&quot;GLU&quot;).add(&quot;GAA&quot;);</span>
+<span class="nc" id="L222">        A_TO_CODON.get(&quot;GLU&quot;).add(&quot;GAG&quot;);</span>
+<span class="nc" id="L223">        A_TO_CODON.put(&quot;GLY&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L224">        A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGT&quot;);</span>
+<span class="nc" id="L225">        A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGC&quot;);</span>
+<span class="nc" id="L226">        A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGA&quot;);</span>
+<span class="nc" id="L227">        A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGG&quot;);</span>
+<span class="nc" id="L228">        A_TO_CODON.put(&quot;HIS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L229">        A_TO_CODON.get(&quot;HIS&quot;).add(&quot;CAT&quot;);</span>
+<span class="nc" id="L230">        A_TO_CODON.get(&quot;HIS&quot;).add(&quot;CAC&quot;);</span>
+<span class="nc" id="L231">        A_TO_CODON.put(&quot;ILE&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L232">        A_TO_CODON.get(&quot;ILE&quot;).add(&quot;ATT&quot;);</span>
+<span class="nc" id="L233">        A_TO_CODON.get(&quot;ILE&quot;).add(&quot;ATC&quot;);</span>
+<span class="nc" id="L234">        A_TO_CODON.get(&quot;ILE&quot;).add(&quot;ATA&quot;);</span>
+<span class="nc" id="L235">        A_TO_CODON.put(&quot;LEU&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L236">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;TTA&quot;);</span>
+<span class="nc" id="L237">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;TTG&quot;);</span>
+<span class="nc" id="L238">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTT&quot;);</span>
+<span class="nc" id="L239">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTC&quot;);</span>
+<span class="nc" id="L240">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTA&quot;);</span>
+<span class="nc" id="L241">        A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTG&quot;);</span>
+<span class="nc" id="L242">        A_TO_CODON.put(&quot;LYS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L243">        A_TO_CODON.get(&quot;LYS&quot;).add(&quot;AAA&quot;);</span>
+<span class="nc" id="L244">        A_TO_CODON.get(&quot;LYS&quot;).add(&quot;AAG&quot;);</span>
+<span class="nc" id="L245">        A_TO_CODON.put(&quot;MET&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L246">        A_TO_CODON.get(&quot;MET&quot;).add(&quot;ATG&quot;);</span>
+<span class="nc" id="L247">        A_TO_CODON.put(&quot;PHE&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L248">        A_TO_CODON.get(&quot;PHE&quot;).add(&quot;TTT&quot;);</span>
+<span class="nc" id="L249">        A_TO_CODON.get(&quot;PHE&quot;).add(&quot;TTC&quot;);</span>
+<span class="nc" id="L250">        A_TO_CODON.put(&quot;PRO&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L251">        A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCT&quot;);</span>
+<span class="nc" id="L252">        A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCC&quot;);</span>
+<span class="nc" id="L253">        A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCA&quot;);</span>
+<span class="nc" id="L254">        A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCG&quot;);</span>
+<span class="nc" id="L255">        A_TO_CODON.put(&quot;SER&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L256">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCT&quot;);</span>
+<span class="nc" id="L257">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCC&quot;);</span>
+<span class="nc" id="L258">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCA&quot;);</span>
+<span class="nc" id="L259">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCG&quot;);</span>
+<span class="nc" id="L260">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;AGT&quot;);</span>
+<span class="nc" id="L261">        A_TO_CODON.get(&quot;SER&quot;).add(&quot;AGC&quot;);</span>
+<span class="nc" id="L262">        A_TO_CODON.put(&quot;THR&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L263">        A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACT&quot;);</span>
+<span class="nc" id="L264">        A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACC&quot;);</span>
+<span class="nc" id="L265">        A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACA&quot;);</span>
+<span class="nc" id="L266">        A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACG&quot;);</span>
+<span class="nc" id="L267">        A_TO_CODON.put(&quot;TRP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L268">        A_TO_CODON.get(&quot;TRP&quot;).add(&quot;TGG&quot;);</span>
+<span class="nc" id="L269">        A_TO_CODON.put(&quot;TYR&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L270">        A_TO_CODON.get(&quot;TYR&quot;).add(&quot;TAT&quot;);</span>
+<span class="nc" id="L271">        A_TO_CODON.get(&quot;TYR&quot;).add(&quot;TAC&quot;);</span>
+<span class="nc" id="L272">        A_TO_CODON.put(&quot;VAL&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L273">        A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTT&quot;);</span>
+<span class="nc" id="L274">        A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTC&quot;);</span>
+<span class="nc" id="L275">        A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTA&quot;);</span>
+<span class="nc" id="L276">        A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTG&quot;);</span>
+<span class="nc" id="L277">        A_TO_CODON.put(&quot;STOP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L278">        A_TO_CODON.get(&quot;STOP&quot;).add(&quot;TAA&quot;);</span>
+<span class="nc" id="L279">        A_TO_CODON.get(&quot;STOP&quot;).add(&quot;TGA&quot;);</span>
+<span class="nc" id="L280">        A_TO_CODON.get(&quot;STOP&quot;).add(&quot;TAG&quot;);</span>
+
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        for (String aa : A_TO_CODON.keySet()) {</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            for (String codon : A_TO_CODON.get(aa)) {</span>
+<span class="nc" id="L284">                IS_SYNONYMOUS_CODON.put(codon, new HashMap&lt;String, Boolean&gt;());</span>
+<span class="nc" id="L285">                CODON_TO_A.put(codon, aa);</span>
+<span class="nc" id="L286">            }</span>
+<span class="nc" id="L287">        }</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        for (String codon1 : IS_SYNONYMOUS_CODON.keySet()) {</span>
+<span class="nc" id="L289">            Map&lt;String, Boolean&gt; codonEntry = IS_SYNONYMOUS_CODON.get(codon1);</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            for (String codon2 : IS_SYNONYMOUS_CODON.keySet()) {</span>
+<span class="nc" id="L291">                codonEntry.put(codon2, false);</span>
+<span class="nc" id="L292">            }</span>
+<span class="nc" id="L293">        }</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">        for (String aa : A_TO_CODON.keySet()) {</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            for (String codon1 : A_TO_CODON.get(aa)) {</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">                for (String codon2 : A_TO_CODON.get(aa)) {</span>
+<span class="nc" id="L297">                    IS_SYNONYMOUS_CODON.get(codon1).put(codon2, true);</span>
+<span class="nc" id="L298">                }</span>
+<span class="nc" id="L299">            }</span>
+<span class="nc" id="L300">        }</span>
+
+        ///////////////////////////////////////////////////////////////////////
+        /////   MITOCHONDRIAL GENETIC CODE   //////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////
+<span class="nc" id="L305">        MT_A_TO_CODON.put(&quot;ALA&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L306">        MT_A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCT&quot;);</span>
+<span class="nc" id="L307">        MT_A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCC&quot;);</span>
+<span class="nc" id="L308">        MT_A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCA&quot;);</span>
+<span class="nc" id="L309">        MT_A_TO_CODON.get(&quot;ALA&quot;).add(&quot;GCG&quot;);</span>
+<span class="nc" id="L310">        MT_A_TO_CODON.put(&quot;ARG&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L311">        MT_A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGT&quot;);</span>
+<span class="nc" id="L312">        MT_A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGC&quot;);</span>
+<span class="nc" id="L313">        MT_A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGA&quot;);</span>
+<span class="nc" id="L314">        MT_A_TO_CODON.get(&quot;ARG&quot;).add(&quot;CGG&quot;);</span>
+<span class="nc" id="L315">        MT_A_TO_CODON.put(&quot;ASN&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L316">        MT_A_TO_CODON.get(&quot;ASN&quot;).add(&quot;AAT&quot;);</span>
+<span class="nc" id="L317">        MT_A_TO_CODON.get(&quot;ASN&quot;).add(&quot;AAC&quot;);</span>
+<span class="nc" id="L318">        MT_A_TO_CODON.put(&quot;ASP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L319">        MT_A_TO_CODON.get(&quot;ASP&quot;).add(&quot;GAT&quot;);</span>
+<span class="nc" id="L320">        MT_A_TO_CODON.get(&quot;ASP&quot;).add(&quot;GAC&quot;);</span>
+<span class="nc" id="L321">        MT_A_TO_CODON.put(&quot;CYS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L322">        MT_A_TO_CODON.get(&quot;CYS&quot;).add(&quot;TGT&quot;);</span>
+<span class="nc" id="L323">        MT_A_TO_CODON.get(&quot;CYS&quot;).add(&quot;TGC&quot;);</span>
+<span class="nc" id="L324">        MT_A_TO_CODON.put(&quot;GLN&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L325">        MT_A_TO_CODON.get(&quot;GLN&quot;).add(&quot;CAA&quot;);</span>
+<span class="nc" id="L326">        MT_A_TO_CODON.get(&quot;GLN&quot;).add(&quot;CAG&quot;);</span>
+<span class="nc" id="L327">        MT_A_TO_CODON.put(&quot;GLU&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L328">        MT_A_TO_CODON.get(&quot;GLU&quot;).add(&quot;GAA&quot;);</span>
+<span class="nc" id="L329">        MT_A_TO_CODON.get(&quot;GLU&quot;).add(&quot;GAG&quot;);</span>
+<span class="nc" id="L330">        MT_A_TO_CODON.put(&quot;GLY&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L331">        MT_A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGT&quot;);</span>
+<span class="nc" id="L332">        MT_A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGC&quot;);</span>
+<span class="nc" id="L333">        MT_A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGA&quot;);</span>
+<span class="nc" id="L334">        MT_A_TO_CODON.get(&quot;GLY&quot;).add(&quot;GGG&quot;);</span>
+<span class="nc" id="L335">        MT_A_TO_CODON.put(&quot;HIS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L336">        MT_A_TO_CODON.get(&quot;HIS&quot;).add(&quot;CAT&quot;);</span>
+<span class="nc" id="L337">        MT_A_TO_CODON.get(&quot;HIS&quot;).add(&quot;CAC&quot;);</span>
+<span class="nc" id="L338">        MT_A_TO_CODON.put(&quot;ILE&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L339">        MT_A_TO_CODON.get(&quot;ILE&quot;).add(&quot;ATT&quot;);</span>
+<span class="nc" id="L340">        MT_A_TO_CODON.get(&quot;ILE&quot;).add(&quot;ATC&quot;);</span>
+<span class="nc" id="L341">        MT_A_TO_CODON.put(&quot;LEU&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L342">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;TTA&quot;);</span>
+<span class="nc" id="L343">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;TTG&quot;);</span>
+<span class="nc" id="L344">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTT&quot;);</span>
+<span class="nc" id="L345">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTC&quot;);</span>
+<span class="nc" id="L346">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTA&quot;);</span>
+<span class="nc" id="L347">        MT_A_TO_CODON.get(&quot;LEU&quot;).add(&quot;CTG&quot;);</span>
+<span class="nc" id="L348">        MT_A_TO_CODON.put(&quot;LYS&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L349">        MT_A_TO_CODON.get(&quot;LYS&quot;).add(&quot;AAA&quot;);</span>
+<span class="nc" id="L350">        MT_A_TO_CODON.get(&quot;LYS&quot;).add(&quot;AAG&quot;);</span>
+<span class="nc" id="L351">        MT_A_TO_CODON.put(&quot;MET&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L352">        MT_A_TO_CODON.get(&quot;MET&quot;).add(&quot;ATG&quot;);</span>
+<span class="nc" id="L353">        MT_A_TO_CODON.get(&quot;MET&quot;).add(&quot;ATA&quot;);</span>
+<span class="nc" id="L354">        MT_A_TO_CODON.put(&quot;PHE&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L355">        MT_A_TO_CODON.get(&quot;PHE&quot;).add(&quot;TTT&quot;);</span>
+<span class="nc" id="L356">        MT_A_TO_CODON.get(&quot;PHE&quot;).add(&quot;TTC&quot;);</span>
+<span class="nc" id="L357">        MT_A_TO_CODON.put(&quot;PRO&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L358">        MT_A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCT&quot;);</span>
+<span class="nc" id="L359">        MT_A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCC&quot;);</span>
+<span class="nc" id="L360">        MT_A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCA&quot;);</span>
+<span class="nc" id="L361">        MT_A_TO_CODON.get(&quot;PRO&quot;).add(&quot;CCG&quot;);</span>
+<span class="nc" id="L362">        MT_A_TO_CODON.put(&quot;SER&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L363">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCT&quot;);</span>
+<span class="nc" id="L364">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCC&quot;);</span>
+<span class="nc" id="L365">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCA&quot;);</span>
+<span class="nc" id="L366">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;TCG&quot;);</span>
+<span class="nc" id="L367">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;AGT&quot;);</span>
+<span class="nc" id="L368">        MT_A_TO_CODON.get(&quot;SER&quot;).add(&quot;AGC&quot;);</span>
+<span class="nc" id="L369">        MT_A_TO_CODON.put(&quot;THR&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L370">        MT_A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACT&quot;);</span>
+<span class="nc" id="L371">        MT_A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACC&quot;);</span>
+<span class="nc" id="L372">        MT_A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACA&quot;);</span>
+<span class="nc" id="L373">        MT_A_TO_CODON.get(&quot;THR&quot;).add(&quot;ACG&quot;);</span>
+<span class="nc" id="L374">        MT_A_TO_CODON.put(&quot;TRP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L375">        MT_A_TO_CODON.get(&quot;TRP&quot;).add(&quot;TGG&quot;);</span>
+<span class="nc" id="L376">        MT_A_TO_CODON.get(&quot;TRP&quot;).add(&quot;TGA&quot;);</span>
+<span class="nc" id="L377">        MT_A_TO_CODON.put(&quot;TYR&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L378">        MT_A_TO_CODON.get(&quot;TYR&quot;).add(&quot;TAT&quot;);</span>
+<span class="nc" id="L379">        MT_A_TO_CODON.get(&quot;TYR&quot;).add(&quot;TAC&quot;);</span>
+<span class="nc" id="L380">        MT_A_TO_CODON.put(&quot;VAL&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L381">        MT_A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTT&quot;);</span>
+<span class="nc" id="L382">        MT_A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTC&quot;);</span>
+<span class="nc" id="L383">        MT_A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTA&quot;);</span>
+<span class="nc" id="L384">        MT_A_TO_CODON.get(&quot;VAL&quot;).add(&quot;GTG&quot;);</span>
+<span class="nc" id="L385">        MT_A_TO_CODON.put(&quot;STOP&quot;, new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L386">        MT_A_TO_CODON.get(&quot;STOP&quot;).add(&quot;TAA&quot;);</span>
+<span class="nc" id="L387">        MT_A_TO_CODON.get(&quot;STOP&quot;).add(&quot;TAG&quot;);</span>
+<span class="nc" id="L388">        MT_A_TO_CODON.get(&quot;STOP&quot;).add(&quot;AGA&quot;);</span>
+<span class="nc" id="L389">        MT_A_TO_CODON.get(&quot;STOP&quot;).add(&quot;AGG&quot;);</span>
+
+<span class="nc bnc" id="L391" title="All 2 branches missed.">        for (String aa : MT_A_TO_CODON.keySet()) {</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">            for (String codon : MT_A_TO_CODON.get(aa)) {</span>
+<span class="nc" id="L393">                MT_IS_SYNONYMOUS_CODON.put(codon, new HashMap&lt;String, Boolean&gt;());</span>
+<span class="nc" id="L394">                MT_CODON_TO_A.put(codon, aa);</span>
+<span class="nc" id="L395">            }</span>
+<span class="nc" id="L396">        }</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        for (String codon1 : MT_IS_SYNONYMOUS_CODON.keySet()) {</span>
+<span class="nc" id="L398">            Map&lt;String, Boolean&gt; codonEntry = MT_IS_SYNONYMOUS_CODON.get(codon1);</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">            for (String codon2 : MT_IS_SYNONYMOUS_CODON.keySet()) {</span>
+<span class="nc" id="L400">                codonEntry.put(codon2, false);</span>
+<span class="nc" id="L401">            }</span>
+<span class="nc" id="L402">        }</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">        for (String aa : MT_A_TO_CODON.keySet()) {</span>
+<span class="nc bnc" id="L404" title="All 2 branches missed.">            for (String codon1 : MT_A_TO_CODON.get(aa)) {</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">                for (String codon2 : MT_A_TO_CODON.get(aa)) {</span>
+<span class="nc" id="L406">                    MT_IS_SYNONYMOUS_CODON.get(codon1).put(codon2, true);</span>
+<span class="nc" id="L407">                }</span>
+<span class="nc" id="L408">            }</span>
+<span class="nc" id="L409">        }</span>
+
+<span class="nc" id="L411">        COMPLEMENTARY_NT.put('A', 'T');</span>
+<span class="nc" id="L412">        COMPLEMENTARY_NT.put('C', 'G');</span>
+<span class="nc" id="L413">        COMPLEMENTARY_NT.put('G', 'C');</span>
+<span class="nc" id="L414">        COMPLEMENTARY_NT.put('T', 'A');</span>
+<span class="nc" id="L415">        COMPLEMENTARY_NT.put('N', 'N');</span>
+
+<span class="nc" id="L417">        POLYPHEN_DESCRIPTIONS.put(0, &quot;probably damaging&quot;);</span>
+<span class="nc" id="L418">        POLYPHEN_DESCRIPTIONS.put(1, &quot;possibly damaging&quot;);</span>
+<span class="nc" id="L419">        POLYPHEN_DESCRIPTIONS.put(2, &quot;benign&quot;);</span>
+<span class="nc" id="L420">        POLYPHEN_DESCRIPTIONS.put(3, &quot;unknown&quot;);</span>
+
+<span class="nc" id="L422">        SIFT_DESCRIPTIONS.put(0, &quot;tolerated&quot;);</span>
+<span class="nc" id="L423">        SIFT_DESCRIPTIONS.put(1, &quot;deleterious&quot;);</span>
+
+<span class="nc" id="L425">        SO_SEVERITY.put(&quot;copy_number_change&quot;, 42);</span>
+<span class="nc" id="L426">        SO_SEVERITY.put(&quot;transcript_ablation&quot;, 41);</span>
+<span class="nc" id="L427">        SO_SEVERITY.put(&quot;structural_variant&quot;, 40);</span>
+<span class="nc" id="L428">        SO_SEVERITY.put(&quot;splice_acceptor_variant&quot;, 39);</span>
+<span class="nc" id="L429">        SO_SEVERITY.put(&quot;splice_donor_variant&quot;, 38);</span>
+<span class="nc" id="L430">        SO_SEVERITY.put(&quot;stop_gained&quot;, 37);</span>
+<span class="nc" id="L431">        SO_SEVERITY.put(&quot;frameshift_variant&quot;, 36);</span>
+<span class="nc" id="L432">        SO_SEVERITY.put(&quot;stop_lost&quot;, 35);</span>
+<span class="nc" id="L433">        SO_SEVERITY.put(&quot;terminator_codon_variant&quot;, 34);</span>
+<span class="nc" id="L434">        SO_SEVERITY.put(&quot;start_lost&quot;, 34);</span>
+<span class="nc" id="L435">        SO_SEVERITY.put(&quot;initiator_codon_variant&quot;, 33);</span>
+<span class="nc" id="L436">        SO_SEVERITY.put(&quot;transcript_amplification&quot;, 32);</span>
+<span class="nc" id="L437">        SO_SEVERITY.put(&quot;inframe_insertion&quot;, 31);</span>
+<span class="nc" id="L438">        SO_SEVERITY.put(&quot;inframe_deletion&quot;, 30);</span>
+<span class="nc" id="L439">        SO_SEVERITY.put(&quot;inframe_variant&quot;, 29);</span>
+<span class="nc" id="L440">        SO_SEVERITY.put(&quot;missense_variant&quot;, 28);</span>
+<span class="nc" id="L441">        SO_SEVERITY.put(&quot;splice_region_variant&quot;, 27);</span>
+<span class="nc" id="L442">        SO_SEVERITY.put(&quot;incomplete_terminal_codon_variant&quot;, 26);</span>
+<span class="nc" id="L443">        SO_SEVERITY.put(&quot;stop_retained_variant&quot;, 25);</span>
+<span class="nc" id="L444">        SO_SEVERITY.put(&quot;start_retained_variant&quot;, 24);</span>
+<span class="nc" id="L445">        SO_SEVERITY.put(&quot;synonymous_variant&quot;, 23);</span>
+<span class="nc" id="L446">        SO_SEVERITY.put(&quot;coding_sequence_variant&quot;, 22);</span>
+<span class="nc" id="L447">        SO_SEVERITY.put(&quot;mature_miRNA_variant&quot;, 21);</span>
+<span class="nc" id="L448">        SO_SEVERITY.put(&quot;5_prime_UTR_variant&quot;, 20);</span>
+<span class="nc" id="L449">        SO_SEVERITY.put(&quot;3_prime_UTR_variant&quot;, 19);</span>
+<span class="nc" id="L450">        SO_SEVERITY.put(&quot;non_coding_transcript_exon_variant&quot;, 18);</span>
+<span class="nc" id="L451">        SO_SEVERITY.put(&quot;intron_variant&quot;, 17);</span>
+<span class="nc" id="L452">        SO_SEVERITY.put(&quot;NMD_transcript_variant&quot;, 16);</span>
+<span class="nc" id="L453">        SO_SEVERITY.put(&quot;non_coding_transcript_variant&quot;, 15);</span>
+<span class="nc" id="L454">        SO_SEVERITY.put(&quot;2KB_upstream_variant&quot;, 14);</span>
+<span class="nc" id="L455">        SO_SEVERITY.put(&quot;upstream_gene_variant&quot;, 13);</span>
+<span class="nc" id="L456">        SO_SEVERITY.put(&quot;2KB_downstream_variant&quot;, 12);</span>
+<span class="nc" id="L457">        SO_SEVERITY.put(&quot;downstream_gene_variant&quot;, 11);</span>
+<span class="nc" id="L458">        SO_SEVERITY.put(&quot;TFBS_ablation&quot;, 10);</span>
+<span class="nc" id="L459">        SO_SEVERITY.put(&quot;TFBS_amplification&quot;, 9);</span>
+<span class="nc" id="L460">        SO_SEVERITY.put(&quot;TF_binding_site_variant&quot;, 8);</span>
+<span class="nc" id="L461">        SO_SEVERITY.put(&quot;regulatory_region_ablation&quot;, 7);</span>
+<span class="nc" id="L462">        SO_SEVERITY.put(&quot;regulatory_region_amplification&quot;, 6);</span>
+<span class="nc" id="L463">        SO_SEVERITY.put(&quot;regulatory_region_variant&quot;, 5);</span>
+<span class="nc" id="L464">        SO_SEVERITY.put(&quot;feature_elongation&quot;, 4);</span>
+<span class="nc" id="L465">        SO_SEVERITY.put(&quot;feature_truncation&quot;, 3);</span>
+<span class="nc" id="L466">        SO_SEVERITY.put(&quot;feature_variant&quot;, 2);</span>
+<span class="nc" id="L467">        SO_SEVERITY.put(&quot;intergenic_variant&quot;, 1);</span>
+
+<span class="nc" id="L469">        CODING_SO_NAMES.add(STOP_RETAINED_VARIANT);</span>
+<span class="nc" id="L470">        CODING_SO_NAMES.add(START_RETAINED_VARIANT);</span>
+<span class="nc" id="L471">        CODING_SO_NAMES.add(SYNONYMOUS_VARIANT);</span>
+<span class="nc" id="L472">        CODING_SO_NAMES.add(STOP_GAINED);</span>
+<span class="nc" id="L473">        CODING_SO_NAMES.add(INITIATOR_CODON_VARIANT);</span>
+<span class="nc" id="L474">        CODING_SO_NAMES.add(START_LOST);</span>
+<span class="nc" id="L475">        CODING_SO_NAMES.add(STOP_LOST);</span>
+<span class="nc" id="L476">        CODING_SO_NAMES.add(MISSENSE_VARIANT);</span>
+
+<span class="nc" id="L478">        SO_NAMES_CORRECTIONS.put(&quot;nc_transcript_variant&quot;, &quot;non_coding_transcript_variant&quot;);</span>
+<span class="nc" id="L479">        SO_NAMES_CORRECTIONS.put(&quot;non_coding_exon_variant&quot;, &quot;non_coding_transcript_exon_variant&quot;);</span>
+<span class="nc" id="L480">    }</span>
+
+    public static Boolean isSynonymousCodon(String codon1, String codon2) {
+<span class="nc" id="L483">        return isSynonymousCodon(false, codon1, codon2);</span>
+    }
+
+    public static Boolean isSynonymousCodon(Boolean mitochondrialCode, String codon1, String codon2) {
+<span class="nc" id="L487">        Map&lt;String, String&gt; geneticCode = null;</span>
+<span class="nc bnc" id="L488" title="All 2 branches missed.">        if (mitochondrialCode) {</span>
+<span class="nc" id="L489">            return MT_IS_SYNONYMOUS_CODON.get(codon1).get(codon2);</span>
+        } else {
+<span class="nc" id="L491">            return IS_SYNONYMOUS_CODON.get(codon1).get(codon2);</span>
+        }
+    }
+
+    public static Boolean isStopCodon(String codon) {
+<span class="nc" id="L496">        return isStopCodon(false, codon);</span>
+    }
+
+    public static Boolean isStopCodon(boolean mitochondrialCode, String codon) {
+<span class="nc bnc" id="L500" title="All 2 branches missed.">        if (mitochondrialCode) {</span>
+<span class="nc bnc" id="L501" title="All 8 branches missed.">            if (codon.equals(TAA) || codon.equals(TAG) || codon.equals(AGA) || codon.equals(AGG)) {</span>
+<span class="nc" id="L502">                return true;</span>
+            }
+        } else {
+<span class="nc bnc" id="L505" title="All 6 branches missed.">            if (codon.equals(TAA) || codon.equals(TGA) || codon.equals(TAG)) {</span>
+<span class="nc" id="L506">                return true;</span>
+            }
+        }
+<span class="nc" id="L509">        return false;</span>
+    }
+
+    public static boolean isStartCodon(boolean mitochondrialCode, String codon) {
+<span class="nc bnc" id="L513" title="All 2 branches missed.">        if (mitochondrialCode) {</span>
+<span class="nc bnc" id="L514" title="All 4 branches missed.">            if (codon.equals(ATG) || codon.equals(ATA)) {</span>
+<span class="nc" id="L515">                return true;</span>
+            }
+        } else {
+<span class="nc bnc" id="L518" title="All 2 branches missed.">            if (codon.equals(ATG)) {</span>
+<span class="nc" id="L519">                return true;</span>
+            }
+        }
+<span class="nc" id="L522">        return false;</span>
+    }
+
+
+    public static String getAminoacid(boolean mitochondrialCode, String codon) {
+<span class="nc bnc" id="L527" title="All 2 branches missed.">        if (mitochondrialCode) {</span>
+<span class="nc" id="L528">            return MT_CODON_TO_A.get(codon);</span>
+        } else {
+<span class="nc" id="L530">            return CODON_TO_A.get(codon);</span>
+        }
+    }
+
+    public static List&lt;SequenceOntologyTerm&gt; getSequenceOntologyTerms(Iterable&lt;String&gt; soNames) throws SOTermNotAvailableException {
+<span class="nc" id="L535">        List&lt;SequenceOntologyTerm&gt; sequenceOntologyTerms = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L536" title="All 2 branches missed.">        for (String name : soNames) {</span>
+<span class="nc" id="L537">            name = fixSONameIfNeeded(name);</span>
+<span class="nc" id="L538">            sequenceOntologyTerms.add(newSequenceOntologyTerm(name));</span>
+<span class="nc" id="L539">        }</span>
+<span class="nc" id="L540">        return sequenceOntologyTerms;</span>
+    }
+
+    private static String fixSONameIfNeeded(String name) {
+<span class="nc" id="L544">        String fixedName = SO_NAMES_CORRECTIONS.get(name);</span>
+<span class="nc bnc" id="L545" title="All 2 branches missed.">        return fixedName == null ? name : fixedName;</span>
+    }
+
+    public static SequenceOntologyTerm newSequenceOntologyTerm(String name) throws SOTermNotAvailableException {
+<span class="nc" id="L549">        return new SequenceOntologyTerm(ConsequenceTypeMappings.getSoAccessionString(name), name);</span>
+    }
+
+    public static String buildVariantId(String chromosome, int start, String reference, String alternate) {
+<span class="nc" id="L553">        StringBuilder stringBuilder = new StringBuilder();</span>
+
+<span class="nc" id="L555">        appendChromosome(chromosome, stringBuilder)</span>
+<span class="nc" id="L556">                .append(SEPARATOR_CHAR)</span>
+<span class="nc" id="L557">                .append(StringUtils.leftPad(Integer.toString(start), 10, &quot; &quot;))</span>
+<span class="nc" id="L558">                .append(SEPARATOR_CHAR);</span>
+
+//        if (reference.length() &gt; Variant.SV_THRESHOLD) {
+//            stringBuilder.append(new String(CryptoUtils.encryptSha1(reference)));
+//        } else if (!(reference == null || reference.isEmpty() || reference.equals(&quot;-&quot;))) {
+<span class="nc bnc" id="L563" title="All 6 branches missed.">        if (!(reference == null || reference.isEmpty() || reference.equals(&quot;-&quot;))) {</span>
+<span class="nc" id="L564">            stringBuilder.append(reference);</span>
+        }
+<span class="nc" id="L566">        stringBuilder.append(SEPARATOR_CHAR);</span>
+//        if (alternate.length() &gt; Variant.SV_THRESHOLD) {
+//            stringBuilder.append(new String(CryptoUtils.encryptSha1(alternate)));
+//        } else if (!(alternate == null  || alternate.isEmpty() || alternate.equals(&quot;-&quot;))) {
+<span class="nc bnc" id="L570" title="All 6 branches missed.">        if (!(alternate == null  || alternate.isEmpty() || alternate.equals(&quot;-&quot;))) {</span>
+<span class="nc" id="L571">            stringBuilder.append(alternate);</span>
+        }
+<span class="nc" id="L573">        return stringBuilder.toString();</span>
+    }
+
+    protected static StringBuilder appendChromosome(String chromosome, StringBuilder stringBuilder) {
+<span class="nc bnc" id="L577" title="All 4 branches missed.">        if (chromosome.length() == 1 &amp;&amp; Character.isDigit(chromosome.charAt(0))) {</span>
+<span class="nc" id="L578">            stringBuilder.append(' ');</span>
+        }
+<span class="nc" id="L580">        return stringBuilder.append(chromosome);</span>
+    }
+
+    public static VariantType getVariantType(Variant variant) throws UnsupportedURLVariantFormat {
+<span class="nc bnc" id="L584" title="All 2 branches missed.">        if (variant.getType() == null) {</span>
+<span class="nc" id="L585">            variant.setType(Variant.inferType(variant.getReference(), variant.getAlternate()));</span>
+        }
+        // FIXME: remove the if block below as soon as the Variant.inferType method is able to differentiate between
+        // FIXME: insertions and deletions
+//        if (variant.getType().equals(VariantType.INDEL) || variant.getType().equals(VariantType.SV)) {
+<span class="nc bnc" id="L590" title="All 2 branches missed.">        if (variant.getType().equals(VariantType.INDEL)) {</span>
+<span class="nc bnc" id="L591" title="All 2 branches missed.">            if (variant.getReference().isEmpty()) {</span>
+//                variant.setType(VariantType.INSERTION);
+<span class="nc" id="L593">                return VariantType.INSERTION;</span>
+<span class="nc bnc" id="L594" title="All 2 branches missed.">            } else if (variant.getAlternate().isEmpty()) {</span>
+//                variant.setType(VariantType.DELETION);
+<span class="nc" id="L596">                return VariantType.DELETION;</span>
+            } else {
+<span class="nc" id="L598">                return VariantType.MNV;</span>
+            }
+        }
+<span class="nc" id="L601">        return variant.getType();</span>
+//        return getVariantType(variant.getReference(), variant.getAlternate());
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

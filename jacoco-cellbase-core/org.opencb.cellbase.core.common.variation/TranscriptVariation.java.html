@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TranscriptVariation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.variation</a> &gt; <span class="el_source">TranscriptVariation.java</span></div><h1>TranscriptVariation.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.variation;
+
+import java.util.List;
+
+@Deprecated
+public class TranscriptVariation {
+
+    private String transcriptId;
+    private String alleleString;
+    private String somatic;
+    private List&lt;String&gt; consequenceTypes;
+    private int cdsStart;
+    private int cdsEnd;
+    private int cdnaStart;
+    private int cdnaEnd;
+    private int translationStart;
+    private int translationEnd;
+    private int distanceToTranscript;
+    private String codonAlleleString;
+    private String peptideAlleleString;
+    private String hgvsGenomic;
+    private String hgvsTranscript;
+    private String hgvsProtein;
+    private String polyphenPrediction;
+    private float polyphenScore;
+    private String siftPrediction;
+    private float siftScore;
+
+    public TranscriptVariation(String transcriptId, String alleleString,
+                               String somatic, List&lt;String&gt; consequenceTypes, int cdsStart,
+                               int cdsEnd, int cdnaStart, int cdnEnd, int translationStart,
+                               int translationEnd, int distanceToTranscript,
+                               String codonAlleleString, String peptideAlleleString,
+                               String hgvsGenomic, String hgvsTranscript, String hgvsProtein,
+                               String polyphenPrediction, float polyphenScore,
+<span class="nc" id="L52">                               String siftPrediction, float siftScore) {</span>
+<span class="nc" id="L53">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L54">        this.alleleString = alleleString;</span>
+<span class="nc" id="L55">        this.somatic = somatic;</span>
+<span class="nc" id="L56">        this.consequenceTypes = consequenceTypes;</span>
+<span class="nc" id="L57">        this.cdsStart = cdsStart;</span>
+<span class="nc" id="L58">        this.cdsEnd = cdsEnd;</span>
+<span class="nc" id="L59">        this.cdnaStart = cdnaStart;</span>
+<span class="nc" id="L60">        this.cdnaEnd = cdnEnd;</span>
+<span class="nc" id="L61">        this.translationStart = translationStart;</span>
+<span class="nc" id="L62">        this.translationEnd = translationEnd;</span>
+<span class="nc" id="L63">        this.distanceToTranscript = distanceToTranscript;</span>
+<span class="nc" id="L64">        this.codonAlleleString = codonAlleleString;</span>
+<span class="nc" id="L65">        this.peptideAlleleString = peptideAlleleString;</span>
+<span class="nc" id="L66">        this.hgvsGenomic = hgvsGenomic;</span>
+<span class="nc" id="L67">        this.hgvsTranscript = hgvsTranscript;</span>
+<span class="nc" id="L68">        this.hgvsProtein = hgvsProtein;</span>
+<span class="nc" id="L69">        this.polyphenPrediction = polyphenPrediction;</span>
+<span class="nc" id="L70">        this.polyphenScore = polyphenScore;</span>
+<span class="nc" id="L71">        this.siftPrediction = siftPrediction;</span>
+<span class="nc" id="L72">        this.siftScore = siftScore;</span>
+<span class="nc" id="L73">    }</span>
+
+
+    public String getTranscriptId() {
+<span class="nc" id="L77">        return transcriptId;</span>
+    }
+
+    public void setTranscriptId(String transcriptId) {
+<span class="nc" id="L81">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L82">    }</span>
+
+    public String getAlleleString() {
+<span class="nc" id="L85">        return alleleString;</span>
+    }
+
+    public void setAlleleString(String alleleString) {
+<span class="nc" id="L89">        this.alleleString = alleleString;</span>
+<span class="nc" id="L90">    }</span>
+
+    public String getSomatic() {
+<span class="nc" id="L93">        return somatic;</span>
+    }
+
+    public void setSomatic(String somatic) {
+<span class="nc" id="L97">        this.somatic = somatic;</span>
+<span class="nc" id="L98">    }</span>
+
+    public List&lt;String&gt; getConsequenceTypes() {
+<span class="nc" id="L101">        return consequenceTypes;</span>
+    }
+
+    public void setConsequenceTypes(List&lt;String&gt; consequenceTypes) {
+<span class="nc" id="L105">        this.consequenceTypes = consequenceTypes;</span>
+<span class="nc" id="L106">    }</span>
+
+    public int getCdsStart() {
+<span class="nc" id="L109">        return cdsStart;</span>
+    }
+
+    public void setCdsStart(int cdsStart) {
+<span class="nc" id="L113">        this.cdsStart = cdsStart;</span>
+<span class="nc" id="L114">    }</span>
+
+    public int getCdsEnd() {
+<span class="nc" id="L117">        return cdsEnd;</span>
+    }
+
+    public void setCdsEnd(int cdsEnd) {
+<span class="nc" id="L121">        this.cdsEnd = cdsEnd;</span>
+<span class="nc" id="L122">    }</span>
+
+    public int getCdnaStart() {
+<span class="nc" id="L125">        return cdnaStart;</span>
+    }
+
+    public void setCdnaStart(int cdnaStart) {
+<span class="nc" id="L129">        this.cdnaStart = cdnaStart;</span>
+<span class="nc" id="L130">    }</span>
+
+    public int getCdnaEnd() {
+<span class="nc" id="L133">        return cdnaEnd;</span>
+    }
+
+    public void setCdnaEnd(int cdnaEnd) {
+<span class="nc" id="L137">        this.cdnaEnd = cdnaEnd;</span>
+<span class="nc" id="L138">    }</span>
+
+    public int getTranslationStart() {
+<span class="nc" id="L141">        return translationStart;</span>
+    }
+
+    public void setTranslationStart(int translationStart) {
+<span class="nc" id="L145">        this.translationStart = translationStart;</span>
+<span class="nc" id="L146">    }</span>
+
+    public int getTranslationEnd() {
+<span class="nc" id="L149">        return translationEnd;</span>
+    }
+
+    public void setTranslationEnd(int translationEnd) {
+<span class="nc" id="L153">        this.translationEnd = translationEnd;</span>
+<span class="nc" id="L154">    }</span>
+
+    public int getDistanceToTranscript() {
+<span class="nc" id="L157">        return distanceToTranscript;</span>
+    }
+
+    public void setDistanceToTranscript(int distanceToTranscript) {
+<span class="nc" id="L161">        this.distanceToTranscript = distanceToTranscript;</span>
+<span class="nc" id="L162">    }</span>
+
+    public String getCodonAlleleString() {
+<span class="nc" id="L165">        return codonAlleleString;</span>
+    }
+
+    public void setCodonAlleleString(String codonAlleleString) {
+<span class="nc" id="L169">        this.codonAlleleString = codonAlleleString;</span>
+<span class="nc" id="L170">    }</span>
+
+    public String getPeptideAlleleString() {
+<span class="nc" id="L173">        return peptideAlleleString;</span>
+    }
+
+    public void setPeptideAlleleString(String peptideAlleleString) {
+<span class="nc" id="L177">        this.peptideAlleleString = peptideAlleleString;</span>
+<span class="nc" id="L178">    }</span>
+
+    public String getHgvsGenomic() {
+<span class="nc" id="L181">        return hgvsGenomic;</span>
+    }
+
+    public void setHgvsGenomic(String hgvsGenomic) {
+<span class="nc" id="L185">        this.hgvsGenomic = hgvsGenomic;</span>
+<span class="nc" id="L186">    }</span>
+
+    public String getHgvsTranscript() {
+<span class="nc" id="L189">        return hgvsTranscript;</span>
+    }
+
+    public void setHgvsTranscript(String hgvsTranscript) {
+<span class="nc" id="L193">        this.hgvsTranscript = hgvsTranscript;</span>
+<span class="nc" id="L194">    }</span>
+
+    public String getHgvsProtein() {
+<span class="nc" id="L197">        return hgvsProtein;</span>
+    }
+
+    public void setHgvsProtein(String hgvsProtein) {
+<span class="nc" id="L201">        this.hgvsProtein = hgvsProtein;</span>
+<span class="nc" id="L202">    }</span>
+
+    public String getPolyphenPrediction() {
+<span class="nc" id="L205">        return polyphenPrediction;</span>
+    }
+
+    public void setPolyphenPrediction(String polyphenPrediction) {
+<span class="nc" id="L209">        this.polyphenPrediction = polyphenPrediction;</span>
+<span class="nc" id="L210">    }</span>
+
+    public float getPolyphenScore() {
+<span class="nc" id="L213">        return polyphenScore;</span>
+    }
+
+    public void setPolyphenScore(float polyphenScore) {
+<span class="nc" id="L217">        this.polyphenScore = polyphenScore;</span>
+<span class="nc" id="L218">    }</span>
+
+    public String getSiftPrediction() {
+<span class="nc" id="L221">        return siftPrediction;</span>
+    }
+
+    public void setSiftPrediction(String siftPrediction) {
+<span class="nc" id="L225">        this.siftPrediction = siftPrediction;</span>
+<span class="nc" id="L226">    }</span>
+
+    public float getSiftScore() {
+<span class="nc" id="L229">        return siftScore;</span>
+    }
+
+    public void setSiftScore(float siftScore) {
+<span class="nc" id="L233">        this.siftScore = siftScore;</span>
+<span class="nc" id="L234">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

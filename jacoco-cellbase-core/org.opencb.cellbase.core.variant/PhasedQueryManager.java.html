@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhasedQueryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant</a> &gt; <span class="el_source">PhasedQueryManager.java</span></div><h1>PhasedQueryManager.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.StudyEntry;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.Collections;
+import java.util.List;
+
+<span class="nc" id="L11">public abstract class PhasedQueryManager {</span>
+
+    public static final String PHASE_SET_TAG = &quot;PS&quot;;
+    public static final String GENOTYPE_TAG = &quot;GT&quot;;
+    public static final String UNPHASED_GENOTYPE_SEPARATOR = &quot;/&quot;;
+    public static final String PHASED_GENOTYPE_SEPARATOR = &quot;|&quot;;
+
+    private static final String MISSING_VALUE = &quot;.&quot;;
+    private static final String REFERENCE = &quot;0&quot;;
+
+
+    abstract List&lt;QueryResult&lt;Variant&gt;&gt; run(List&lt;Variant&gt; variantList, List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResult);
+
+    protected boolean sameHaplotype(Variant queryVariant, List&lt;Variant&gt; inputVariantList,
+                                    List&lt;Variant&gt; databaseHaplotype) {
+        // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+        // TODO: arbitrarily selecting the first one
+<span class="nc" id="L28">        String queryPhaseSet = getSampleAttribute(queryVariant, PHASE_SET_TAG);</span>
+<span class="nc" id="L29">        String queryGenotype = getSampleAttribute(queryVariant, GENOTYPE_TAG);</span>
+        // Checks whether each variant for this clinical MNV (haplotype) is in the input list AND if all those in phase
+        // in the input list
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        for (Variant databaseVariant : databaseHaplotype) {</span>
+<span class="nc" id="L33">            Variant queryVariant1 = getVariant(inputVariantList, databaseVariant);</span>
+            // It is not the same haplotype (MNV) if current variant cannot be found in the input list OR it is not in
+            // the same chromosome copy as the first query variant
+<span class="nc bnc" id="L36" title="All 4 branches missed.">            if (queryVariant1 == null || !potentiallyInPhase(queryPhaseSet, queryGenotype, queryVariant1)) {</span>
+<span class="nc" id="L37">                return false;</span>
+            }
+<span class="nc" id="L39">        }</span>
+<span class="nc" id="L40">        return true;</span>
+    }
+
+    public static String getSampleAttribute(Variant variant, String attributeName) {
+<span class="nc" id="L44">        List&lt;StudyEntry&gt; studyEntryList = variant.getStudies();</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">        if (studyEntryList != null &amp;&amp; !studyEntryList.isEmpty()) {</span>
+            // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+            // TODO: arbitrarily selecting the first one
+<span class="nc" id="L48">            StudyEntry studyEntry = studyEntryList.get(0);</span>
+<span class="nc" id="L49">            int attributePosition = studyEntry.getFormat().indexOf(attributeName);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (attributePosition != -1) {</span>
+<span class="nc" id="L51">                List&lt;List&lt;String&gt;&gt; samplesData = studyEntry.getSamplesData();</span>
+<span class="nc bnc" id="L52" title="All 4 branches missed.">                if (samplesData != null &amp;&amp; !samplesData.isEmpty()) {</span>
+<span class="nc" id="L53">                    List&lt;String&gt; firstSampleData = samplesData.get(0);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                    if (firstSampleData != null</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                            &amp;&amp; !firstSampleData.isEmpty()</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                            &amp;&amp; attributePosition &lt; firstSampleData.size()</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                            &amp;&amp; !isMissing(firstSampleData.get(attributePosition))) {</span>
+<span class="nc" id="L58">                        return firstSampleData.get(attributePosition);</span>
+                    }
+                }
+            }
+        }
+
+<span class="nc" id="L64">        return null;</span>
+    }
+
+    public static boolean isMissing(String field) {
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        return StringUtils.isBlank(field) || field.equals(MISSING_VALUE);</span>
+    }
+
+    private Variant getVariant(List&lt;Variant&gt; variantList, Variant variant) {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        for (Variant variant1 : variantList) {</span>
+            // TODO: simple chr, start, ref, alt matching here - shall implement something fancier
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (variant.getChromosome().equals(variant1.getChromosome())</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                    &amp;&amp; variant.getStart().equals(variant1.getStart())</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                    &amp;&amp; variant.getReference().equals(variant1.getReference())</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                    &amp;&amp; variant.getAlternate().equals(variant1.getAlternate())) {</span>
+<span class="nc" id="L78">                return variant1;</span>
+            }
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">        return null;</span>
+    }
+
+    /**
+     * Will ONLY return false when it's absolutely clear that they are not in phase, i.e. phase sets are the same,
+     * ploidy is the same, genotype is NOT missing, alleles are not reference and the alleles match in their
+     * corresponding positions. Any of those conditions fail and will return true, since alleles could potentially be in
+     * phase. This is in the interest of avoiding false negatives, i.e. two variants in phase might determine that a
+     * certain result is not returned; two variants NOT in phase will not cause removal of any result from the
+     * Query Result.
+     * @param phaseSet String indicating the phase set; if two variants have the same phase set means we can detect
+     *                 if the alternate alleles are or not in the same chromosome copy. Different or missing phase sets
+     *                 indicate we cannot.
+     * @param genotype VCF-like String of the form 0/1, 0|1, 1, ... that indicates the relative chromosome copy of the
+     *                 alternate allele. TODO: multi allelic positions are not supported by this method.
+     * @param variant  Variant object which phase and genotype are about to be checked against phaseSet and genotype
+     * @return boolean to indicate whether are potentially in phase (cis) or not. See description above for more details
+     */
+    private boolean potentiallyInPhase(String phaseSet, String genotype, Variant variant) {
+        // Missing values used as wildcard here: if phase set is not available will allow it to match with any other PS
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (phaseSet == null) {</span>
+<span class="nc" id="L102">            return true;</span>
+        }
+
+        // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+        // TODO: arbitrarily selecting the first one
+        // Missing values used as wildcard here: if phase set is not available will allow it to match with any other PS
+<span class="nc" id="L108">        String phaseSet1 = getSampleAttribute(variant, PHASE_SET_TAG);</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (phaseSet1 == null) {</span>
+<span class="nc" id="L110">            return true;</span>
+        }
+
+        // None of the PS is missing
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (phaseSet.equals(phaseSet1)) {</span>
+
+            // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+            // TODO: arbitrarily selecting the first one
+<span class="nc" id="L118">            String genotype1 = getSampleAttribute(variant, GENOTYPE_TAG);</span>
+
+            // Checks that in both genotypes there's something different than a reference allele, i.e. that none of
+            // them is 0/0 (or 0 for haploid)
+<span class="nc bnc" id="L122" title="All 4 branches missed.">            if (potentiallyPresentAlternate(genotype) &amp;&amp; potentiallyPresentAlternate(genotype1)) {</span>
+
+                // Missing values used as wildcard here: if genotype is not available or the genotype is not phased (which
+                // should not occurr since PS is present) will allow it to match with any other genotype
+<span class="nc bnc" id="L126" title="All 4 branches missed.">                if (genotype == null || genotype.contains(UNPHASED_GENOTYPE_SEPARATOR)) {</span>
+<span class="nc" id="L127">                    return true;</span>
+                }
+
+                // Missing values used as wildcard here: if genotype is not available or the genotype is not phased (which
+                // should not occurr since PS is present) will allow it to match with any other genotype
+<span class="nc bnc" id="L132" title="All 4 branches missed.">                if (genotype1 == null || genotype1.contains(UNPHASED_GENOTYPE_SEPARATOR)) {</span>
+<span class="nc" id="L133">                    return true;</span>
+                }
+
+                // None of the genotypes fully missing nor un-phased
+<span class="nc" id="L137">                String[] genotypeParts = genotype.split(PHASED_GENOTYPE_SEPARATOR);</span>
+<span class="nc" id="L138">                String[] genotypeParts1 = genotype1.split(PHASED_GENOTYPE_SEPARATOR);</span>
+
+                // TODO: code below might not work for multiallelic positions
+                // For hemizygous variants lets just consider that the phase is the same if each alternate allele is present
+                // in both genotypes
+                // First genotype alternate hemizygous
+<span class="nc bnc" id="L144" title="All 4 branches missed.">                if (genotypeParts.length == 1 &amp;&amp; !genotypeParts[0].equals(REFERENCE)) {</span>
+                    // First and second genotype alternate hemizygous
+<span class="nc bnc" id="L146" title="All 4 branches missed.">                    if (genotypeParts1.length == 1 &amp;&amp; !genotypeParts1[0].equals(REFERENCE)) {</span>
+<span class="nc" id="L147">                        return alternateAlleleMatch(genotypeParts[0], genotypeParts1[0]);</span>
+                        // First genotype alternate hemizygous, second genotype diploid
+                    } else {
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                        return alternateAlleleMatch(genotypeParts[0], genotypeParts1[0])</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                                || alternateAlleleMatch(genotypeParts[0], genotypeParts1[2]);</span>
+                    }
+                    // Second genotype alternate hemizygous
+<span class="nc bnc" id="L154" title="All 4 branches missed.">                } else if (genotypeParts1.length == 1 &amp;&amp; !genotypeParts1[0].equals(REFERENCE)) {</span>
+                    // First genotype diploid, second genotype alternate hemizygous
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                    return alternateAlleleMatch(genotypeParts1[0], genotypeParts[0])</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                            || alternateAlleleMatch(genotypeParts1[0], genotypeParts[2]);</span>
+
+                    // Both genotypes diploid
+                } else {
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                    return alternateAlleleMatch(genotypeParts[0], genotypeParts1[0])</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                            || alternateAlleleMatch(genotypeParts[2], genotypeParts1[2]);</span>
+                }
+                // At least one of the genotypes contains just reference alleles. Clearly, alleles cannot be in phase since
+                // one of them is not even present!
+            } else {
+<span class="nc" id="L167">                return false;</span>
+            }
+
+            // If PS is different, as understood from VCF definition, this does not necessarily mean that both alleles
+            // are not in the same copy but rather that it's unknown, i.e. each of them falls in two distinct regions for
+            // which the phase was detected. Therefore, if the PS is different, still have to return true to stay on the
+            // safe side
+        } else {
+<span class="nc" id="L175">            return true;</span>
+        }
+
+    }
+
+    /**
+     * Alternate is potentially present if the genotype is missing or there's something different than a '0'.
+     * TODO: this code might not work properly for multiallelic positions.
+     * @param genotype String codifying for the genotype in VCF-like way, e.g. 0/1, 1|0, 0, ...
+     * @return whether an alternate allele is potentially present. Alternate is potentially present if the genotype is
+     * missing or there's something different than a '0'.
+     */
+    private boolean potentiallyPresentAlternate(String genotype) {
+
+        // Missing genotype
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        return genotype == null</span>
+                // Diploid e.g. 0/1
+<span class="nc bnc" id="L192" title="All 4 branches missed.">                || (genotype.length() == 3 &amp;&amp; StringUtils.countMatches(genotype, REFERENCE) &lt; 2)</span>
+                // Haploid e.g. 0
+<span class="nc bnc" id="L194" title="All 4 branches missed.">                || (genotype.length() == 1 &amp;&amp; !genotype.contains(REFERENCE));</span>
+
+
+    }
+
+    private boolean alternateAlleleMatch(String allele, String allele1) {
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        return !allele.equals(REFERENCE)</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                &amp;&amp; !allele1.equals(REFERENCE)</span>
+<span class="nc bnc" id="L202" title="All 6 branches missed.">                &amp;&amp; (allele.equals(allele1) || isMissing(allele) || isMissing(allele1));</span>
+    }
+
+    protected void reset(QueryResult&lt;Variant&gt; variantQueryResult) {
+<span class="nc" id="L206">        variantQueryResult.setResult(Collections.emptyList());</span>
+<span class="nc" id="L207">        variantQueryResult.setNumResults(0);</span>
+<span class="nc" id="L208">        variantQueryResult.setNumTotalResults(0);</span>
+<span class="nc" id="L209">    }</span>
+
+
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

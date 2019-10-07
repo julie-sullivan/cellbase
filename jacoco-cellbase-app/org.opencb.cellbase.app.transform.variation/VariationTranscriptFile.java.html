@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationTranscriptFile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.variation</a> &gt; <span class="el_source">VariationTranscriptFile.java</span></div><h1>VariationTranscriptFile.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.variation;
+
+import com.google.common.base.Stopwatch;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Created by parce on 09/12/15.
+ */
+public class VariationTranscriptFile extends AbstractVariationFile {
+
+    public static final String TRANSCRIPT_VARIATION_FILENAME = &quot;transcript_variation.txt&quot;;
+    public static final String PREPROCESSED_TRANSCRIPT_VARIATION_FILENAME = &quot;transcript_variation.includingVariationId.txt&quot;;
+
+    public VariationTranscriptFile(Path variationDirectory) {
+<span class="fc" id="L24">        super(variationDirectory, TRANSCRIPT_VARIATION_FILENAME, PREPROCESSED_TRANSCRIPT_VARIATION_FILENAME);</span>
+<span class="fc" id="L25">    }</span>
+
+
+    public void preprocess(VariationFeatureFile variationFeatureFile) throws IOException, InterruptedException {
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        if (!existsZippedOrUnzippedFile(preprocessedFileName)) {</span>
+<span class="fc" id="L30">            logger.info(&quot;Preprocessing {} file ...&quot;, preprocessedFileName);</span>
+<span class="fc" id="L31">            Stopwatch stopwatch = Stopwatch.createStarted();</span>
+
+            // add variationId to transcript_variation file
+<span class="fc" id="L34">            Map&lt;Integer, Integer&gt; variationFeatureToVariationId = createVariationFeatureIdToVariationIdMap(variationFeatureFile);</span>
+<span class="fc" id="L35">            Path transcriptVariationTempFile = addVariationIdToTranscriptVariationFile(variationFeatureToVariationId);</span>
+            // transcript_variation file columns number can vary, so we need to save the variationId column index because it is not constant
+<span class="fc" id="L37">            variationIdColumnIndex =</span>
+<span class="fc" id="L38">                    getVariationIdColumnIndexInTranscriptVariationFile(transcriptVariationTempFile.getFileName().toString());</span>
+<span class="fc" id="L39">            sortFileByNumericColumn(transcriptVariationTempFile, variationDirectory.resolve(preprocessedFileName), variationIdColumnIndex);</span>
+
+<span class="fc" id="L41">            logger.info(&quot;Removing temp file {}&quot;, transcriptVariationTempFile);</span>
+<span class="fc" id="L42">            transcriptVariationTempFile.toFile().delete();</span>
+<span class="fc" id="L43">            logger.info(&quot;Removed&quot;);</span>
+
+<span class="fc" id="L45">            logger.info(&quot;{} preprocessed. New file {} including (and sorted by) variation Id has been created&quot;,</span>
+                    TRANSCRIPT_VARIATION_FILENAME, VariationTranscriptFile.PREPROCESSED_TRANSCRIPT_VARIATION_FILENAME);
+<span class="fc" id="L47">            logger.debug(&quot;Elapsed time preprocessing transcript variation file: {}&quot;, stopwatch);</span>
+<span class="fc" id="L48">        } else {</span>
+            // transcript_variation file columns number can vary, so we need to save the variationId column index because it is not constant
+<span class="nc" id="L50">            variationIdColumnIndex = getVariationIdColumnIndexInTranscriptVariationFile(preprocessedFileName);</span>
+        }
+<span class="fc" id="L52">    }</span>
+
+    private Map&lt;Integer, Integer&gt; createVariationFeatureIdToVariationIdMap(VariationFeatureFile variationFeatureFile) throws IOException {
+<span class="fc" id="L55">        logger.info(&quot;Creating variationFeatureId to variationId map ...&quot;);</span>
+<span class="fc" id="L56">        Stopwatch stopwatch = Stopwatch.createStarted();</span>
+<span class="fc" id="L57">        Map&lt;Integer, Integer&gt; variationFeatureToVariationId = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L59">        BufferedReader variationFeatFileReader = variationFeatureFile.getUnprocessedFileBufferedReader();</span>
+
+        String line;
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        while ((line = variationFeatFileReader.readLine()) != null) {</span>
+            // TODO: add limit parameter would do that run faster?
+            // TODO: use a precompiled pattern would improve efficiency
+<span class="fc" id="L65">            String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="fc" id="L66">            Integer variationFeatureId = Integer.valueOf(fields[0]);</span>
+<span class="fc" id="L67">            Integer variationId = Integer.valueOf(fields[5]);</span>
+<span class="fc" id="L68">            variationFeatureToVariationId.put(variationFeatureId, variationId);</span>
+<span class="fc" id="L69">        }</span>
+
+<span class="fc" id="L71">        variationFeatFileReader.close();</span>
+
+<span class="fc" id="L73">        logger.info(&quot;Done&quot;);</span>
+<span class="fc" id="L74">        logger.debug(&quot;Elapsed time creating variationFeatureId to variationId map: {}&quot;, stopwatch);</span>
+
+<span class="fc" id="L76">        return variationFeatureToVariationId;</span>
+    }
+
+    private Path addVariationIdToTranscriptVariationFile(Map&lt;Integer, Integer&gt; variationFeatureToVariationId) throws IOException {
+<span class="fc" id="L80">        Path transcriptVariationTempFile = variationDirectory.resolve(unprocessedFileName + &quot;.tmp&quot;);</span>
+<span class="fc" id="L81">        logger.info(&quot;Adding variation Id to transcript variations and saving them into {} ...&quot;, transcriptVariationTempFile);</span>
+<span class="fc" id="L82">        Stopwatch stopwatch = Stopwatch.createStarted();</span>
+
+<span class="fc" id="L84">        BufferedReader br = getUnprocessedFileBufferedReader();</span>
+<span class="fc" id="L85">        BufferedWriter bw = Files.newBufferedWriter(transcriptVariationTempFile, Charset.defaultCharset(),</span>
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+
+        String line;
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        while ((line = br.readLine()) != null) {</span>
+            // TODO: add limit parameter would do that run faster?
+            // TODO: use a precompiled pattern would improve efficiency
+<span class="fc" id="L92">            Integer variationFeatureId = Integer.valueOf(line.split(&quot;\t&quot;)[1]);</span>
+<span class="fc" id="L93">            Integer variationId = variationFeatureToVariationId.get(variationFeatureId);</span>
+<span class="fc" id="L94">            bw.write(line + &quot;\t&quot; + variationId + &quot;\n&quot;);</span>
+<span class="fc" id="L95">        }</span>
+
+<span class="fc" id="L97">        br.close();</span>
+<span class="fc" id="L98">        bw.close();</span>
+
+<span class="fc" id="L100">        logger.info(&quot;Added&quot;);</span>
+<span class="fc" id="L101">        logger.debug(&quot;Elapsed time adding variation Id to transcript variation file: {}&quot;, stopwatch);</span>
+
+<span class="fc" id="L103">        return transcriptVariationTempFile;</span>
+    }
+
+    private int getVariationIdColumnIndexInTranscriptVariationFile(String inputFileName) throws IOException {
+<span class="fc" id="L107">        BufferedReader br = getBufferedReader(inputFileName);</span>
+<span class="fc" id="L108">        int variationIdColumIndex = br.readLine().split(&quot;\t&quot;).length - 1;</span>
+<span class="fc" id="L109">        br.close();</span>
+<span class="fc" id="L110">        return variationIdColumIndex;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

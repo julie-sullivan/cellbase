@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinicalIndexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">ClinicalIndexer.java</span></div><h1>ClinicalIndexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Created by fjlopez on 04/10/16.
+ */
+public abstract class ClinicalIndexer {
+
+    protected static final char HAPLOTYPE_STRING_SEPARATOR = ',';
+    protected static final String HAPLOTYPE_FIELD_NAME = &quot;haplotype&quot;;
+<span class="fc" id="L28">    protected static Logger logger</span>
+<span class="fc" id="L29">            = LoggerFactory.getLogger(&quot;org.opencb.cellbase.app.transform.clinical.variant.ClinicalIndexer&quot;);</span>
+
+<span class="fc" id="L31">    protected int numberNewVariants = 0;</span>
+<span class="fc" id="L32">    protected int numberVariantUpdates = 0;</span>
+<span class="fc" id="L33">    protected int totalNumberRecords = 0;</span>
+<span class="fc" id="L34">    protected int numberIndexedRecords = 0;</span>
+    protected RocksDB rdb;
+
+
+    private static final String SYMBOL = &quot;symbol&quot;;
+
+    protected static ObjectMapper mapper;
+    protected static ObjectWriter jsonObjectWriter;
+
+    static {
+<span class="fc" id="L44">        mapper = new ObjectMapper();</span>
+<span class="fc" id="L45">        mapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="fc" id="L46">        jsonObjectWriter = mapper.writer();</span>
+<span class="fc" id="L47">    }</span>
+
+    protected Path genomeSequenceFilePath;
+<span class="fc" id="L50">    protected boolean normalize = true;</span>
+    protected VariantNormalizer normalizer;
+
+<span class="fc" id="L53">    public ClinicalIndexer(Path genomeSequenceFilePath) throws IOException {</span>
+        // Forcing decomposition here in all cases - assuming the way CellBase stores clinical variants from here
+        // onwards will be decomposed and Adaptors will deal with phased/no-phased queries
+<span class="fc" id="L56">        VariantNormalizer.VariantNormalizerConfig variantNormalizerConfig</span>
+                = (new VariantNormalizer.VariantNormalizerConfig())
+<span class="fc" id="L58">                .setReuseVariants(true)</span>
+<span class="fc" id="L59">                .setNormalizeAlleles(false)</span>
+<span class="fc" id="L60">                .setDecomposeMNVs(true);</span>
+
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        if (genomeSequenceFilePath != null) {</span>
+<span class="fc" id="L63">            logger.info(&quot;Enabling left aligning by using sequence at {}&quot;, genomeSequenceFilePath.toString());</span>
+<span class="fc" id="L64">            variantNormalizerConfig.enableLeftAlign(genomeSequenceFilePath.toString());</span>
+        } else {
+<span class="nc" id="L66">            logger.info(&quot;Left alignment is NOT enabled.&quot;);</span>
+        }
+<span class="fc" id="L68">        normalizer = new VariantNormalizer(variantNormalizerConfig);</span>
+<span class="fc" id="L69">    }</span>
+
+
+    protected VariantAnnotation getVariantAnnotation(byte[] key) throws RocksDBException, IOException {
+<span class="fc" id="L73">        byte[] dbContent = rdb.get(key);</span>
+//        List&lt;EvidenceEntry&gt; evidenceEntryList;
+        VariantAnnotation variantAnnotation;
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (dbContent == null) {</span>
+<span class="fc" id="L77">            variantAnnotation = new VariantAnnotation();</span>
+<span class="fc" id="L78">            List&lt;EvidenceEntry&gt; evidenceEntryList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L79">            variantAnnotation.setTraitAssociation(evidenceEntryList);</span>
+<span class="fc" id="L80">            numberNewVariants++;</span>
+<span class="fc" id="L81">        } else {</span>
+<span class="fc" id="L82">            variantAnnotation = mapper.readValue(dbContent, VariantAnnotation.class);</span>
+//            List&lt;EvidenceEntry&gt; evidenceEntryList = mapper.readValue(dbContent, mapper.getTypeFactory()
+// .constructParametrizedType(List.class, List.class, EvidenceEntry.class));
+
+<span class="fc" id="L86">            numberVariantUpdates++;</span>
+        }
+<span class="fc" id="L88">        return variantAnnotation;</span>
+    }
+
+    protected GenomicFeature createGeneGenomicFeature(String gene) {
+<span class="fc" id="L92">        Map&lt;String, String&gt; map = new HashMap&lt;&gt;(1);</span>
+<span class="fc" id="L93">        map.put(SYMBOL, gene);</span>
+
+<span class="fc" id="L95">        return new GenomicFeature(FeatureTypes.gene, null, map);</span>
+    }
+
+    protected List&lt;AlleleOrigin&gt; getAlleleOriginList(List&lt;String&gt; sourceOriginList) {
+        List&lt;AlleleOrigin&gt; alleleOrigin;
+<span class="fc" id="L100">        alleleOrigin = new ArrayList&lt;&gt;(sourceOriginList.size());</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        for (String originString : sourceOriginList) {</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">            if (VariantAnnotationUtils.ORIGIN_STRING_TO_ALLELE_ORIGIN.containsKey(originString)) {</span>
+<span class="fc" id="L103">                alleleOrigin.add(VariantAnnotationUtils.ORIGIN_STRING_TO_ALLELE_ORIGIN.get(originString));</span>
+            } else {
+<span class="fc" id="L105">                logger.debug(&quot;No SO term found for allele origin {}. Skipping.&quot;, originString);</span>
+            }
+<span class="fc" id="L107">        }</span>
+<span class="fc" id="L108">        return alleleOrigin;</span>
+    }
+
+    protected VariantClassification getVariantClassification(List&lt;String&gt; classificationStringList) {
+<span class="fc" id="L112">        VariantClassification variantClassification = new VariantClassification();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        for (String value : classificationStringList) {</span>
+<span class="fc" id="L114">            value = value.toLowerCase().trim();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (VariantAnnotationUtils.CLINVAR_CLINSIG_TO_ACMG.containsKey(value)) {</span>
+                // No value set
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                if (variantClassification.getClinicalSignificance() == null) {</span>
+<span class="fc" id="L118">                    variantClassification.setClinicalSignificance(VariantAnnotationUtils.CLINVAR_CLINSIG_TO_ACMG.get(value));</span>
+                    // Seen cases like Benign;Pathogenic;association;not provided;risk factor for the same record
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                } else if (isBenign(VariantAnnotationUtils.CLINVAR_CLINSIG_TO_ACMG.get(value))</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                        &amp;&amp; isPathogenic(variantClassification.getClinicalSignificance())) {</span>
+<span class="nc" id="L122">                    logger.warn(&quot;Benign and Pathogenic clinical significances found for the same record&quot;);</span>
+<span class="nc" id="L123">                    logger.warn(&quot;Will set uncertain_significance instead&quot;);</span>
+<span class="nc" id="L124">                    variantClassification.setClinicalSignificance(ClinicalSignificance.uncertain_significance);</span>
+                }
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            } else if (VariantAnnotationUtils.CLINVAR_CLINSIG_TO_TRAIT_ASSOCIATION.containsKey(value)) {</span>
+<span class="nc" id="L127">                variantClassification.setTraitAssociation(VariantAnnotationUtils.CLINVAR_CLINSIG_TO_TRAIT_ASSOCIATION.get(value));</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">            } else if (VariantAnnotationUtils.CLINVAR_CLINSIG_TO_DRUG_RESPONSE.containsKey(value)) {</span>
+<span class="nc" id="L129">                variantClassification.setDrugResponseClassification(VariantAnnotationUtils.CLINVAR_CLINSIG_TO_DRUG_RESPONSE.get(value));</span>
+            } else {
+<span class="fc" id="L131">                logger.debug(&quot;No mapping found for referenceClinVarAssertion.clinicalSignificance {}&quot;, value);</span>
+<span class="fc" id="L132">                logger.debug(&quot;No value will be set at EvidenceEntry.variantClassification for this term&quot;);</span>
+            }
+<span class="fc" id="L134">        }</span>
+<span class="fc" id="L135">        return variantClassification;</span>
+    }
+
+    private boolean isPathogenic(ClinicalSignificance clinicalSignificance) {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        return ClinicalSignificance.pathogenic.equals(clinicalSignificance)</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                || ClinicalSignificance.likely_pathogenic.equals(clinicalSignificance);</span>
+    }
+
+    private boolean isBenign(ClinicalSignificance clinicalSignificance) {
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        return ClinicalSignificance.benign.equals(clinicalSignificance)</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">                || ClinicalSignificance.likely_benign.equals(clinicalSignificance);</span>
+    }
+
+     protected List&lt;String&gt; getNormalisedVariantString(String chromosome, int start, String reference, String alternate) {
+<span class="fc" id="L149">        Variant variant = new Variant(chromosome, start, reference, alternate);</span>
+        List&lt;Variant&gt; normalizedVariantList;
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (normalize) {</span>
+            try {
+                // No decomposition allowed at the moment therefore only one variant in returned list of variants.
+<span class="fc" id="L154">                normalizedVariantList = normalizer.apply(Collections.singletonList(variant));</span>
+<span class="nc" id="L155">            } catch (RuntimeException e) {</span>
+<span class="nc" id="L156">                e.printStackTrace();</span>
+<span class="nc" id="L157">                logger.warn(&quot;Error found during variant normalization. Skipping variant: {}&quot;, variant.toString());</span>
+<span class="nc" id="L158">                return null;</span>
+<span class="fc" id="L159">            }</span>
+        } else {
+<span class="fc" id="L161">            normalizedVariantList = Collections.singletonList(variant);</span>
+        }
+
+<span class="fc" id="L164">        return normalizedVariantList.stream().map((variant1) -&gt; variant1.toString()).collect(Collectors.toList());</span>
+    }
+
+    protected void addHaplotypeProperty(List&lt;EvidenceEntry&gt; evidenceEntryList, List&lt;String&gt; normalisedVariantStringList) {
+        // If more than one variant in the MNV (haplotype), create haplotype property in additionalProperties
+<span class="pc bpc" id="L169" title="1 of 4 branches missed.">        if (normalisedVariantStringList.size() &gt; 1 &amp;&amp; evidenceEntryList != null) {</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">            for (EvidenceEntry evidenceEntry : evidenceEntryList) {</span>
+                // This variant is part of an MNV (haplotype). Leave a flag of all variants that form the MNV
+                // Assuming additionalProperties has already been created as per the upstream code
+<span class="fc" id="L173">                evidenceEntry.getAdditionalProperties().add(new Property(null,</span>
+                        HAPLOTYPE_FIELD_NAME,
+<span class="fc" id="L175">                        StringUtils.join(normalisedVariantStringList, HAPLOTYPE_STRING_SEPARATOR)));</span>
+<span class="fc" id="L176">            }</span>
+        }
+<span class="fc" id="L178">    }</span>
+
+    class SequenceLocation {
+        private String chromosome;
+        private int start;
+        private int end;
+        private String reference;
+        private String alternate;
+        private String strand;
+
+<span class="fc" id="L188">        SequenceLocation() {</span>
+<span class="fc" id="L189">        }</span>
+
+        SequenceLocation(String chromosome, int start, int end, String reference, String alternate) {
+<span class="fc" id="L192">            this(chromosome, start, end, reference, alternate, &quot;+&quot;);</span>
+<span class="fc" id="L193">        }</span>
+
+<span class="fc" id="L195">        SequenceLocation(String chromosome, int start, int end, String reference, String alternate, String strand) {</span>
+<span class="fc" id="L196">            this.chromosome = chromosome;</span>
+<span class="fc" id="L197">            this.start = start;</span>
+<span class="fc" id="L198">            this.end = end;</span>
+<span class="fc" id="L199">            this.reference = reference;</span>
+<span class="fc" id="L200">            this.alternate = alternate;</span>
+<span class="fc" id="L201">            this.strand = strand;</span>
+<span class="fc" id="L202">        }</span>
+
+        public String getChromosome() {
+<span class="fc" id="L205">            return chromosome;</span>
+        }
+
+        public int getStart() {
+<span class="fc" id="L209">            return start;</span>
+        }
+
+        public int getEnd() {
+<span class="fc" id="L213">            return end;</span>
+        }
+
+        public String getReference() {
+<span class="fc" id="L217">            return reference;</span>
+        }
+
+        public String getAlternate() {
+<span class="fc" id="L221">            return alternate;</span>
+        }
+
+        public String getStrand() {
+<span class="fc" id="L225">            return strand;</span>
+        }
+
+        public void setChromosome(String chromosome) {
+<span class="fc" id="L229">            this.chromosome = chromosome;</span>
+<span class="fc" id="L230">        }</span>
+
+        public void setStart(int start) {
+<span class="fc" id="L233">            this.start = start;</span>
+<span class="fc" id="L234">        }</span>
+
+        public void setEnd(int end) {
+<span class="fc" id="L237">            this.end = end;</span>
+<span class="fc" id="L238">        }</span>
+
+        public void setReference(String reference) {
+<span class="fc" id="L241">            this.reference = reference;</span>
+<span class="fc" id="L242">        }</span>
+
+        public void setAlternate(String alternate) {
+<span class="fc" id="L245">            this.alternate = alternate;</span>
+<span class="fc" id="L246">        }</span>
+
+        public void setStrand(String strand) {
+<span class="fc" id="L249">            this.strand = strand;</span>
+<span class="fc" id="L250">        }</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

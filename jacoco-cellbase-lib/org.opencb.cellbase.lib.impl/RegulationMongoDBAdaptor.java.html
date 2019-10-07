@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RegulationMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">RegulationMongoDBAdaptor.java</span></div><h1>RegulationMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.MongoClient;
+import com.mongodb.client.model.Filters;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.core.RegulatoryFeature;
+import org.opencb.cellbase.core.api.RegulationDBAdaptor;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+
+/**
+ * Created by imedina on 07/12/15.
+ */
+public class RegulationMongoDBAdaptor extends MongoDBAdaptor implements RegulationDBAdaptor&lt;RegulatoryFeature&gt; {
+
+    public RegulationMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L43">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L44">        mongoDBCollection = mongoDataStore.getCollection(&quot;regulatory_region&quot;);</span>
+
+<span class="fc" id="L46">        logger.debug(&quot;RegulationMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L47">    }</span>
+
+
+    @Override
+    public QueryResult&lt;RegulatoryFeature&gt; next(Query query, QueryOptions options) {
+<span class="nc" id="L52">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L57">        return null;</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L62">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L67">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L68">        return groupBy(bsonQuery, field, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+<span class="nc" id="L73">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L74">        return groupBy(bsonQuery, fields, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (query.getString(QueryParams.REGION.key()) != null) {</span>
+<span class="nc" id="L80">            Region region = Region.parseRegion(query.getString(QueryParams.REGION.key()));</span>
+<span class="nc" id="L81">            Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L82">            return getIntervalFrequencies(bsonDocument, region, intervalSize, options);</span>
+        }
+<span class="nc" id="L84">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L89">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L94">        Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L95">        return mongoDBCollection.count(bsonDocument);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L100">        Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L101">        return mongoDBCollection.distinct(field, bsonDocument);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L106">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;RegulatoryFeature&gt; get(Query query, QueryOptions inputOptions) {
+<span class="fc" id="L111">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L112">        QueryOptions options = addPrivateExcludeOptions(new QueryOptions(inputOptions));</span>
+<span class="fc" id="L113">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L114">        return mongoDBCollection.find(bson, null, RegulatoryFeature.class, options);</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="nc" id="L119">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L120">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator&lt;RegulatoryFeature&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L125">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L130">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L131">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+
+<span class="nc" id="L137">    }</span>
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L140">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L141">        createRegionQuery(query, QueryParams.REGION.key(), MongoDBCollectionConfiguration.REGULATORY_REGION_CHUNK_SIZE, andBsonList);</span>
+
+<span class="fc" id="L143">        createOrQuery(query, QueryParams.NAME.key(), &quot;name&quot;, andBsonList);</span>
+<span class="fc" id="L144">        createOrQuery(query, QueryParams.FEATURE_TYPE.key(), &quot;featureType&quot;, andBsonList);</span>
+<span class="fc" id="L145">        createOrQuery(query, QueryParams.FEATURE_CLASS.key(), &quot;featureClass&quot;, andBsonList);</span>
+<span class="fc" id="L146">        createOrQuery(query, QueryParams.CELL_TYPES.key(), &quot;cellTypes&quot;, andBsonList);</span>
+<span class="fc" id="L147">        createOrQuery(query, QueryParams.SCORE.key(), &quot;score&quot;, andBsonList);</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L150">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L152">            return new Document();</span>
+        }
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellBaseClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.rest</a> &gt; <span class="el_source">CellBaseClient.java</span></div><h1>CellBaseClient.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.client.rest;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.cellbase.client.config.ClientConfiguration;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
+/**
+ * Created by imedina on 12/05/16.
+ */
+public class CellBaseClient {
+
+    private String species;
+    private String assembly;
+    private ClientConfiguration clientConfiguration;
+
+    private final Map&lt;String, ParentRestClient&gt; clients;
+
+
+    public CellBaseClient(ClientConfiguration clientConfiguration) {
+<span class="fc" id="L39">        this(clientConfiguration.getDefaultSpecies(), clientConfiguration);</span>
+<span class="fc" id="L40">    }</span>
+
+    public CellBaseClient(String species, ClientConfiguration clientConfiguration) {
+<span class="fc" id="L43">        this(species, null, clientConfiguration);</span>
+<span class="fc" id="L44">    }</span>
+
+<span class="fc" id="L46">    public CellBaseClient(String species, String assembly, ClientConfiguration clientConfiguration) {</span>
+
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        if (StringUtils.isBlank(species)) {</span>
+<span class="nc" id="L49">            throw new IllegalArgumentException(&quot;Species parameter cannot be empty when building a CellBaseClient&quot;);</span>
+        }
+<span class="fc" id="L51">        this.species = species;</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        this.assembly = StringUtils.isEmpty(assembly) ? null : assembly;</span>
+<span class="pc bpc" id="L53" title="2 of 4 branches missed.">        if (clientConfiguration != null &amp;&amp; clientConfiguration.getRest() != null</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                &amp;&amp; clientConfiguration.getRest().getHosts() != null</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">                &amp;&amp; !clientConfiguration.getRest().getHosts().isEmpty()</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">                &amp;&amp; StringUtils.isNotBlank(clientConfiguration.getVersion())) {</span>
+<span class="fc" id="L57">            this.clientConfiguration = clientConfiguration;</span>
+        } else {
+<span class="nc" id="L59">            throw new IllegalArgumentException(&quot;version and host must be provided in a ClienConfiguration object&quot;</span>
+                    + &quot; when building a CellBase client and cannot be empty&quot;);
+        }
+<span class="fc" id="L62">        clients = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L64">    }</span>
+
+    public GeneClient getGeneClient() {
+<span class="fc" id="L67">        return getClient(&quot;GENE&quot;, () -&gt; new GeneClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public TranscriptClient getTranscriptClient() {
+<span class="fc" id="L71">        return getClient(&quot;TRANSCRIPT&quot;, () -&gt; new TranscriptClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public VariationClient getVariationClient() {
+<span class="fc" id="L75">        return getClient(&quot;VARIATION&quot;, () -&gt; new VariationClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public VariantClient getVariantClient() {
+<span class="fc" id="L79">        return getClient(&quot;VARIANT&quot;, () -&gt; new VariantClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public ProteinClient getProteinClient() {
+<span class="fc" id="L83">        return getClient(&quot;PROTEIN&quot;, () -&gt; new ProteinClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public GenomicRegionClient getGenomicRegionClient() {
+<span class="fc" id="L87">        return getClient(&quot;GENOME_REGION&quot;, () -&gt; new GenomicRegionClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public MetaClient getMetaClient() {
+<span class="fc" id="L91">        return getClient(&quot;META&quot;, () -&gt; new MetaClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public ClinicalVariantClient getClinicalClient() {
+<span class="fc" id="L95">        return getClient(&quot;CLINICAL&quot;, () -&gt; new ClinicalVariantClient(species, assembly, clientConfiguration));</span>
+    }
+
+    public GenericClient getGenericClient() {
+<span class="fc" id="L99">        return getClient(&quot;GENERIC&quot;, () -&gt; new GenericClient(species, assembly, clientConfiguration));</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private &lt;T extends ParentRestClient&gt; T getClient(String key, Supplier&lt;T&gt; constructorIfAbsent) {
+        // Avoid concurrent modifications
+<span class="fc" id="L105">        return (T) clients.computeIfAbsent(key, s -&gt; constructorIfAbsent.get());</span>
+    }
+
+
+    @Override
+    public String toString() {
+<span class="nc" id="L111">        final StringBuilder sb = new StringBuilder(&quot;CellBaseClient{&quot;);</span>
+<span class="nc" id="L112">        sb.append(&quot;species='&quot;).append(species).append('\'');</span>
+<span class="nc" id="L113">        sb.append(&quot;, clientConfiguration=&quot;).append(clientConfiguration);</span>
+<span class="nc" id="L114">        sb.append(&quot;, clients=&quot;).append(clients);</span>
+<span class="nc" id="L115">        sb.append('}');</span>
+<span class="nc" id="L116">        return sb.toString();</span>
+    }
+
+
+    public String getSpecies() {
+<span class="nc" id="L121">        return species;</span>
+    }
+
+    public CellBaseClient setSpecies(String species) {
+<span class="nc" id="L125">        this.species = species;</span>
+<span class="nc" id="L126">        return this;</span>
+    }
+
+    public ClientConfiguration getClientConfiguration() {
+<span class="nc" id="L130">        return clientConfiguration;</span>
+    }
+
+    public CellBaseClient setClientConfiguration(ClientConfiguration clientConfiguration) {
+<span class="nc" id="L134">        this.clientConfiguration = clientConfiguration;</span>
+<span class="nc" id="L135">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

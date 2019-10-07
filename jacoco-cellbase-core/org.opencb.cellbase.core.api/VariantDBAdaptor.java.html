@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.api</a> &gt; <span class="el_source">VariantDBAdaptor.java</span></div><h1>VariantDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.api;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.Score;
+import org.opencb.biodata.models.variant.avro.VariantType;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryParam;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.opencb.commons.datastore.core.QueryParam.Type.*;
+
+/**
+ * Created by imedina on 26/11/15.
+ */
+public interface VariantDBAdaptor&lt;T&gt; extends FeatureDBAdaptor&lt;T&gt; {
+
+<span class="nc" id="L38">    enum QueryParams implements QueryParam {</span>
+<span class="nc" id="L39">        ID(&quot;id&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L40">        REGION(&quot;region&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L41">        CHROMOSOME(&quot;chromosome&quot;, STRING, &quot;&quot;),</span>
+<span class="nc" id="L42">        START(&quot;start&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L43">        END(&quot;end&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L44">        CI_START_LEFT(&quot;ciStartLeft&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L45">        CI_START_RIGHT(&quot;ciStartRight&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L46">        CI_END_LEFT(&quot;ciEndLeft&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L47">        CI_END_RIGHT(&quot;ciEndRight&quot;, INTEGER, &quot;&quot;),</span>
+<span class="nc" id="L48">        REFERENCE(&quot;reference&quot;, STRING, &quot;&quot;),</span>
+<span class="nc" id="L49">        ALTERNATE(&quot;alternate&quot;, STRING, &quot;&quot;),</span>
+<span class="nc" id="L50">        GENE(&quot;gene&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L51">        CONSEQUENCE_TYPE(&quot;consequenceType&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L52">        TRANSCRIPT_CONSEQUENCE_TYPE(&quot;transcriptVariations.consequenceTypes&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L53">        XREFS(&quot;xrefs&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L54">        IMPRECISE(&quot;imprecise&quot;, BOOLEAN, &quot;&quot;),</span>
+<span class="nc" id="L55">        SV_TYPE(&quot;svType&quot;, STRING, &quot;&quot;),</span>
+<span class="nc" id="L56">        PHASE(&quot;phased&quot;, TEXT_ARRAY, &quot;&quot;),</span>
+<span class="nc" id="L57">        TYPE(&quot;type&quot;, STRING, &quot;&quot;);</span>
+
+<span class="nc" id="L59">        QueryParams(String key, Type type, String description) {</span>
+<span class="nc" id="L60">            this.key = key;</span>
+<span class="nc" id="L61">            this.type = type;</span>
+<span class="nc" id="L62">            this.description = description;</span>
+<span class="nc" id="L63">        }</span>
+
+        private final String key;
+        private Type type;
+        private String description;
+
+        @Override
+        public String key() {
+<span class="nc" id="L71">            return key;</span>
+        }
+
+        @Override
+        public String description() {
+<span class="nc" id="L76">            return description;</span>
+        }
+
+        @Override
+        public Type type() {
+<span class="nc" id="L81">            return type;</span>
+        }
+    }
+
+    QueryResult startsWith(String id, QueryOptions options);
+
+    default QueryResult&lt;T&gt; getByVariant(Variant variant, QueryOptions options) {
+        Query query;
+//        if (VariantType.CNV.equals(variant.getType())) {
+
+        // Queries for CNVs,SVs are different from simple short variants queries
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (variant.getSv() != null</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                &amp;&amp; variant.getSv().getCiStartLeft() != null</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                &amp;&amp; variant.getSv().getCiStartRight() != null</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                &amp;&amp; variant.getSv().getCiEndLeft() != null</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                &amp;&amp; variant.getSv().getCiEndRight() != null) {</span>
+<span class="nc" id="L97">            query = new Query(QueryParams.CHROMOSOME.key(), variant.getChromosome());</span>
+            // Imprecise queries can just be enabled for structural variants providing CIPOS positions. Imprecise queries
+            // can be disabled by using the imprecise=false query option
+<span class="nc bnc" id="L100" title="All 4 branches missed.">            if (options.get(QueryParams.IMPRECISE.key()) == null || (Boolean) options.get(QueryParams.IMPRECISE.key())) {</span>
+<span class="nc" id="L101">                int ciStartLeft = variant.getSv().getCiStartLeft();</span>
+<span class="nc" id="L102">                int ciStartRight = variant.getSv().getCiStartRight();</span>
+<span class="nc" id="L103">                int ciEndLeft = variant.getSv().getCiEndLeft();</span>
+<span class="nc" id="L104">                int ciEndRight = variant.getSv().getCiEndRight();</span>
+//                // CNVs must be considered inherently imprecise (GEL requirement), even if variant caller returned
+//                // precise positions
+//                if (VariantType.CNV.equals(variant.getType())
+//                        &amp;&amp; variant.getSv().getCiStartLeft().equals(variant.getSv().getCiStartRight())
+//                        &amp;&amp; variant.getSv().getCiEndLeft().equals(variant.getSv().getCiEndRight())) {
+//                    ciStartLeft -= CNV_DEFAULT_PADDING;
+//                    ciStartRight += CNV_DEFAULT_PADDING;
+//                    ciEndLeft -= CNV_DEFAULT_PADDING;
+//                    ciEndRight += CNV_DEFAULT_PADDING;
+//                }
+<span class="nc" id="L115">                query.append(QueryParams.CI_START_LEFT.key(), ciStartLeft)</span>
+<span class="nc" id="L116">                        .append(QueryParams.CI_START_RIGHT.key(), ciStartRight)</span>
+<span class="nc" id="L117">                        .append(QueryParams.CI_END_LEFT.key(), ciEndLeft)</span>
+<span class="nc" id="L118">                        .append(QueryParams.CI_END_RIGHT.key(), ciEndRight);</span>
+            // Exact query for start/end
+<span class="nc" id="L120">            } else {</span>
+<span class="nc" id="L121">                query.append(QueryParams.START.key(), variant.getStart());</span>
+<span class="nc" id="L122">                query.append(QueryParams.END.key(), variant.getStart());</span>
+            }
+            // CNVs must always be matched against COPY_NUMBER_GAIN/COPY_NUMBER_LOSS when searching - if provided
+<span class="nc bnc" id="L125" title="All 4 branches missed.">            if (VariantType.CNV.equals(variant.getType()) &amp;&amp; variant.getSv().getType() != null) {</span>
+<span class="nc" id="L126">                query.append(QueryParams.SV_TYPE.key(), variant.getSv().getType().toString());</span>
+            }
+<span class="nc" id="L128">            query.append(QueryParams.TYPE.key(), variant.getType().toString());</span>
+        // simple short variant query; This will be the query run in more than 99% of the cases
+        } else {
+<span class="nc" id="L131">            query = new Query(QueryParams.CHROMOSOME.key(), variant.getChromosome())</span>
+<span class="nc" id="L132">                    .append(QueryParams.START.key(), variant.getStart())</span>
+<span class="nc" id="L133">                    .append(QueryParams.REFERENCE.key(), variant.getReference())</span>
+<span class="nc" id="L134">                    .append(QueryParams.ALTERNATE.key(), variant.getAlternate());</span>
+        }
+<span class="nc" id="L136">        return get(query, options);</span>
+    }
+
+    default List&lt;QueryResult&lt;T&gt;&gt; getByVariant(List&lt;Variant&gt; variants, QueryOptions options) {
+<span class="nc" id="L140">        List&lt;QueryResult&lt;T&gt;&gt; results = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        for (Variant variant: variants) {</span>
+<span class="nc" id="L142">            results.add(getByVariant(variant, options));</span>
+<span class="nc" id="L143">        }</span>
+<span class="nc" id="L144">        return results;</span>
+    }
+
+    QueryResult&lt;String&gt; getConsequenceTypes(Query query);
+
+    QueryResult&lt;Score&gt; getFunctionalScoreVariant(Variant variant, QueryOptions options);
+
+    default List&lt;QueryResult&lt;Score&gt;&gt; getFunctionalScoreVariant(List&lt;Variant&gt; variants, QueryOptions options) {
+<span class="nc" id="L152">        List&lt;QueryResult&lt;Score&gt;&gt; queryResults = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        for (Variant variant: variants) {</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            if (variant.getType() == VariantType.SNV) {</span>
+<span class="nc" id="L155">                queryResults.add(getFunctionalScoreVariant(variant, options));</span>
+            } else {
+<span class="nc" id="L157">                queryResults.add(new QueryResult&lt;&gt;(variant.toString(), 0, 0, 0, null, null, Collections.emptyList()));</span>
+            }
+<span class="nc" id="L159">        }</span>
+<span class="nc" id="L160">        return queryResults;</span>
+    }
+
+    List&lt;QueryResult&lt;Variant&gt;&gt; getPopulationFrequencyByVariant(List&lt;Variant&gt; variants, QueryOptions queryOptions);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

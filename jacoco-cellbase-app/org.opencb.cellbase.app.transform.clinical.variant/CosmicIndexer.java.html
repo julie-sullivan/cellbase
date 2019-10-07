@@ -1,0 +1,552 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CosmicIndexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">CosmicIndexer.java</span></div><h1>CosmicIndexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.commons.ProgressLogger;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.text.NumberFormat;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Created by fjlopez on 04/10/16.
+ */
+public class CosmicIndexer extends ClinicalIndexer {
+
+    private static final String COSMIC_NAME = &quot;cosmic&quot;;
+    private static final int PRIMARY_SITE_COLUMN = 7;
+    private static final int SITE_SUBTYPE_COLUMN = 8;
+    private static final int PRIMARY_HISTOLOGY_COLUMN = 11;
+    private static final int HISTOLOGY_SUBTYPE_COLUMN = 12;
+    private static final int ID_COLUMN = 16;
+    private static final String MUTATION_SOMATIC_STATUS_IN_SOURCE_FILE = &quot;mutationSomaticStatus_in_source_file&quot;;
+    private static final int GENE_NAMES_COLUMN = 0;
+    private static final int HGNC_COLUMN = 3;
+    private final Path cosmicFile;
+    private final int mutationSomaticStatusColumn;
+    private final int pubmedPMIDColumn;
+    private final int sampleSourceColumn;
+    private final int tumourOriginColumn;
+    private Pattern mutationGRCh37GenomePositionPattern;
+    private Pattern snvPattern;
+    private static final String CHROMOSOME = &quot;CHR&quot;;
+    private static final String START = &quot;START&quot;;
+    private static final String END = &quot;END&quot;;
+    private static final String REF = &quot;REF&quot;;
+    private static final String ALT = &quot;ALT&quot;;
+<span class="fc" id="L46">    private int invalidPositionLines = 0;</span>
+<span class="fc" id="L47">    private int invalidSubstitutionLines = 0;</span>
+<span class="fc" id="L48">    private int invalidDeletionLines = 0;</span>
+<span class="fc" id="L49">    private int invalidInsertionLines = 0;</span>
+<span class="fc" id="L50">    private int invalidDuplicationLines = 0;</span>
+<span class="fc" id="L51">    private int invalidMutationCDSOtherReason = 0;</span>
+
+    private static final String VARIANT_STRING_PATTERN = &quot;[ACGT]*&quot;;
+<span class="fc" id="L54">    private int ignoredCosmicLines = 0;</span>
+
+    public CosmicIndexer(Path cosmicFile, boolean normalize, Path genomeSequenceFilePath, String assembly, RocksDB rdb)
+            throws IOException {
+<span class="fc" id="L58">        super(genomeSequenceFilePath);</span>
+<span class="fc" id="L59">        this.rdb = rdb;</span>
+<span class="fc" id="L60">        this.cosmicFile = cosmicFile;</span>
+<span class="fc" id="L61">        this.compileRegularExpressionPatterns();</span>
+<span class="fc" id="L62">        this.normalize = normalize;</span>
+
+        // COSMIC v78 GRCh38 includes one more column at position 27 (1-based) &quot;Resistance Mutation&quot; which is not
+        // provided in the GRCh37 file
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (assembly.equalsIgnoreCase(&quot;grch37&quot;)) {</span>
+<span class="fc" id="L67">            this.mutationSomaticStatusColumn = 29;</span>
+<span class="fc" id="L68">            this.pubmedPMIDColumn = 30;</span>
+<span class="fc" id="L69">            this.sampleSourceColumn = 32;</span>
+<span class="fc" id="L70">            this.tumourOriginColumn = 33;</span>
+        } else {
+<span class="nc" id="L72">            this.mutationSomaticStatusColumn = 29;</span>
+<span class="nc" id="L73">            this.pubmedPMIDColumn = 30;</span>
+<span class="nc" id="L74">            this.sampleSourceColumn = 32;</span>
+<span class="nc" id="L75">            this.tumourOriginColumn = 33;</span>
+        }
+<span class="fc" id="L77">    }</span>
+
+    private void compileRegularExpressionPatterns() {
+<span class="fc" id="L80">        mutationGRCh37GenomePositionPattern = Pattern.compile(&quot;(?&lt;&quot; + CHROMOSOME + &quot;&gt;\\S+):(?&lt;&quot; + START + &quot;&gt;\\d+)-(?&lt;&quot; + END + &quot;&gt;\\d+)&quot;);</span>
+<span class="fc" id="L81">        snvPattern = Pattern.compile(&quot;c\\.\\d+(_\\d+)?(?&lt;&quot; + REF + &quot;&gt;(A|C|T|G)+)&gt;(?&lt;&quot; + ALT + &quot;&gt;(A|C|T|G)+)&quot;);</span>
+<span class="fc" id="L82">    }</span>
+
+    public void index() throws RocksDBException {
+
+<span class="fc" id="L86">        logger.info(&quot;Parsing cosmic file ...&quot;);</span>
+
+        try {
+<span class="fc" id="L89">            ProgressLogger progressLogger = new ProgressLogger(&quot;Parsed COSMIC lines:&quot;,</span>
+<span class="fc" id="L90">                    () -&gt; EtlCommons.countFileLines(cosmicFile), 200).setBatchSize(10000);</span>
+
+<span class="fc" id="L92">            BufferedReader cosmicReader = FileUtils.newBufferedReader(cosmicFile);</span>
+            String line;
+<span class="fc" id="L94">            cosmicReader.readLine(); // First line is the header -&gt; ignore it</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            while ((line = cosmicReader.readLine()) != null) {</span>
+<span class="fc" id="L96">                logger.debug(line);</span>
+<span class="fc" id="L97">                EvidenceEntry evidenceEntry = buildCosmic(line);</span>
+<span class="fc" id="L98">                SequenceLocation sequenceLocation = new SequenceLocation();</span>
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">                if (parsePosition(sequenceLocation, line) &amp;&amp; parseVariant(sequenceLocation, line)) {</span>
+<span class="fc" id="L100">                    boolean success = updateRocksDB(sequenceLocation, evidenceEntry);</span>
+                    // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                    if (success) {</span>
+<span class="fc" id="L103">                        numberIndexedRecords++;</span>
+                    } else {
+<span class="nc" id="L105">                        ignoredCosmicLines++;</span>
+                    }
+<span class="fc" id="L107">                } else {</span>
+<span class="nc" id="L108">                    ignoredCosmicLines++;</span>
+                }
+<span class="fc" id="L110">                totalNumberRecords++;</span>
+<span class="fc" id="L111">                progressLogger.increment(1);</span>
+<span class="fc" id="L112">            }</span>
+<span class="nc" id="L113">        } catch (RocksDBException e) {</span>
+<span class="nc" id="L114">            logger.error(&quot;Error reading/writing from/to the RocksDB index while indexing Cosmic&quot;);</span>
+<span class="nc" id="L115">            throw e;</span>
+<span class="nc" id="L116">        } catch (IOException ex) {</span>
+<span class="nc" id="L117">            ex.printStackTrace();</span>
+        } finally {
+<span class="pc" id="L119">            logger.info(&quot;Done&quot;);</span>
+<span class="pc" id="L120">            this.printSummary();</span>
+<span class="pc" id="L121">        }</span>
+
+<span class="fc" id="L123">    }</span>
+
+    private void printSummary() {
+<span class="fc" id="L126">        logger.info(&quot;Total number of parsed Cosmic records: {}&quot;, totalNumberRecords);</span>
+<span class="fc" id="L127">        logger.info(&quot;Number of indexed Cosmic records: {}&quot;, numberIndexedRecords);</span>
+<span class="fc" id="L128">        logger.info(&quot;Number of new variants in Cosmic not previously indexed in RocksDB: {}&quot;, numberNewVariants);</span>
+<span class="fc" id="L129">        logger.info(&quot;Number of updated variants during Cosmic indexing: {}&quot;, numberVariantUpdates);</span>
+
+<span class="fc" id="L131">        NumberFormat formatter = NumberFormat.getInstance();</span>
+<span class="fc" id="L132">        logger.info(formatter.format(ignoredCosmicLines) + &quot; cosmic lines ignored: &quot;);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        if (invalidPositionLines &gt; 0) {</span>
+<span class="nc" id="L134">            logger.info(&quot;\t-&quot; + formatter.format(invalidPositionLines) + &quot; lines by invalid position&quot;);</span>
+        }
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (invalidSubstitutionLines &gt; 0) {</span>
+<span class="nc" id="L137">            logger.info(&quot;\t-&quot; + formatter.format(invalidSubstitutionLines) + &quot; lines by invalid substitution CDS&quot;);</span>
+        }
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (invalidInsertionLines &gt; 0) {</span>
+<span class="nc" id="L140">            logger.info(&quot;\t-&quot; + formatter.format(invalidInsertionLines) + &quot; lines by invalid insertion CDS&quot;);</span>
+        }
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (invalidDeletionLines &gt; 0) {</span>
+<span class="nc" id="L143">            logger.info(&quot;\t-&quot; + formatter.format(invalidDeletionLines) + &quot; lines by invalid deletion CDS&quot;);</span>
+        }
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (invalidDuplicationLines &gt; 0) {</span>
+<span class="nc" id="L146">            logger.info(&quot;\t-&quot; + formatter.format(invalidDuplicationLines) + &quot; lines because mutation CDS is a duplication&quot;);</span>
+        }
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (invalidMutationCDSOtherReason &gt; 0) {</span>
+<span class="nc" id="L149">            logger.info(&quot;\t-&quot; + formatter.format(invalidMutationCDSOtherReason)</span>
+                    + &quot; lines because mutation CDS is invalid for other reasons&quot;);
+        }
+<span class="fc" id="L152">    }</span>
+
+    private boolean updateRocksDB(SequenceLocation sequenceLocation, EvidenceEntry evidenceEntry) throws RocksDBException, IOException {
+
+        // More than one variant being returned from the normalisation process would mean it's and MNV which has been
+        // decomposed
+<span class="fc" id="L158">        List&lt;String&gt; normalisedVariantStringList = getNormalisedVariantString(sequenceLocation.getChromosome(),</span>
+<span class="fc" id="L159">                sequenceLocation.getStart(), sequenceLocation.getReference(),</span>
+<span class="fc" id="L160">                sequenceLocation.getAlternate());</span>
+
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (normalisedVariantStringList != null) {</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">            for (String normalisedVariantString : normalisedVariantStringList) {</span>
+<span class="fc" id="L164">                VariantAnnotation variantAnnotation = getVariantAnnotation(normalisedVariantString.getBytes());</span>
+<span class="fc" id="L165">                addHaplotypeProperty(evidenceEntry, normalisedVariantStringList);</span>
+<span class="fc" id="L166">                addNewEntry(variantAnnotation, evidenceEntry);</span>
+<span class="fc" id="L167">                rdb.put(normalisedVariantString.getBytes(), jsonObjectWriter.writeValueAsBytes(variantAnnotation));</span>
+<span class="fc" id="L168">            }</span>
+<span class="fc" id="L169">            return true;</span>
+        }
+<span class="nc" id="L171">        return false;</span>
+    }
+
+    private void addHaplotypeProperty(EvidenceEntry evidenceEntry, List&lt;String&gt; normalisedVariantStringList) {
+        // If more than one variant in the MNV (haplotype), create haplotype property in additionalProperties
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if (normalisedVariantStringList.size() &gt; 1) {</span>
+            // This variant is part of an MNV (haplotype). Leave a flag of all variants that form the MNV
+            // Assuming additionalProperties has already been created as per the upstream code
+<span class="nc" id="L179">            evidenceEntry.getAdditionalProperties().add(new Property(null,</span>
+                    HAPLOTYPE_FIELD_NAME,
+<span class="nc" id="L181">                    StringUtils.join(normalisedVariantStringList, HAPLOTYPE_STRING_SEPARATOR)));</span>
+        }
+<span class="fc" id="L183">    }</span>
+
+    private void addNewEntry(VariantAnnotation variantAnnotation, EvidenceEntry evidenceEntry) {
+<span class="fc" id="L186">        List&lt;EvidenceEntry&gt; evidenceEntryList = variantAnnotation.getTraitAssociation();</span>
+        // There are cosmic records which share all the fields but the bibliography. In some occassions (COSM12600)
+        // the redundancy is such that the document becomes much bigger than 16MB and cannot be loaded into MongoDB.
+        // This merge reduces redundancy.
+<span class="fc" id="L190">        int i = 0;</span>
+<span class="fc" id="L191">        boolean merged = false;</span>
+<span class="pc bpc" id="L192" title="1 of 4 branches missed.">        while (i &lt; evidenceEntryList.size() &amp;&amp; !merged) {</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">            if (sameSomaticDocument(evidenceEntryList.get(i), evidenceEntry)) {</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                if (evidenceEntryList.get(i).getBibliography() != null) {</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                    if (evidenceEntry.getBibliography() != null) {</span>
+<span class="nc" id="L196">                        Set&lt;String&gt; bibliographySet = new HashSet&lt;&gt;(evidenceEntryList.get(i).getBibliography());</span>
+<span class="nc" id="L197">                        bibliographySet.addAll(new HashSet&lt;&gt;(evidenceEntry.getBibliography()));</span>
+<span class="nc" id="L198">                        evidenceEntryList.get(i).setBibliography(new ArrayList&lt;&gt;(bibliographySet));</span>
+<span class="nc" id="L199">                    }</span>
+                } else {
+<span class="nc" id="L201">                    evidenceEntryList.get(i).setBibliography(evidenceEntry.getBibliography());</span>
+                }
+<span class="nc" id="L203">                merged = true;</span>
+            }
+<span class="fc" id="L205">            i++;</span>
+        }
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (!merged) {</span>
+<span class="fc" id="L208">            evidenceEntryList.add(evidenceEntry);</span>
+        }
+<span class="fc" id="L210">    }</span>
+
+    public boolean sameSomaticDocument(EvidenceEntry evidenceEntry1, EvidenceEntry evidenceEntry2) {
+
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (evidenceEntry1 == evidenceEntry2) {</span>
+<span class="nc" id="L215">            return true;</span>
+        }
+<span class="pc bpc" id="L217" title="2 of 4 branches missed.">        if (evidenceEntry2 == null || evidenceEntry1.getClass() != evidenceEntry2.getClass()) {</span>
+<span class="nc" id="L218">            return false;</span>
+        }
+
+<span class="pc bpc" id="L221" title="2 of 4 branches missed.">        if (evidenceEntry1.getSource() != null ? !evidenceEntry1.getSource().equals(evidenceEntry2.getSource())</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                : evidenceEntry2.getSource() != null) {</span>
+<span class="fc" id="L223">            return false;</span>
+        }
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (evidenceEntry1.getSomaticInformation() != null</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                ? !evidenceEntry1.getSomaticInformation().equals(evidenceEntry2.getSomaticInformation())</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                : evidenceEntry2.getSomaticInformation() != null) {</span>
+<span class="nc" id="L228">            return false;</span>
+        }
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (evidenceEntry1.getId() != null</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">                ? !evidenceEntry1.getId().equals(evidenceEntry2.getId()) : evidenceEntry2.getId() != null) {</span>
+<span class="nc" id="L232">            return false;</span>
+        }
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        if (evidenceEntry1.getAlleleOrigin() != null</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                ? !evidenceEntry1.getAlleleOrigin().equals(evidenceEntry2.getAlleleOrigin())</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                : evidenceEntry2.getAlleleOrigin() != null) {</span>
+<span class="nc" id="L237">            return false;</span>
+        }
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        if (evidenceEntry1.getGenomicFeatures() != null</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                ? !evidenceEntry1.getGenomicFeatures().equals(evidenceEntry2.getGenomicFeatures())</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                : evidenceEntry2.getGenomicFeatures() != null) {</span>
+<span class="nc" id="L242">            return false;</span>
+        }
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (evidenceEntry1.getAdditionalProperties() != null</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                ? !evidenceEntry1.getAdditionalProperties().equals(evidenceEntry2.getAdditionalProperties())</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                : evidenceEntry2.getAdditionalProperties() != null) {</span>
+<span class="nc" id="L247">            return false;</span>
+        }
+
+<span class="nc" id="L250">        return true;</span>
+    }
+
+//    /**
+//     * Checks whether all fields but the bibliography list, are exactly the same in two somatic records.
+//     * @param somatic1 Somatic object
+//     * @param somatic2 Somatic object
+//     * @return true if all fields but the bibliography are exaclty the same in both records. false otherwise
+//     */
+//    private boolean sameSomaticDocument(EvidenceEntry evidenceEntry1, EvidenceEntry evidenceEntry2) {
+//        // Check gene name list
+//        boolean equalSource = (somatic1.getSource() == null
+//                &amp;&amp; somatic2.getSource() == null)
+//                || (somatic1.getSource().equalsIgnoreCase(somatic2.getSource()));
+//
+//        if (equalSource) {
+//            boolean equalAccession = (somatic1.getAccession() == null &amp;&amp; somatic2.getAccession() == null)
+//                    || (somatic1.getAccession().equals(somatic2.getAccession()));
+//            if (equalAccession) {
+//                boolean equalGeneList = (somatic1.getGeneNames() == null &amp;&amp; somatic2.getGeneNames() == null)
+//                        || (new HashSet&lt;&gt;(somatic1.getGeneNames()).equals(new HashSet&lt;&gt;(somatic2.getGeneNames())));
+//                if (equalGeneList) {
+//                    boolean equalMutationSomaticStatus = (somatic1.getMutationSomaticStatus() == null
+//                            &amp;&amp; somatic2.getMutationSomaticStatus() == null)
+//                            || (somatic1.getMutationSomaticStatus().equalsIgnoreCase(somatic2.getMutationSomaticStatus()));
+//                    if (equalMutationSomaticStatus) {
+//                        boolean equalPrimarySite = (somatic1.getPrimarySite() == null
+//                                &amp;&amp; somatic2.getPrimarySite() == null)
+//                                || (somatic1.getPrimarySite().equalsIgnoreCase(somatic2.getPrimarySite()));
+//                        if (equalPrimarySite) {
+//                            boolean equalSiteSubtype = (somatic1.getSiteSubtype() == null
+//                                    &amp;&amp; somatic2.getSiteSubtype() == null)
+//                                    || (somatic1.getSiteSubtype().equalsIgnoreCase(somatic2.getSiteSubtype()));
+//                            if (equalSiteSubtype) {
+//                                boolean equalPrimaryHistology = (somatic1.getPrimaryHistology() == null
+//                                        &amp;&amp; somatic2.getPrimaryHistology() == null)
+//                                        || (somatic1.getPrimaryHistology().equalsIgnoreCase(somatic2.getPrimaryHistology()));
+//                                if (equalPrimaryHistology) {
+//                                    boolean equalHistologySubtype = (somatic1.getHistologySubtype() == null
+//                                            &amp;&amp; somatic2.getHistologySubtype() == null)
+//                                            || (somatic1.getHistologySubtype().equalsIgnoreCase(somatic2.getHistologySubtype()));
+//                                    if (equalHistologySubtype) {
+//                                        boolean equalSampleSource = (somatic1.getSampleSource() == null
+//                                                &amp;&amp; somatic2.getSampleSource() == null)
+//                                                || (somatic1.getSampleSource().equalsIgnoreCase(somatic2.getSampleSource()));
+//                                        if (equalSampleSource) {
+//                                            boolean equalTumourOrigin = (somatic1.getTumourOrigin() == null
+//                                                    &amp;&amp; somatic2.getTumourOrigin() == null)
+//                                                    || (somatic1.getTumourOrigin().equalsIgnoreCase(somatic2.getTumourOrigin()));
+//                                            return equalTumourOrigin;
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//        return false;
+//    }
+
+    /**
+     * Check whether the variant is valid and parse it.
+     *
+     * @return true if valid mutation, false otherwise
+     */
+    private boolean parseVariant(SequenceLocation sequenceLocation, String line) {
+        boolean validVariant;
+<span class="fc" id="L319">        String[] fields = line.split(&quot;\t&quot;, -1);</span>
+<span class="fc" id="L320">        String mutationCds = fields[17];</span>
+
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">        if (mutationCds.contains(&quot;&gt;&quot;)) {</span>
+<span class="fc" id="L323">            validVariant = parseSnv(mutationCds, sequenceLocation);</span>
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L325">                invalidSubstitutionLines++;</span>
+            }
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;del&quot;)) {</span>
+<span class="nc" id="L328">            validVariant = parseDeletion(mutationCds, sequenceLocation);</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L330">                invalidDeletionLines++;</span>
+            }
+<span class="nc bnc" id="L332" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;ins&quot;)) {</span>
+<span class="nc" id="L333">            validVariant = parseInsertion(mutationCds, sequenceLocation);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L335">                invalidInsertionLines++;</span>
+            }
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;dup&quot;)) {</span>
+<span class="nc" id="L338">            validVariant = parseDuplication(mutationCds);</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L340">                invalidDuplicationLines++;</span>
+            }
+        } else {
+<span class="nc" id="L343">            validVariant = false;</span>
+<span class="nc" id="L344">            invalidMutationCDSOtherReason++;</span>
+        }
+
+<span class="fc" id="L347">        return validVariant;</span>
+    }
+
+    private boolean parseDuplication(String dup) {
+        // TODO: The only Duplication in Cosmic V70 is a structural variation that is not going to be serialized
+<span class="nc" id="L352">        return false;</span>
+    }
+
+    private boolean parseInsertion(String mutationCds, SequenceLocation sequenceLocation) {
+<span class="nc" id="L356">        boolean validVariant = true;</span>
+<span class="nc" id="L357">        String[] insParts = mutationCds.split(&quot;ins&quot;);</span>
+
+<span class="nc bnc" id="L359" title="All 2 branches missed.">        if (insParts.length &gt; 1) {</span>
+<span class="nc" id="L360">            String insertedNucleotides = insParts[1];</span>
+<span class="nc bnc" id="L361" title="All 4 branches missed.">            if (insertedNucleotides.matches(&quot;\\d+&quot;) || !insertedNucleotides.matches(VARIANT_STRING_PATTERN)) {</span>
+                //c.503_508ins30
+<span class="nc" id="L363">                validVariant = false;</span>
+            } else {
+<span class="nc" id="L365">                sequenceLocation.setReference(&quot;&quot;);</span>
+<span class="nc" id="L366">                sequenceLocation.setAlternate(getPositiveStrandString(insertedNucleotides, sequenceLocation.getStrand()));</span>
+            }
+<span class="nc" id="L368">        } else {</span>
+<span class="nc" id="L369">            validVariant = false;</span>
+        }
+
+<span class="nc" id="L372">        return validVariant;</span>
+    }
+
+    private boolean parseDeletion(String mutationCds, SequenceLocation sequenceLocation) {
+<span class="nc" id="L376">        boolean validVariant = true;</span>
+<span class="nc" id="L377">        String[] mutationCDSArray = mutationCds.split(&quot;del&quot;);</span>
+
+        // For deletions, only deletions of, at most, deletionLength nucleotide are allowed
+<span class="nc bnc" id="L380" title="All 2 branches missed.">        if (mutationCDSArray.length &lt; 2) { // c.503_508del (usually, deletions of several nucleotides)</span>
+            // TODO: allow these variants
+<span class="nc" id="L382">            validVariant = false;</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">        } else if (mutationCDSArray[1].matches(&quot;\\d+&quot;)</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">                || !mutationCDSArray[1].matches(VARIANT_STRING_PATTERN)) { // Avoid allele strings containing Ns, for example</span>
+<span class="nc" id="L385">            validVariant = false;</span>
+        } else {
+<span class="nc" id="L387">            sequenceLocation.setReference(getPositiveStrandString(mutationCDSArray[1], sequenceLocation.getStrand()));</span>
+<span class="nc" id="L388">            sequenceLocation.setAlternate(&quot;&quot;);</span>
+        }
+
+<span class="nc" id="L391">        return validVariant;</span>
+    }
+
+    private boolean parseSnv(String mutationCds, SequenceLocation sequenceLocation) {
+<span class="fc" id="L395">        boolean validVariant = true;</span>
+<span class="fc" id="L396">        Matcher snvMatcher = snvPattern.matcher(mutationCds);</span>
+
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">        if (snvMatcher.matches()) {</span>
+<span class="fc" id="L399">            String ref = snvMatcher.group(REF);</span>
+<span class="fc" id="L400">            String alt = snvMatcher.group(ALT);</span>
+<span class="pc bpc" id="L401" title="2 of 4 branches missed.">            if (!ref.equalsIgnoreCase(&quot;N&quot;) &amp;&amp; !alt.equalsIgnoreCase(&quot;N&quot;)) {</span>
+<span class="fc" id="L402">                sequenceLocation.setReference(getPositiveStrandString(ref, sequenceLocation.getStrand()));</span>
+<span class="fc" id="L403">                sequenceLocation.setAlternate(getPositiveStrandString(alt, sequenceLocation.getStrand()));</span>
+            } else {
+<span class="nc" id="L405">                validVariant = false;</span>
+            }
+<span class="fc" id="L407">        } else {</span>
+<span class="nc" id="L408">            validVariant = false;</span>
+        }
+
+<span class="fc" id="L411">        return validVariant;</span>
+    }
+
+    private String getPositiveStrandString(String alleleString, String strand) {
+<span class="pc bpc" id="L415" title="1 of 2 branches missed.">        if (strand.equals(&quot;-&quot;)) {</span>
+<span class="nc" id="L416">            return reverseComplementary(alleleString);</span>
+        } else {
+<span class="fc" id="L418">            return alleleString;</span>
+        }
+    }
+
+    private String reverseComplementary(String alleleString) {
+<span class="nc" id="L423">        char[] reverseAlleleString = new StringBuilder(alleleString).reverse().toString().toCharArray();</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">        for (int i = 0; i &lt; reverseAlleleString.length; i++) {</span>
+<span class="nc" id="L425">            reverseAlleleString[i] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(reverseAlleleString[i]);</span>
+        }
+
+<span class="nc" id="L428">        return String.valueOf(reverseAlleleString);</span>
+    }
+
+    private EvidenceEntry buildCosmic(String line) {
+<span class="fc" id="L432">        String[] fields = line.split(&quot;\t&quot;, -1); // -1 argument make split return also empty fields</span>
+
+<span class="fc" id="L434">        EvidenceSource evidenceSource = new EvidenceSource(EtlCommons.COSMIC_DATA, null, null);</span>
+<span class="fc" id="L435">        SomaticInformation somaticInformation = getSomaticInformation(fields);</span>
+
+<span class="fc" id="L437">        List&lt;GenomicFeature&gt; genomicFeatureList = getGenomicFeature(fields);</span>
+
+<span class="fc" id="L439">        List&lt;Property&gt; additionalProperties = new ArrayList&lt;&gt;(1);</span>
+<span class="fc" id="L440">        additionalProperties.add(new Property(null,</span>
+                MUTATION_SOMATIC_STATUS_IN_SOURCE_FILE, fields[mutationSomaticStatusColumn]));
+
+<span class="fc" id="L443">        List&lt;String&gt; bibliography = getBibliography(fields[pubmedPMIDColumn]);</span>
+
+<span class="fc" id="L445">        EvidenceEntry evidenceEntry = new EvidenceEntry(evidenceSource, Collections.emptyList(), somaticInformation,</span>
+                null, fields[ID_COLUMN], null,
+<span class="fc" id="L447">                getAlleleOriginList(Collections.singletonList(fields[mutationSomaticStatusColumn])),</span>
+<span class="fc" id="L448">                Collections.emptyList(), genomicFeatureList, null, null, null, null,</span>
+                EthnicCategory.Z, null, null, null, additionalProperties,
+                bibliography);
+
+<span class="fc" id="L452">        return evidenceEntry;</span>
+    }
+
+    private SomaticInformation getSomaticInformation(String[] fields) {
+<span class="fc" id="L456">        String primarySite = null;</span>
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[PRIMARY_SITE_COLUMN])) {</span>
+<span class="fc" id="L458">            primarySite = fields[PRIMARY_SITE_COLUMN].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+<span class="fc" id="L460">        String siteSubtype = null;</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">        if (!EtlCommons.isMissing(fields[SITE_SUBTYPE_COLUMN])) {</span>
+<span class="fc" id="L462">            siteSubtype = fields[SITE_SUBTYPE_COLUMN].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+<span class="fc" id="L464">        String primaryHistology = null;</span>
+<span class="pc bpc" id="L465" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[PRIMARY_HISTOLOGY_COLUMN])) {</span>
+<span class="fc" id="L466">            primaryHistology = fields[PRIMARY_HISTOLOGY_COLUMN].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+<span class="fc" id="L468">        String histologySubtype = null;</span>
+<span class="fc bfc" id="L469" title="All 2 branches covered.">        if (!EtlCommons.isMissing(fields[HISTOLOGY_SUBTYPE_COLUMN])) {</span>
+<span class="fc" id="L470">            histologySubtype = fields[HISTOLOGY_SUBTYPE_COLUMN].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+<span class="fc" id="L472">        String tumourOrigin = null;</span>
+<span class="fc bfc" id="L473" title="All 2 branches covered.">        if (!EtlCommons.isMissing(fields[tumourOriginColumn])) {</span>
+<span class="fc" id="L474">            tumourOrigin = fields[tumourOriginColumn].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+<span class="fc" id="L476">        String sampleSource = null;</span>
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[sampleSourceColumn])) {</span>
+<span class="fc" id="L478">            sampleSource = fields[sampleSourceColumn].replace(&quot;_&quot;, &quot; &quot;);</span>
+        }
+
+<span class="fc" id="L481">        return new SomaticInformation(primarySite, siteSubtype, primaryHistology, histologySubtype, tumourOrigin,</span>
+                sampleSource);
+    }
+
+    private List&lt;String&gt; getBibliography(String bibliographyString) {
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(bibliographyString)) {</span>
+<span class="fc" id="L487">            return Collections.singletonList(&quot;PMID:&quot; + bibliographyString);</span>
+        }
+
+<span class="nc" id="L490">        return Collections.emptyList();</span>
+    }
+
+    private List&lt;GenomicFeature&gt; getGenomicFeature(String[] fields) {
+<span class="fc" id="L494">        List&lt;GenomicFeature&gt; genomicFeatureList = new ArrayList&lt;&gt;(2);</span>
+<span class="fc" id="L495">        genomicFeatureList.add(createGeneGenomicFeature(fields[GENE_NAMES_COLUMN]));</span>
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">        if (!fields[HGNC_COLUMN].equalsIgnoreCase(fields[GENE_NAMES_COLUMN])</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">                &amp;&amp; !EtlCommons.isMissing(fields[HGNC_COLUMN])) {</span>
+<span class="fc" id="L498">            genomicFeatureList.add(createGeneGenomicFeature(fields[HGNC_COLUMN]));</span>
+        }
+
+<span class="fc" id="L501">        return genomicFeatureList;</span>
+    }
+
+    public boolean parsePosition(SequenceLocation sequenceLocation, String line) {
+<span class="fc" id="L505">        boolean success = false;</span>
+
+<span class="fc" id="L507">        String[] fields = line.split(&quot;\t&quot;, -1);</span>
+<span class="fc" id="L508">        String positionString = fields[23];</span>
+<span class="fc" id="L509">        sequenceLocation.setStrand(fields[24]);</span>
+<span class="pc bpc" id="L510" title="2 of 4 branches missed.">        if (positionString != null &amp;&amp; !positionString.isEmpty()) {</span>
+<span class="fc" id="L511">            Matcher matcher = mutationGRCh37GenomePositionPattern.matcher(positionString);</span>
+<span class="pc bpc" id="L512" title="1 of 2 branches missed.">            if (matcher.matches()) {</span>
+<span class="fc" id="L513">                setCosmicChromosome(matcher.group(CHROMOSOME), sequenceLocation);</span>
+<span class="fc" id="L514">                sequenceLocation.setStart(getStart(Integer.parseInt(matcher.group(START)), fields[27]));</span>
+<span class="fc" id="L515">                sequenceLocation.setEnd(Integer.parseInt(matcher.group(END)));</span>
+<span class="fc" id="L516">                success = true;</span>
+            }
+        }
+<span class="pc bpc" id="L519" title="1 of 2 branches missed.">        if (!success) {</span>
+<span class="nc" id="L520">            this.invalidPositionLines++;</span>
+        }
+<span class="fc" id="L522">        return success;</span>
+    }
+
+    private Integer getStart(Integer readPosition, String mutationCDS) {
+        // In order to agree with the Variant model and what it's stored in variation, the start must be incremented in
+        // 1 for insertions given what is provided in the COSMIC file
+<span class="pc bpc" id="L528" title="1 of 2 branches missed.">        if (mutationCDS.contains(&quot;ins&quot;)) {</span>
+<span class="nc" id="L529">            return readPosition + 1;</span>
+        } else {
+<span class="fc" id="L531">            return readPosition;</span>
+        }
+    }
+
+    private void setCosmicChromosome(String chromosome, SequenceLocation sequenceLocation) {
+<span class="pc bpc" id="L536" title="12 of 14 branches missed.">        switch (chromosome) {</span>
+            case &quot;23&quot;:
+<span class="nc" id="L538">                sequenceLocation.setChromosome(&quot;X&quot;);</span>
+<span class="nc" id="L539">                break;</span>
+            case &quot;24&quot;:
+<span class="nc" id="L541">                sequenceLocation.setChromosome(&quot;Y&quot;);</span>
+<span class="nc" id="L542">                break;</span>
+            case &quot;25&quot;:
+<span class="nc" id="L544">                sequenceLocation.setChromosome(&quot;MT&quot;);</span>
+<span class="nc" id="L545">                break;</span>
+            default:
+<span class="fc" id="L547">                sequenceLocation.setChromosome(chromosome);</span>
+        }
+<span class="fc" id="L549">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

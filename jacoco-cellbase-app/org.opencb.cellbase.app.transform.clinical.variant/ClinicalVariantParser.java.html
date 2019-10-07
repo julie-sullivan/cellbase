@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClinicalVariantParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">ClinicalVariantParser.java</span></div><h1>ClinicalVariantParser.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.app.transform.CellBaseParser;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+/**
+ * Created by fjlopez on 26/09/16.
+ */
+public class ClinicalVariantParser extends CellBaseParser {
+
+    private final Path clinvarXMLFile;
+    private final Path clinvarSummaryFile;
+    private final Path clinvarVariationAlleleFile;
+    private final Path clinvarEFOFile;
+    private final Path cosmicFile;
+    private final Path gwasFile;
+    private final Path dbsnpFile;
+    private final String assembly;
+    private final Path iarctp53GermlineFile;
+    private final Path iarctp53SomaticFile;
+    private final Path iarctp53GermlineReferencesFile;
+    private final Path iarctp53SomaticReferencesFile;
+    private final Path genomeSequenceFilePath;
+    private final Path docmFile;
+<span class="fc" id="L39">    private boolean normalize = true;</span>
+
+
+    public ClinicalVariantParser(Path clinicalVariantFolder, boolean normalize, Path genomeSequenceFilePath,
+                                 String assembly, CellBaseSerializer serializer) {
+<span class="fc" id="L44">        this(clinicalVariantFolder.resolve(EtlCommons.CLINVAR_XML_FILE),</span>
+<span class="fc" id="L45">                clinicalVariantFolder.resolve(EtlCommons.CLINVAR_SUMMARY_FILE),</span>
+<span class="fc" id="L46">                clinicalVariantFolder.resolve(EtlCommons.CLINVAR_VARIATION_ALLELE_FILE),</span>
+<span class="fc" id="L47">                clinicalVariantFolder.resolve(EtlCommons.CLINVAR_EFO_FILE),</span>
+<span class="fc" id="L48">                clinicalVariantFolder.resolve(EtlCommons.COSMIC_FILE),</span>
+<span class="fc" id="L49">                clinicalVariantFolder.resolve(EtlCommons.GWAS_FILE),</span>
+<span class="fc" id="L50">                clinicalVariantFolder.resolve(EtlCommons.DBSNP_FILE),</span>
+<span class="fc" id="L51">                clinicalVariantFolder.resolve(&quot;datasets/&quot; + EtlCommons.IARCTP53_GERMLINE_FILE),</span>
+<span class="fc" id="L52">                clinicalVariantFolder.resolve(&quot;datasets/&quot; + EtlCommons.IARCTP53_GERMLINE_REFERENCES_FILE),</span>
+<span class="fc" id="L53">                clinicalVariantFolder.resolve(&quot;datasets/&quot; + EtlCommons.IARCTP53_SOMATIC_FILE),</span>
+<span class="fc" id="L54">                clinicalVariantFolder.resolve(&quot;datasets/&quot; + EtlCommons.IARCTP53_SOMATIC_REFERENCES_FILE),</span>
+<span class="fc" id="L55">                clinicalVariantFolder.resolve(EtlCommons.DOCM_FILE),</span>
+                normalize,
+                genomeSequenceFilePath, assembly, serializer);
+<span class="fc" id="L58">    }</span>
+
+    public ClinicalVariantParser(Path clinvarXMLFile, Path clinvarSummaryFile, Path clinvarVariationAlleleFile,
+                                 Path clinvarEFOFile, Path cosmicFile, Path gwasFile, Path dbsnpFile,
+                                 Path iarctp53GermlineFile, Path iarctp53GermlineReferencesFile,
+                                 Path iarctp53SomaticFile, Path iarctp53SomaticReferencesFile, Path docmFile,
+                                 boolean normalize, Path genomeSequenceFilePath, String assembly,
+                                 CellBaseSerializer serializer) {
+<span class="fc" id="L66">        super(serializer);</span>
+<span class="fc" id="L67">        this.clinvarXMLFile = clinvarXMLFile;</span>
+<span class="fc" id="L68">        this.clinvarSummaryFile = clinvarSummaryFile;</span>
+<span class="fc" id="L69">        this.clinvarVariationAlleleFile = clinvarVariationAlleleFile;</span>
+<span class="fc" id="L70">        this.clinvarEFOFile = clinvarEFOFile;</span>
+<span class="fc" id="L71">        this.cosmicFile = cosmicFile;</span>
+<span class="fc" id="L72">        this.gwasFile = gwasFile;</span>
+<span class="fc" id="L73">        this.dbsnpFile = dbsnpFile;</span>
+<span class="fc" id="L74">        this.iarctp53GermlineFile = iarctp53GermlineFile;</span>
+<span class="fc" id="L75">        this.iarctp53GermlineReferencesFile = iarctp53GermlineReferencesFile;</span>
+<span class="fc" id="L76">        this.iarctp53SomaticFile = iarctp53SomaticFile;</span>
+<span class="fc" id="L77">        this.iarctp53SomaticReferencesFile = iarctp53SomaticReferencesFile;</span>
+<span class="fc" id="L78">        this.docmFile = docmFile;</span>
+<span class="fc" id="L79">        this.normalize = normalize;</span>
+<span class="fc" id="L80">        this.genomeSequenceFilePath = genomeSequenceFilePath;</span>
+<span class="fc" id="L81">        this.assembly = assembly;</span>
+<span class="fc" id="L82">    }</span>
+
+    public void parse() throws IOException, RocksDBException {
+
+<span class="fc" id="L86">        RocksDB rdb = null;</span>
+<span class="fc" id="L87">        Options dbOption = null;</span>
+<span class="fc" id="L88">        String dbLocation = null;</span>
+
+        try {
+<span class="fc" id="L91">            Object[] dbConnection = getDBConnection(clinvarXMLFile.getParent().toString() + &quot;/integration.idx&quot;, true);</span>
+<span class="fc" id="L92">            rdb = (RocksDB) dbConnection[0];</span>
+<span class="fc" id="L93">            dbOption = (Options) dbConnection[1];</span>
+<span class="fc" id="L94">            dbLocation = (String) dbConnection[2];</span>
+
+<span class="pc bpc" id="L96" title="3 of 6 branches missed.">            if (this.clinvarXMLFile != null &amp;&amp; this.clinvarSummaryFile != null</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                    &amp;&amp; this.clinvarVariationAlleleFile != null &amp;&amp; Files.exists(clinvarXMLFile)</span>
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">                    &amp;&amp; Files.exists(clinvarSummaryFile) &amp;&amp; Files.exists(clinvarVariationAlleleFile)) {</span>
+<span class="fc" id="L99">                ClinVarIndexer clinvarIndexer = new ClinVarIndexer(clinvarXMLFile, clinvarSummaryFile,</span>
+                        clinvarVariationAlleleFile, clinvarEFOFile, normalize, genomeSequenceFilePath, assembly, rdb);
+<span class="fc" id="L101">                clinvarIndexer.index();</span>
+<span class="fc" id="L102">            } else {</span>
+<span class="nc" id="L103">                logger.warn(&quot;One or more of required ClinVar files are missing. Skipping ClinVar data.\n&quot;</span>
+                        + &quot;Please, ensure that these two files exist:\n&quot;
+                        + &quot;{}\n&quot;
+<span class="nc" id="L106">                        + &quot;{}&quot;, this.clinvarXMLFile.toString(), this.clinvarSummaryFile.toString());</span>
+            }
+
+<span class="pc bpc" id="L109" title="2 of 4 branches missed.">            if (this.cosmicFile != null &amp;&amp; Files.exists(this.cosmicFile)) {</span>
+<span class="fc" id="L110">                CosmicIndexer cosmicIndexer = new CosmicIndexer(cosmicFile, normalize, genomeSequenceFilePath,</span>
+                        assembly, rdb);
+<span class="fc" id="L112">                cosmicIndexer.index();</span>
+<span class="fc" id="L113">            } else {</span>
+<span class="nc" id="L114">                logger.warn(&quot;Cosmic file {} missing. Skipping Cosmic data&quot;, cosmicFile);</span>
+            }
+            // TODO: write GWAS indexer as soon as it's needed (GRCh38 update)
+//            if (this.gwasFile != null) {
+//                GwasIndexer cosmicIndexer = new GwasIndexer(gwasFile, rdb);
+//                cosmicIndexer.index();
+//            }
+<span class="pc bpc" id="L121" title="2 of 4 branches missed.">            if (this.iarctp53GermlineFile != null &amp;&amp; this.iarctp53SomaticFile != null</span>
+<span class="pc bpc" id="L122" title="2 of 4 branches missed.">                    &amp;&amp; Files.exists(iarctp53GermlineFile) &amp;&amp; Files.exists(iarctp53SomaticFile)) {</span>
+<span class="fc" id="L123">                IARCTP53Indexer iarctp53Indexer = new IARCTP53Indexer(iarctp53GermlineFile,</span>
+                        iarctp53GermlineReferencesFile, iarctp53SomaticFile, iarctp53SomaticReferencesFile,
+                        normalize, genomeSequenceFilePath, assembly, rdb);
+<span class="fc" id="L126">                iarctp53Indexer.index();</span>
+<span class="fc" id="L127">            } else {</span>
+<span class="nc" id="L128">                logger.warn(&quot;One or more of required IARCTP53 files are missing. Skipping IARCTP53 data.&quot;);</span>
+            }
+
+<span class="pc bpc" id="L131" title="2 of 4 branches missed.">            if (this.docmFile != null &amp;&amp; Files.exists(docmFile)) {</span>
+<span class="fc" id="L132">                DOCMIndexer docmIndexer = new DOCMIndexer(docmFile, normalize, genomeSequenceFilePath, assembly, rdb);</span>
+<span class="fc" id="L133">                docmIndexer.index();</span>
+<span class="fc" id="L134">            } else {</span>
+<span class="nc" id="L135">                logger.warn(&quot;The DOCM file {} is missing. Skipping DOCM data.&quot;, docmFile);</span>
+            }
+
+<span class="fc" id="L138">            serializeRDB(rdb);</span>
+<span class="fc" id="L139">            closeIndex(rdb, dbOption, dbLocation);</span>
+<span class="fc" id="L140">            serializer.close();</span>
+<span class="nc" id="L141">        } catch (Exception e) {</span>
+<span class="nc" id="L142">            closeIndex(rdb, dbOption, dbLocation);</span>
+<span class="nc" id="L143">            serializer.close();</span>
+<span class="nc" id="L144">            throw e;</span>
+<span class="fc" id="L145">        }</span>
+
+<span class="fc" id="L147">    }</span>
+
+    private void serializeRDB(RocksDB rdb) throws IOException {
+        // DO NOT change the name of the rocksIterator variable - for some unexplainable reason Java VM crashes if it's
+        // named &quot;iterator&quot;
+<span class="fc" id="L152">        RocksIterator rocksIterator = rdb.newIterator();</span>
+
+<span class="fc" id="L154">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L155">        logger.info(&quot;Reading from RoocksDB index and serializing to {}.json.gz&quot;,</span>
+<span class="fc" id="L156">                serializer.getOutdir().resolve(serializer.getFileName()));</span>
+<span class="fc" id="L157">        int counter = 0;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        for (rocksIterator.seekToFirst(); rocksIterator.isValid(); rocksIterator.next()) {</span>
+<span class="fc" id="L159">            VariantAnnotation variantAnnotation</span>
+<span class="fc" id="L160">                    = mapper.readValue(rocksIterator.value(), VariantAnnotation.class);</span>
+//            List&lt;EvidenceEntry&gt; evidenceEntryList
+//                    = mapper.readValue(rocksIterator.value(), List.class);
+<span class="fc" id="L163">            Variant variant = parseVariantFromVariantId(new String(rocksIterator.key()));</span>
+//            VariantAnnotation variantAnnotation = new VariantAnnotation();
+//            variantAnnotation.setTraitAssociation(evidenceEntryList);
+<span class="fc" id="L166">            variant.setAnnotation(variantAnnotation);</span>
+<span class="fc" id="L167">            serializer.serialize(variant);</span>
+<span class="fc" id="L168">            counter++;</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">            if (counter % 10000 == 0) {</span>
+<span class="nc" id="L170">                logger.info(&quot;{} written&quot;, counter);</span>
+            }
+        }
+<span class="fc" id="L173">        serializer.close();</span>
+<span class="fc" id="L174">        logger.info(&quot;Done.&quot;);</span>
+<span class="fc" id="L175">    }</span>
+
+    private Variant parseVariantFromVariantId(String variantId) {
+<span class="fc" id="L178">        String[] parts = variantId.split(&quot;:&quot;, -1); // -1 to include empty fields</span>
+<span class="fc" id="L179">        return new Variant(parts[0].trim(), Integer.valueOf(parts[1].trim()), parts[2], parts[3]);</span>
+    }
+
+    private void closeIndex(RocksDB rdb, Options dbOption, String dbLocation) throws IOException {
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (rdb != null) {</span>
+<span class="fc" id="L184">            rdb.close();</span>
+        }
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">        if (dbOption != null) {</span>
+<span class="fc" id="L187">            dbOption.dispose();</span>
+        }
+<span class="pc bpc" id="L189" title="2 of 4 branches missed.">        if (dbLocation != null &amp;&amp; Files.exists(Paths.get(dbLocation))) {</span>
+<span class="fc" id="L190">            org.apache.commons.io.FileUtils.deleteDirectory(new File(dbLocation));</span>
+        }
+<span class="fc" id="L192">    }</span>
+
+    private Object[] getDBConnection(String dbLocation, boolean forceCreate) {
+<span class="pc bpc" id="L195" title="3 of 4 branches missed.">        boolean indexingNeeded = forceCreate || !Files.exists(Paths.get(dbLocation));</span>
+        // a static method that loads the RocksDB C++ library.
+<span class="fc" id="L197">        RocksDB.loadLibrary();</span>
+        // the Options class contains a set of configurable DB options
+        // that determines the behavior of a database.
+<span class="fc" id="L200">        Options options = new Options().setCreateIfMissing(true);</span>
+<span class="fc" id="L201">        RocksDB db = null;</span>
+        try {
+            // a factory method that returns a RocksDB instance
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">            if (indexingNeeded) {</span>
+<span class="fc" id="L205">                db = RocksDB.open(options, dbLocation);</span>
+            } else {
+<span class="nc" id="L207">                db = RocksDB.openReadOnly(options, dbLocation);</span>
+            }
+            // do something
+<span class="nc" id="L210">        } catch (RocksDBException e) {</span>
+            // do some error handling
+<span class="nc" id="L212">            e.printStackTrace();</span>
+<span class="nc" id="L213">            System.exit(1);</span>
+<span class="fc" id="L214">        }</span>
+
+<span class="fc" id="L216">        return new Object[]{db, options, dbLocation, indexingNeeded};</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

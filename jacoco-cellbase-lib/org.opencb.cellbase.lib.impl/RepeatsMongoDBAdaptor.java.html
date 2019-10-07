@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RepeatsMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">RepeatsMongoDBAdaptor.java</span></div><h1>RepeatsMongoDBAdaptor.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.MongoClient;
+import com.mongodb.client.model.Filters;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.variant.avro.Repeat;
+import org.opencb.cellbase.core.api.RepeatsDBAdaptor;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+
+/**
+ * Created by fjlopez on 10/05/17.
+ */
+public class RepeatsMongoDBAdaptor extends MongoDBAdaptor implements RepeatsDBAdaptor {
+    private static final String REPEAT_COLLECTION = &quot;repeats&quot;;
+
+    public RepeatsMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDatastore) {
+<span class="fc" id="L27">        super(species, assembly, mongoDatastore);</span>
+<span class="fc" id="L28">        mongoDBCollection = mongoDataStore.getCollection(REPEAT_COLLECTION);</span>
+
+<span class="fc" id="L30">        logger.debug(&quot;RepeatsMongoDBAdaptor: in 'constructor'&quot;);</span>
+
+<span class="fc" id="L32">    }</span>
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L36">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L41">        return null;</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L46">        return null;</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L51">        return null;</span>
+    }
+
+    @Override
+    public QueryResult get(Query query, QueryOptions inputOptions) {
+<span class="fc" id="L56">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L57">        QueryOptions options = addPrivateExcludeOptions(new QueryOptions(inputOptions));</span>
+
+<span class="fc" id="L59">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="fc" id="L60">        return mongoDBCollection.find(bson, null, Repeat.class, options);</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions inputOptions) {
+<span class="nc" id="L65">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L66">        QueryOptions options = addPrivateExcludeOptions(new QueryOptions(inputOptions));</span>
+
+<span class="nc" id="L68">        logger.debug(&quot;query: {}&quot;, bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()) .toJson());</span>
+<span class="nc" id="L69">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator iterator(Query query, QueryOptions options) {
+<span class="nc" id="L74">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L79">        return null;</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L84">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L89">        return null;</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer action, QueryOptions options) {
+
+<span class="nc" id="L95">    }</span>
+
+    @Override
+    public QueryResult groupBy(Query query, List fields, QueryOptions options) {
+<span class="nc" id="L99">        return null;</span>
+    }
+
+    @Override
+    public QueryResult next(Query query, QueryOptions options) {
+<span class="nc" id="L104">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L109">        return null;</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc" id="L114">        return null;</span>
+    }
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L118">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L119">        createRegionQuery(query, RepeatsDBAdaptor.QueryParams.REGION.key(),</span>
+                MongoDBCollectionConfiguration.REPEATS_CHUNK_SIZE, andBsonList);
+
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L123">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L125">            return new Document();</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

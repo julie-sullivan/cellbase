@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Monitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.monitor</a> &gt; <span class="el_source">Monitor.java</span></div><h1>Monitor.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.monitor;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import org.opencb.cellbase.core.api.DBAdaptorFactory;
+import org.opencb.cellbase.core.common.GitRepositoryState;
+import org.opencb.commons.datastore.core.QueryResponse;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.ws.rs.NotFoundException;
+import javax.ws.rs.ProcessingException;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.WebTarget;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Created by fjlopez on 20/09/17.
+ */
+public class Monitor {
+
+    private static final String CELLBASE = &quot;CellBase&quot;;
+    private static final String NONE = &quot;None&quot;;
+    private static final String WEBSERVICES = &quot;webservices&quot;;
+    private static final String REST = &quot;rest&quot;;
+    private static final String VERSION = &quot;v4&quot;;  // TODO: CAREFUL hardcoded to v4
+    private static final String META = &quot;meta&quot;;
+    private static final String STATUS = &quot;status&quot;;
+    private static final String CELLBASE_TOMCAT = &quot;CellBase-tomcat&quot;;
+    private static final String REPLICA_SET = &quot;replica_set&quot;;
+    private static final String ASSEMBLY = &quot;assembly&quot;;
+    private static ObjectMapper jsonObjectMapper;
+    private static Logger logger;
+
+<span class="nc" id="L49">    private WebTarget webTarget = null;</span>
+<span class="nc" id="L50">    private DBAdaptorFactory dbAdaptorFactory = null;</span>
+
+    static {
+<span class="nc" id="L53">        jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L54">        jsonObjectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="nc" id="L55">        logger = LoggerFactory.getLogger(Monitor.class);</span>
+<span class="nc" id="L56">    }</span>
+
+<span class="nc" id="L58">    public Monitor(DBAdaptorFactory dbAdaptorFactory) {</span>
+<span class="nc" id="L59">        this.dbAdaptorFactory = dbAdaptorFactory;</span>
+<span class="nc" id="L60">    }</span>
+
+<span class="nc" id="L62">    public Monitor(String restHost) {</span>
+<span class="nc" id="L63">        Client client = ClientBuilder.newClient();</span>
+<span class="nc" id="L64">        this.webTarget = client.target(URI.create(restHost));</span>
+<span class="nc" id="L65">    }</span>
+
+    public HealthStatus run(String species, String assembly) {
+        // Run &quot;local&quot; monitoring
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (dbAdaptorFactory != null) {</span>
+<span class="nc" id="L70">            return runLocalMonitoring(species, assembly);</span>
+        // Run monitoring in remote machine
+        } else {
+<span class="nc" id="L73">            return runRemoteMonitoring(species, assembly);</span>
+        }
+    }
+
+    private HealthStatus runRemoteMonitoring(String species, String assembly) {
+<span class="nc" id="L78">        WebTarget callUrl = webTarget.path(WEBSERVICES)</span>
+<span class="nc" id="L79">                .path(REST)</span>
+<span class="nc" id="L80">                .path(VERSION)  // TODO: CAREFUL hardcoded to v4</span>
+<span class="nc" id="L81">                .path(META)</span>
+<span class="nc" id="L82">                .path(species)</span>
+<span class="nc" id="L83">                .path(STATUS)</span>
+<span class="nc" id="L84">                .queryParam(ASSEMBLY, assembly);</span>
+        try {
+<span class="nc" id="L86">            String jsonString = callUrl.request().get(String.class);</span>
+<span class="nc" id="L87">            List&lt;HealthStatus&gt; healthStatusList</span>
+<span class="nc" id="L88">                    = parseResult(jsonString, HealthStatus.class).getResponse().get(0).getResult();</span>
+            // Old CellBase WS servers may return an empty result if they don't recognize the endpoint
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (!healthStatusList.isEmpty()) {</span>
+<span class="nc" id="L91">                return healthStatusList.get(0);</span>
+            } else {
+<span class="nc" id="L93">                return (new HealthStatus()).setService((new HealthStatus.Service()).setStatus(HealthStatus.ServiceStatus.DOWN));</span>
+            }
+            // IOException controls response parsing exceptions, at least
+            // ProcessingException controls unknown host exceptions (cannot find specified host), at least
+            // NotFoundException controls that remote WS API provides meta/service_details method
+<span class="nc" id="L98">        } catch (IOException | ProcessingException | NotFoundException e) {</span>
+<span class="nc" id="L99">            e.printStackTrace();</span>
+<span class="nc" id="L100">            return (new HealthStatus()).setService((new HealthStatus.Service()).setStatus(HealthStatus.ServiceStatus.DOWN));</span>
+        }
+    }
+
+    private HealthStatus runLocalMonitoring(String species, String assembly) {
+<span class="nc" id="L105">        HealthStatus healthStatus = new HealthStatus();</span>
+<span class="nc" id="L106">        healthStatus.setApplication(getApplicationDetails(species, assembly));</span>
+<span class="nc" id="L107">        healthStatus.setInfrastructure(new HealthStatus.Infrastructure(1, NONE));</span>
+<span class="nc" id="L108">        healthStatus.setService(getService(healthStatus.getApplication()));</span>
+
+<span class="nc" id="L110">        return healthStatus;</span>
+    }
+
+    private HealthStatus.Service getService(HealthStatus.ApplicationDetails applicationDetails) {
+<span class="nc" id="L114">        HealthStatus.ApplicationDetails.DependenciesStatus dependencies = applicationDetails.getDependencies();</span>
+<span class="nc" id="L115">        HealthStatus.Service service = new HealthStatus.Service();</span>
+<span class="nc" id="L116">        service.setName(CELLBASE)</span>
+<span class="nc" id="L117">               .setApplicationTier(CELLBASE_TOMCAT);</span>
+<span class="nc" id="L118">        service.setStatus(getOverallServiceStatus(dependencies));</span>
+
+<span class="nc" id="L120">        return service;</span>
+    }
+
+    private HealthStatus.ServiceStatus getOverallServiceStatus(HealthStatus.ApplicationDetails.DependenciesStatus dependencies) {
+        // If maintenance file exists rest of checks are overridden
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (Files.exists(Paths.get(dbAdaptorFactory.getCellBaseConfiguration().getMaintenanceFlagFile()))) {</span>
+<span class="nc" id="L126">            return HealthStatus.ServiceStatus.MAINTENANCE;</span>
+        } else {
+<span class="nc" id="L128">            Map&lt;String, HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus.DatastoreStatus&gt; datastoreStatusMap</span>
+<span class="nc" id="L129">                    = dependencies.getDatastores().getMongodb();</span>
+<span class="nc bnc" id="L130" title="All 4 branches missed.">            if (datastoreStatusMap != null &amp;&amp; datastoreStatusMap.size() &gt; 0) {</span>
+<span class="nc" id="L131">                int downServers = 0;</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                for (String datastoreDependencyName : datastoreStatusMap.keySet()) {</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    if (datastoreStatusMap.get(datastoreDependencyName).getResponseTime() == null) {</span>
+<span class="nc" id="L134">                        downServers++;</span>
+                        // entry with role &quot;replica_set&quot; represents the overall database and its response time is measured
+                        // by a direct query over one collection. If this response time is not there, the database is down
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                        if (REPLICA_SET.equals(datastoreStatusMap.get(datastoreDependencyName).getRole())) {</span>
+<span class="nc" id="L138">                            return HealthStatus.ServiceStatus.DOWN;</span>
+                        }
+                    }
+<span class="nc" id="L141">                }</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                if (downServers == 0) {</span>
+<span class="nc" id="L143">                    return HealthStatus.ServiceStatus.OK;</span>
+                    // If the number of servers not responding is lower than the number of dependencies it's probably a
+                    // repl set in which one or more machines are down, but not all of them
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                } else if (downServers &lt; datastoreStatusMap.size()) {</span>
+<span class="nc" id="L147">                    return HealthStatus.ServiceStatus.DEGRADED;</span>
+                } else {
+<span class="nc" id="L149">                    return HealthStatus.ServiceStatus.DOWN;</span>
+                }
+            } else {
+<span class="nc" id="L152">                return HealthStatus.ServiceStatus.DOWN;</span>
+            }
+        }
+    }
+
+    private HealthStatus.ApplicationDetails.DependenciesStatus getDependenciesStatus(String species, String assembly) {
+<span class="nc" id="L158">        HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus datastores</span>
+                = new HealthStatus.ApplicationDetails.DependenciesStatus.DatastoreDependenciesStatus();
+<span class="nc" id="L160">        datastores.setMongodb(dbAdaptorFactory.getDatabaseStatus(species, assembly));</span>
+<span class="nc" id="L161">        HealthStatus.ApplicationDetails.DependenciesStatus dependenciesStatus = new HealthStatus.ApplicationDetails.DependenciesStatus();</span>
+<span class="nc" id="L162">        dependenciesStatus.setDatastores(datastores);</span>
+
+<span class="nc" id="L164">        return dependenciesStatus;</span>
+    }
+
+    private HealthStatus.ApplicationDetails getApplicationDetails(String species, String assembly) {
+<span class="nc" id="L168">        HealthStatus.ApplicationDetails applicationDetails = new HealthStatus.ApplicationDetails();</span>
+<span class="nc" id="L169">        applicationDetails.setMaintainer(dbAdaptorFactory.getCellBaseConfiguration().getMaintainerContact());</span>
+<span class="nc" id="L170">        applicationDetails.setServer(getServerName());</span>
+<span class="nc" id="L171">        applicationDetails.setStarted(new SimpleDateFormat(&quot;yyyyMMdd_HHmmss&quot;)</span>
+<span class="nc" id="L172">                .format(new Date(ManagementFactory.getRuntimeMXBean().getStartTime())));</span>
+<span class="nc" id="L173">        applicationDetails.setUptime(TimeUnit.MILLISECONDS.toMinutes(ManagementFactory.getRuntimeMXBean().getUptime())</span>
+                + &quot; minutes&quot;);
+<span class="nc" id="L175">        applicationDetails.setVersion(</span>
+<span class="nc" id="L176">                new HealthStatus.ApplicationDetails.Version(GitRepositoryState.get().getBuildVersion(),</span>
+<span class="nc" id="L177">                        GitRepositoryState.get().getCommitId().substring(0, 8)));</span>
+<span class="nc" id="L178">        applicationDetails.setDependencies(getDependenciesStatus(species, assembly));</span>
+
+<span class="nc" id="L180">        return applicationDetails;</span>
+    }
+
+    private String getServerName() {
+        try {
+            InetAddress addr;
+<span class="nc" id="L186">            addr = InetAddress.getLocalHost();</span>
+<span class="nc" id="L187">            return addr.getHostName();</span>
+<span class="nc" id="L188">        } catch (UnknownHostException ex) {</span>
+<span class="nc" id="L189">            logger.warn(&quot;Hostname can not be resolved&quot;);</span>
+<span class="nc" id="L190">            return null;</span>
+        }
+    }
+
+    private &lt;U&gt; QueryResponse&lt;U&gt; parseResult(String json, Class&lt;U&gt; clazz) throws IOException {
+<span class="nc" id="L195">        ObjectReader reader = jsonObjectMapper</span>
+<span class="nc" id="L196">                .readerFor(jsonObjectMapper.getTypeFactory().constructParametrizedType(QueryResponse.class, QueryResult.class, clazz));</span>
+<span class="nc" id="L197">        return reader.readValue(json);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

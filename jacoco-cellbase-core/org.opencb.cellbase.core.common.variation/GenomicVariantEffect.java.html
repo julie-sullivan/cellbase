@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenomicVariantEffect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.variation</a> &gt; <span class="el_source">GenomicVariantEffect.java</span></div><h1>GenomicVariantEffect.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.variation;
+
+@Deprecated
+public class GenomicVariantEffect {
+
+    private String chromosome;
+    private int position;
+    private String referenceAllele;
+    private String alternativeAllele;
+
+    private String featureId;
+    private String featureName;
+    private String featureType;
+    private String featureBiotype;
+    private String featureChromosome;
+    private int featureStart;
+    private int featureEnd;
+    private String featureStrand;
+
+    private String snpId;
+    private String snpRefAltAlleles;
+    private String snpAncestralAllele;
+    // TODO: MAF frequencies
+
+    private String geneId;
+    private String transcriptId;
+    private String geneName;
+
+    private String consequenceTypeSoAccession;
+    private String consequenceTypeSoTerm;
+    private String consequenceTypeSoDescription;
+    private String consequenceTypeCategory;
+
+    private int aaPosition;
+    private String aminoacidChange;
+    private String codonChange;
+
+    private float polyphenScore;
+    private String polyphenPrediction;
+    private float siftScore;
+    private String siftPrediciton;
+
+    private float phastConsScore;
+    private float phyloPScore;
+
+
+<span class="nc" id="L63">    public GenomicVariantEffect() {</span>
+<span class="nc" id="L64">    }</span>
+
+    public GenomicVariantEffect(String chromosome, int position, String referenceAllele, String alternativeAllele,
+                                String featureId, String featureName, String featureType, String featureBiotype,
+                                String featureChromosome, int featureStart,
+                                int featureEnd, String featureStrand, String snpId,
+                                String snpRefAltAlleles, String snpAncestralAllele, String geneId,
+                                String transcriptId, String geneName, String consequenceTypeSoAccession,
+                                String consequenceTypeSoTerm, String consequenceTypeSoDescription,
+                                String consequenceTypeCategory, int aaPosition, String aminoacidChange, String codonChange,
+                                float polyphenScore, String polyphenPrediction, float siftScore, String siftPrediciton,
+<span class="nc" id="L75">                                float phastConsScore, float phyloPScore) {</span>
+<span class="nc" id="L76">        this.chromosome = chromosome;</span>
+<span class="nc" id="L77">        this.position = position;</span>
+<span class="nc" id="L78">        this.referenceAllele = referenceAllele;</span>
+<span class="nc" id="L79">        this.alternativeAllele = alternativeAllele;</span>
+<span class="nc" id="L80">        this.featureId = featureId;</span>
+<span class="nc" id="L81">        this.featureName = featureName;</span>
+<span class="nc" id="L82">        this.featureType = featureType;</span>
+<span class="nc" id="L83">        this.featureBiotype = featureBiotype;</span>
+<span class="nc" id="L84">        this.featureChromosome = featureChromosome;</span>
+<span class="nc" id="L85">        this.featureStart = featureStart;</span>
+<span class="nc" id="L86">        this.featureEnd = featureEnd;</span>
+<span class="nc" id="L87">        this.featureStrand = featureStrand;</span>
+<span class="nc" id="L88">        this.snpId = snpId;</span>
+<span class="nc" id="L89">        this.snpAncestralAllele = snpAncestralAllele;</span>
+<span class="nc" id="L90">        this.snpRefAltAlleles = snpRefAltAlleles;</span>
+<span class="nc" id="L91">        this.geneId = geneId;</span>
+<span class="nc" id="L92">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L93">        this.geneName = geneName;</span>
+<span class="nc" id="L94">        this.consequenceTypeSoAccession = consequenceTypeSoAccession;</span>
+<span class="nc" id="L95">        this.consequenceTypeSoTerm = consequenceTypeSoTerm;</span>
+<span class="nc" id="L96">        this.consequenceTypeSoDescription = consequenceTypeSoDescription;</span>
+<span class="nc" id="L97">        this.consequenceTypeCategory = consequenceTypeCategory;</span>
+<span class="nc" id="L98">        this.aaPosition = aaPosition;</span>
+<span class="nc" id="L99">        this.aminoacidChange = aminoacidChange;</span>
+<span class="nc" id="L100">        this.codonChange = codonChange;</span>
+<span class="nc" id="L101">        this.polyphenScore = polyphenScore;</span>
+<span class="nc" id="L102">        this.polyphenPrediction = polyphenPrediction;</span>
+<span class="nc" id="L103">        this.siftScore = siftScore;</span>
+<span class="nc" id="L104">        this.siftPrediciton = siftPrediciton;</span>
+<span class="nc" id="L105">        this.phastConsScore = phastConsScore;</span>
+<span class="nc" id="L106">        this.phyloPScore = phyloPScore;</span>
+<span class="nc" id="L107">    }</span>
+
+
+    public String toString() {
+<span class="nc" id="L111">        StringBuilder br = new StringBuilder();</span>
+<span class="nc" id="L112">        return br.append(chromosome).append(&quot;\t&quot;)</span>
+<span class="nc" id="L113">                .append(position).append(&quot;\t&quot;)</span>
+<span class="nc" id="L114">                .append(referenceAllele).append(&quot;\t&quot;)</span>
+<span class="nc" id="L115">                .append(alternativeAllele).append(&quot;\t&quot;)</span>
+<span class="nc" id="L116">                .append(featureId).append(&quot;\t&quot;)</span>
+<span class="nc" id="L117">                .append(featureName).append(&quot;\t&quot;)</span>
+<span class="nc" id="L118">                .append(featureType).append(&quot;\t&quot;)</span>
+<span class="nc" id="L119">                .append(featureBiotype).append(&quot;\t&quot;)</span>
+<span class="nc" id="L120">                .append(featureChromosome).append(&quot;\t&quot;)</span>
+<span class="nc" id="L121">                .append(featureStart).append(&quot;\t&quot;)</span>
+<span class="nc" id="L122">                .append(featureEnd).append(&quot;\t&quot;)</span>
+<span class="nc" id="L123">                .append(featureStrand).append(&quot;\t&quot;)</span>
+<span class="nc" id="L124">                .append(snpId).append(&quot;\t&quot;)</span>
+<span class="nc" id="L125">                .append(snpAncestralAllele).append(&quot;\t&quot;)</span>
+<span class="nc" id="L126">                .append(snpRefAltAlleles).append(&quot;\t&quot;)</span>
+<span class="nc" id="L127">                .append(geneId).append(&quot;\t&quot;)</span>
+<span class="nc" id="L128">                .append(transcriptId).append(&quot;\t&quot;)</span>
+<span class="nc" id="L129">                .append(geneName).append(&quot;\t&quot;)</span>
+<span class="nc" id="L130">                .append(consequenceTypeSoAccession).append(&quot;\t&quot;)</span>
+<span class="nc" id="L131">                .append(consequenceTypeSoTerm).append(&quot;\t&quot;)</span>
+<span class="nc" id="L132">                .append(consequenceTypeSoDescription).append(&quot;\t&quot;)</span>
+<span class="nc" id="L133">                .append(consequenceTypeCategory).append(&quot;\t&quot;)</span>
+<span class="nc" id="L134">                .append(aaPosition).append(&quot;\t&quot;)</span>
+<span class="nc" id="L135">                .append(aminoacidChange).append(&quot;\t&quot;)</span>
+<span class="nc" id="L136">                .append(codonChange).append(&quot;\t&quot;)</span>
+<span class="nc" id="L137">                .append(polyphenScore).append(&quot;\t&quot;)</span>
+<span class="nc" id="L138">                .append(polyphenPrediction).append(&quot;\t&quot;)</span>
+<span class="nc" id="L139">                .append(siftScore).append(&quot;\t&quot;)</span>
+<span class="nc" id="L140">                .append(siftPrediciton).append(&quot;\t&quot;)</span>
+<span class="nc" id="L141">                .append(phastConsScore).append(&quot;\t&quot;)</span>
+<span class="nc" id="L142">                .append(phyloPScore).toString();</span>
+    }
+
+    public String getChromosome() {
+<span class="nc" id="L146">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L150">        this.chromosome = chromosome;</span>
+<span class="nc" id="L151">    }</span>
+
+    public int getPosition() {
+<span class="nc" id="L154">        return position;</span>
+    }
+
+    public void setPosition(int position) {
+<span class="nc" id="L158">        this.position = position;</span>
+<span class="nc" id="L159">    }</span>
+
+    public String getReferenceAllele() {
+<span class="nc" id="L162">        return referenceAllele;</span>
+    }
+
+    public void setReferenceAllele(String referenceAllele) {
+<span class="nc" id="L166">        this.referenceAllele = referenceAllele;</span>
+<span class="nc" id="L167">    }</span>
+
+    public String getAlternativeAllele() {
+<span class="nc" id="L170">        return alternativeAllele;</span>
+    }
+
+    public void setAlternativeAllele(String alternativeAllele) {
+<span class="nc" id="L174">        this.alternativeAllele = alternativeAllele;</span>
+<span class="nc" id="L175">    }</span>
+
+    public String getFeatureId() {
+<span class="nc" id="L178">        return featureId;</span>
+    }
+
+    public void setFeatureId(String featureId) {
+<span class="nc" id="L182">        this.featureId = featureId;</span>
+<span class="nc" id="L183">    }</span>
+
+    public String getFeatureName() {
+<span class="nc" id="L186">        return featureName;</span>
+    }
+
+    public void setFeatureName(String featureName) {
+<span class="nc" id="L190">        this.featureName = featureName;</span>
+<span class="nc" id="L191">    }</span>
+
+    public String getFeatureType() {
+<span class="nc" id="L194">        return featureType;</span>
+    }
+
+    public void setFeatureType(String featureType) {
+<span class="nc" id="L198">        this.featureType = featureType;</span>
+<span class="nc" id="L199">    }</span>
+
+    public String getFeatureBiotype() {
+<span class="nc" id="L202">        return featureBiotype;</span>
+    }
+
+    public void setFeatureBiotype(String featureBiotype) {
+<span class="nc" id="L206">        this.featureBiotype = featureBiotype;</span>
+<span class="nc" id="L207">    }</span>
+
+    public String getFeatureChromosome() {
+<span class="nc" id="L210">        return featureChromosome;</span>
+    }
+
+    public void setFeatureChromosome(String featureChromosome) {
+<span class="nc" id="L214">        this.featureChromosome = featureChromosome;</span>
+<span class="nc" id="L215">    }</span>
+
+    public int getFeatureStart() {
+<span class="nc" id="L218">        return featureStart;</span>
+    }
+
+    public void setFeatureStart(int featureStart) {
+<span class="nc" id="L222">        this.featureStart = featureStart;</span>
+<span class="nc" id="L223">    }</span>
+
+    public int getFeatureEnd() {
+<span class="nc" id="L226">        return featureEnd;</span>
+    }
+
+    public void setFeatureEnd(int featureEnd) {
+<span class="nc" id="L230">        this.featureEnd = featureEnd;</span>
+<span class="nc" id="L231">    }</span>
+
+    public String getFeatureStrand() {
+<span class="nc" id="L234">        return featureStrand;</span>
+    }
+
+    public void setFeatureStrand(String featureStrand) {
+<span class="nc" id="L238">        this.featureStrand = featureStrand;</span>
+<span class="nc" id="L239">    }</span>
+
+    public String getSnpId() {
+<span class="nc" id="L242">        return snpId;</span>
+    }
+
+    public void setSnpId(String snpId) {
+<span class="nc" id="L246">        this.snpId = snpId;</span>
+<span class="nc" id="L247">    }</span>
+
+    public String getSnpAncestralAllele() {
+<span class="nc" id="L250">        return snpAncestralAllele;</span>
+    }
+
+    public void setSnpAncestralAllele(String snpAncestralAllele) {
+<span class="nc" id="L254">        this.snpAncestralAllele = snpAncestralAllele;</span>
+<span class="nc" id="L255">    }</span>
+
+    public String getSnpRefAltAlleles() {
+<span class="nc" id="L258">        return snpRefAltAlleles;</span>
+    }
+
+    public void setSnpRefAltAlleles(String snpRefAltAlleles) {
+<span class="nc" id="L262">        this.snpRefAltAlleles = snpRefAltAlleles;</span>
+<span class="nc" id="L263">    }</span>
+
+    public String getGeneId() {
+<span class="nc" id="L266">        return geneId;</span>
+    }
+
+    public void setGeneId(String geneId) {
+<span class="nc" id="L270">        this.geneId = geneId;</span>
+<span class="nc" id="L271">    }</span>
+
+    public String getTranscriptId() {
+<span class="nc" id="L274">        return transcriptId;</span>
+    }
+
+    public void setTranscriptId(String transcriptId) {
+<span class="nc" id="L278">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L279">    }</span>
+
+    public String getGeneName() {
+<span class="nc" id="L282">        return geneName;</span>
+    }
+
+    public void setGeneName(String geneName) {
+<span class="nc" id="L286">        this.geneName = geneName;</span>
+<span class="nc" id="L287">    }</span>
+
+    public String getConsequenceTypeSoAccession() {
+<span class="nc" id="L290">        return consequenceTypeSoAccession;</span>
+    }
+
+    public void setConsequenceTypeSoAccession(String consequenceTypeSoAccession) {
+<span class="nc" id="L294">        this.consequenceTypeSoAccession = consequenceTypeSoAccession;</span>
+<span class="nc" id="L295">    }</span>
+
+    public String getConsequenceTypeSoTerm() {
+<span class="nc" id="L298">        return consequenceTypeSoTerm;</span>
+    }
+
+    public void setConsequenceTypeSoTerm(String consequenceTypeSoTerm) {
+<span class="nc" id="L302">        this.consequenceTypeSoTerm = consequenceTypeSoTerm;</span>
+<span class="nc" id="L303">    }</span>
+
+    public String getConsequenceTypeSoDescription() {
+<span class="nc" id="L306">        return consequenceTypeSoDescription;</span>
+    }
+
+    public void setConsequenceTypeSoDescription(String consequenceTypeSoDescription) {
+<span class="nc" id="L310">        this.consequenceTypeSoDescription = consequenceTypeSoDescription;</span>
+<span class="nc" id="L311">    }</span>
+
+    public String getConsequenceTypeCategory() {
+<span class="nc" id="L314">        return consequenceTypeCategory;</span>
+    }
+
+    public void setConsequenceTypeCategory(String consequenceTypeCategory) {
+<span class="nc" id="L318">        this.consequenceTypeCategory = consequenceTypeCategory;</span>
+<span class="nc" id="L319">    }</span>
+
+    public int getAaPosition() {
+<span class="nc" id="L322">        return aaPosition;</span>
+    }
+
+    public void setAaPosition(int aaPosition) {
+<span class="nc" id="L326">        this.aaPosition = aaPosition;</span>
+<span class="nc" id="L327">    }</span>
+
+    public String getAminoacidChange() {
+<span class="nc" id="L330">        return aminoacidChange;</span>
+    }
+
+    public void setAminoacidChange(String aminoacidChange) {
+<span class="nc" id="L334">        this.aminoacidChange = aminoacidChange;</span>
+<span class="nc" id="L335">    }</span>
+
+    public String getCodonChange() {
+<span class="nc" id="L338">        return codonChange;</span>
+    }
+
+    public void setCodonChange(String codonChange) {
+<span class="nc" id="L342">        this.codonChange = codonChange;</span>
+<span class="nc" id="L343">    }</span>
+
+    public float getPolyphenScore() {
+<span class="nc" id="L346">        return polyphenScore;</span>
+    }
+
+    public void setPolyphenScore(float polyphenScore) {
+<span class="nc" id="L350">        this.polyphenScore = polyphenScore;</span>
+<span class="nc" id="L351">    }</span>
+
+    public String getPolyphenPrediction() {
+<span class="nc" id="L354">        return polyphenPrediction;</span>
+    }
+
+    public void setPolyphenPrediction(String polyphenPrediction) {
+<span class="nc" id="L358">        this.polyphenPrediction = polyphenPrediction;</span>
+<span class="nc" id="L359">    }</span>
+
+    public float getSiftScore() {
+<span class="nc" id="L362">        return siftScore;</span>
+    }
+
+    public void setSiftScore(float siftScore) {
+<span class="nc" id="L366">        this.siftScore = siftScore;</span>
+<span class="nc" id="L367">    }</span>
+
+    public String getSiftPrediciton() {
+<span class="nc" id="L370">        return siftPrediciton;</span>
+    }
+
+    public void setSiftPrediciton(String siftPrediciton) {
+<span class="nc" id="L374">        this.siftPrediciton = siftPrediciton;</span>
+<span class="nc" id="L375">    }</span>
+
+    public float getPhastConsScore() {
+<span class="nc" id="L378">        return phastConsScore;</span>
+    }
+
+    public void setPhastConsScore(float phastConsScore) {
+<span class="nc" id="L382">        this.phastConsScore = phastConsScore;</span>
+<span class="nc" id="L383">    }</span>
+
+    public float getPhyloPScore() {
+<span class="nc" id="L386">        return phyloPScore;</span>
+    }
+
+    public void setPhyloPScore(float phyloPScore) {
+<span class="nc" id="L390">        this.phyloPScore = phyloPScore;</span>
+<span class="nc" id="L391">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

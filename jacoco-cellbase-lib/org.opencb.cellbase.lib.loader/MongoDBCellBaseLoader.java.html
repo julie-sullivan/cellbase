@@ -1,0 +1,921 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MongoDBCellBaseLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.loader</a> &gt; <span class="el_source">MongoDBCellBaseLoader.java</span></div><h1>MongoDBCellBaseLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.loader;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.mongodb.ErrorCategory;
+import com.mongodb.MongoBulkWriteException;
+import com.mongodb.bulk.BulkWriteError;
+import com.mongodb.bulk.BulkWriteResult;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.BsonSerializationException;
+import org.bson.Document;
+import org.opencb.biodata.formats.io.FileFormatException;
+import org.opencb.cellbase.core.api.CellBaseDBAdaptor;
+import org.opencb.cellbase.core.api.DBAdaptorFactory;
+import org.opencb.cellbase.core.config.CellBaseConfiguration;
+import org.opencb.cellbase.core.config.DatabaseCredentials;
+import org.opencb.cellbase.core.loader.CellBaseLoader;
+import org.opencb.cellbase.core.loader.LoadRunner;
+import org.opencb.cellbase.core.loader.LoaderException;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.cellbase.lib.impl.MongoDBAdaptorFactory;
+import org.opencb.commons.datastore.core.DataStoreServerAddress;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDBConfiguration;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+import org.opencb.commons.datastore.mongodb.MongoDataStoreManager;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.concurrent.BlockingQueue;
+
+/**
+ * Created by parce on 18/02/15.
+ */
+public class MongoDBCellBaseLoader extends CellBaseLoader {
+
+    private static final String CLINICAL_VARIANTS_COLLECTION = &quot;clinical_variants&quot;;
+    private static final String GENOMIC_FEATURES = &quot;genomicFeatures&quot;;
+    private static final String XREFS = &quot;xrefs&quot;;
+    private static final String TRAIT_ASSOCIATION = &quot;traitAssociation&quot;;
+    private static final String SOMATIC_INFORMATION = &quot;somaticInformation&quot;;
+    private static final String PRIMARY_SITE = &quot;primarySite&quot;;
+    private static final String SITE_SUBTYPE = &quot;siteSubtype&quot;;
+    private static final String PRIMARY_HISTOLOGY = &quot;primaryHistology&quot;;
+    private static final String HISTOLOGY_SUBTYPE = &quot;histologySubtype&quot;;
+    private static final String TUMOUR_ORIGIN = &quot;tumourOrigin&quot;;
+    private static final String SAMPLE_SOURCE = &quot;sampleSource&quot;;
+    private static final String HERITABLE_TRAITS = &quot;heritableTraits&quot;;
+    private static final String TRAIT = &quot;trait&quot;;
+    private static final String PRIVATE_FEATURE_XREF_FIELD = &quot;_featureXrefs&quot;;
+    private static final String PRIVATE_TRAIT_FIELD = &quot;_traits&quot;;
+<span class="fc" id="L75">    private static final Set&lt;String&gt; SKIP_WORKDS = new HashSet&lt;&gt;(Arrays.asList(&quot;or&quot;, &quot;and&quot;, &quot;the&quot;, &quot;of&quot;, &quot;at&quot;,</span>
+            &quot;in&quot;, &quot;on&quot;));
+    private MongoDataStoreManager mongoDataStoreManager;
+    private MongoDataStore mongoDataStore;
+    private MongoDBCollection mongoDBCollection;
+
+    private DBAdaptorFactory dbAdaptorFactory;
+    @Deprecated
+    private CellBaseDBAdaptor dbAdaptor;
+
+    private Path indexScriptFolder;
+    private int[] chunkSizes;
+
+    @Deprecated
+    private String clinicalVariantSource;
+
+    @Deprecated
+    private static final String CLINVARVARIANTSOURCE = &quot;clinvar&quot;;
+    @Deprecated
+    private static final String COSMICVARIANTSOURCE = &quot;cosmic&quot;;
+    @Deprecated
+    private static final String GWASVARIANTSOURCE = &quot;gwas&quot;;
+    private String collectionName;
+
+    public MongoDBCellBaseLoader(BlockingQueue&lt;List&lt;String&gt;&gt; queue, String data, String database) {
+<span class="nc" id="L100">        this(queue, data, database, null, null, null);</span>
+<span class="nc" id="L101">    }</span>
+
+    public MongoDBCellBaseLoader(BlockingQueue&lt;List&lt;String&gt;&gt; queue, String data, String database, String field,
+                                 String[] innerFields, CellBaseConfiguration cellBaseConfiguration) {
+<span class="fc" id="L105">        super(queue, data, database, field, innerFields, cellBaseConfiguration);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (cellBaseConfiguration.getDatabases().getMongodb().getOptions().get(&quot;mongodb-index-folder&quot;) != null) {</span>
+<span class="nc" id="L107">            indexScriptFolder = Paths.get(cellBaseConfiguration.getDatabases().getMongodb().getOptions().get(&quot;mongodb-index-folder&quot;));</span>
+        }
+<span class="fc" id="L109">    }</span>
+
+
+    @Override
+    public void init() throws LoaderException {
+        /*
+         * OpenCB 'datastore' project is used to load data into MongoDB. The following code:
+         * 1. creates a Manager to connect to a physical server
+         * 2. a 'datastore' object connects to a specific database
+         * 3. finally a connection to the collection is stored in 'mongoDBCollection'
+         */
+
+//        DatabaseProperties mongodbCredentials = cellBaseConfiguration.getDatabases().get(&quot;mongodb&quot;);
+<span class="fc" id="L122">        DatabaseCredentials mongodbCredentials = cellBaseConfiguration.getDatabases().getMongodb();</span>
+
+<span class="fc" id="L124">        String[] hosts = mongodbCredentials.getHost().split(&quot;,&quot;);</span>
+<span class="fc" id="L125">        List&lt;DataStoreServerAddress&gt; dataStoreServerAddressList = new ArrayList&lt;&gt;(hosts.length);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        for (String host : hosts) {</span>
+<span class="fc" id="L127">            String[] hostAndPort = host.split(&quot;:&quot;);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">            dataStoreServerAddressList.add(new DataStoreServerAddress(hostAndPort[0], (hostAndPort.length == 2)</span>
+<span class="pc" id="L129">                    ? Integer.parseInt(hostAndPort[1]) : 27017));</span>
+        }
+<span class="fc" id="L131">        mongoDataStoreManager = new MongoDataStoreManager(dataStoreServerAddressList);</span>
+
+        MongoDBConfiguration mongoDBConfiguration;
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (cellBaseConfiguration != null</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                &amp;&amp; mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;) != null</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                &amp;&amp; !mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;).isEmpty()) {</span>
+<span class="nc" id="L137">            mongoDBConfiguration = MongoDBConfiguration.builder()</span>
+<span class="nc" id="L138">                    .add(&quot;username&quot;, mongodbCredentials.getUser())</span>
+<span class="nc" id="L139">                    .add(&quot;password&quot;, mongodbCredentials.getPassword())</span>
+<span class="nc" id="L140">                    .add(&quot;authenticationDatabase&quot;, mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;)).build();</span>
+<span class="nc" id="L141">            logger.debug(&quot;MongoDB 'authenticationDatabase' database parameter set to '{}'&quot;,</span>
+<span class="nc" id="L142">                    mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;));</span>
+        } else {
+<span class="fc" id="L144">            mongoDBConfiguration = MongoDBConfiguration.builder()</span>
+<span class="fc" id="L145">                    .add(&quot;username&quot;, mongodbCredentials.getUser())</span>
+<span class="fc" id="L146">                    .add(&quot;password&quot;, mongodbCredentials.getPassword()).build();</span>
+        }
+<span class="fc" id="L148">        logger.debug(&quot;MongoDB credentials are user: '{}', password: '{}'&quot;,</span>
+<span class="fc" id="L149">                mongodbCredentials.getUser(), mongodbCredentials.getPassword());</span>
+
+<span class="fc" id="L151">        mongoDataStore = mongoDataStoreManager.get(database, mongoDBConfiguration);</span>
+
+<span class="fc" id="L153">        collectionName = getCollectionName(data);</span>
+<span class="fc" id="L154">        mongoDBCollection = mongoDataStore.getCollection(collectionName);</span>
+<span class="fc" id="L155">        logger.debug(&quot;Connection to MongoDB datastore '{}' created, collection '{}' is used&quot;,</span>
+<span class="fc" id="L156">                mongoDataStore.getDatabaseName(), collectionName);</span>
+
+        // Some collections need to add an extra _chunkIds field to speed up some queries
+<span class="fc" id="L159">        getChunkSizes();</span>
+<span class="fc" id="L160">        logger.debug(&quot;Chunk sizes '{}' used for collection '{}'&quot;, Arrays.toString(chunkSizes), collectionName);</span>
+
+<span class="fc" id="L162">        dbAdaptorFactory = new MongoDBAdaptorFactory(cellBaseConfiguration);</span>
+        // This is not currently used and should no longer be used. To be soon removed
+//        dbAdaptor = getDBAdaptor(data);
+<span class="fc" id="L165">    }</span>
+
+    @Deprecated
+    private CellBaseDBAdaptor getDBAdaptor(String data) throws LoaderException {
+<span class="nc" id="L169">        String[] databaseParts = database.split(&quot;_&quot;);</span>
+<span class="nc" id="L170">        String species = databaseParts[1];</span>
+//        String assembly = databaseParts[2];
+        CellBaseDBAdaptor dbAdaptor;
+<span class="nc bnc" id="L173" title="All 74 branches missed.">        switch (data) {</span>
+            case &quot;genome_info&quot;:
+//                dbAdaptor = dbAdaptorFactory.getGenomeDBAdaptor(species, assembly);
+<span class="nc" id="L176">                dbAdaptor = null;</span>
+<span class="nc" id="L177">                break;</span>
+            case &quot;genome_sequence&quot;:
+//                dbAdaptor = dbAdaptorFactory.getGenomeDBAdaptor(species, assembly);
+<span class="nc" id="L180">                dbAdaptor = null;</span>
+<span class="nc" id="L181">                break;</span>
+            case &quot;gene&quot;:
+//                dbAdaptor = dbAdaptorFactory.getGeneDBAdaptor(species, assembly);
+<span class="nc" id="L184">                dbAdaptor = null;</span>
+<span class="nc" id="L185">                break;</span>
+            case &quot;variation&quot;:
+                // Default assembly will be selected - it is a bad idea to get the assembly from the database name since
+                // '-', '_', '.' symbols are removed from the assembly before building the database name. This getAdaptor
+                // method will soon be remove
+<span class="nc" id="L190">                dbAdaptor = dbAdaptorFactory.getVariationDBAdaptor(species);</span>
+<span class="nc" id="L191">                dbAdaptor = null;</span>
+<span class="nc" id="L192">                break;</span>
+            case &quot;svs&quot;:
+                // Default assembly will be selected - it is a bad idea to get the assembly from the database name since
+                // '-', '_', '.' symbols are removed from the assembly before building the database name. This getAdaptor
+                // method will soon be remove
+<span class="nc" id="L197">                dbAdaptor = dbAdaptorFactory.getVariationDBAdaptor(species);</span>
+<span class="nc" id="L198">                break;</span>
+            case &quot;cadd&quot;:
+////                dbAdaptor = dbAdaptorFactory.getVariantFunctionalScoreDBAdaptor(species, assembly);
+<span class="nc" id="L201">                dbAdaptor = null;</span>
+<span class="nc" id="L202">                break;</span>
+            case &quot;regulatory_region&quot;:
+//                dbAdaptor = dbAdaptorFactory.getRegulationDBAdaptor(species, assembly);
+<span class="nc" id="L205">                dbAdaptor = null;</span>
+<span class="nc" id="L206">                break;</span>
+            case &quot;protein&quot;:
+//                dbAdaptor = dbAdaptorFactory.getProteinDBAdaptor(species, assembly);
+<span class="nc" id="L209">                dbAdaptor = null;</span>
+<span class="nc" id="L210">                break;</span>
+            case &quot;protein_protein_interaction&quot;:
+//                dbAdaptor = dbAdaptorFactory.getProteinProteinInteractionDBAdaptor(species, assembly);
+<span class="nc" id="L213">                dbAdaptor = null;</span>
+<span class="nc" id="L214">                break;</span>
+//            // TODO: implement an adaptor for protein_functional_prediction - current queries are issued from the
+//            // TODO: ProteinDBAdaptors, that's why there isn't one yet
+            case &quot;protein_functional_prediction&quot;:
+<span class="nc" id="L218">                dbAdaptor = null;</span>
+//                collectionName = &quot;protein_functional_prediction&quot;;
+<span class="nc" id="L220">                break;</span>
+            case &quot;conservation&quot;:
+//                dbAdaptor = dbAdaptorFactory.getConservationDBAdaptor(species, assembly);
+<span class="nc" id="L223">                dbAdaptor = null;</span>
+<span class="nc" id="L224">                break;</span>
+            case &quot;cosmic&quot;:
+<span class="nc" id="L226">                clinicalVariantSource = &quot;cosmic&quot;;</span>
+//                dbAdaptor = dbAdaptorFactory.getClinicalLegacyDBAdaptor(species, assembly);
+<span class="nc" id="L228">                dbAdaptor = null;</span>
+<span class="nc" id="L229">                break;</span>
+            case &quot;clinvar&quot;:
+<span class="nc" id="L231">                clinicalVariantSource = &quot;clinvar&quot;;</span>
+                // Default assembly will be selected - it is a bad idea to get the assembly from the database name since
+                // '-', '_', '.' symbols are removed from the assembly before building the database name. This getAdaptor
+                // method will soon be remove
+<span class="nc" id="L235">                dbAdaptor = dbAdaptorFactory.getClinicalLegacyDBAdaptor(species);</span>
+<span class="nc" id="L236">                break;</span>
+            case &quot;gwas&quot;:
+<span class="nc" id="L238">                clinicalVariantSource = &quot;gwas&quot;;</span>
+                // Default assembly will be selected - it is a bad idea to get the assembly from the database name since
+                // '-', '_', '.' symbols are removed from the assembly before building the database name. This getAdaptor
+                // method will soon be remove
+<span class="nc" id="L242">                dbAdaptor = dbAdaptorFactory.getClinicalLegacyDBAdaptor(species);</span>
+<span class="nc" id="L243">                break;</span>
+            case &quot;clinical&quot;:
+                // Default assembly will be selected - it is a bad idea to get the assembly from the database name since
+                // '-', '_', '.' symbols are removed from the assembly before building the database name. This getAdaptor
+                // method will soon be remove
+<span class="nc" id="L248">                dbAdaptor = dbAdaptorFactory.getClinicalLegacyDBAdaptor(species);</span>
+<span class="nc" id="L249">                break;</span>
+            case &quot;clinical_variants&quot;:
+<span class="nc" id="L251">                dbAdaptor = dbAdaptorFactory.getClinicalDBAdaptor(species);</span>
+<span class="nc" id="L252">                break;</span>
+            case &quot;repeats&quot;:
+<span class="nc" id="L254">                dbAdaptor = null;</span>
+//                collectionName = &quot;protein_functional_prediction&quot;;
+<span class="nc" id="L256">                break;</span>
+            case &quot;metadata&quot;:
+<span class="nc" id="L258">                dbAdaptor = null;</span>
+//                collectionName = &quot;protein_functional_prediction&quot;;
+<span class="nc" id="L260">                break;</span>
+            default:
+<span class="nc" id="L262">                throw new LoaderException(&quot;Unknown data to load: '&quot; + data + &quot;'&quot;);</span>
+        }
+
+<span class="nc" id="L265">        return dbAdaptor;</span>
+    }
+
+    // TODO: use adaptors within MongoDBCellBaseLoader, avoid using mongoDBCollection and remove this method
+    private String getCollectionName(String data) throws LoaderException {
+        String collection;
+<span class="pc bpc" id="L271" title="47 of 74 branches missed.">        switch (data) {</span>
+            case &quot;genome_info&quot;:
+<span class="fc" id="L273">                collection = &quot;genome_info&quot;;</span>
+<span class="fc" id="L274">                break;</span>
+            case &quot;genome_sequence&quot;:
+<span class="fc" id="L276">                collection = &quot;genome_sequence&quot;;</span>
+<span class="fc" id="L277">                break;</span>
+            case &quot;gene&quot;:
+<span class="fc" id="L279">                collection = &quot;gene&quot;;</span>
+<span class="fc" id="L280">                break;</span>
+            case &quot;variation&quot;:
+<span class="fc" id="L282">                collection = &quot;variation&quot;;</span>
+<span class="fc" id="L283">                break;</span>
+            case &quot;svs&quot;:
+<span class="nc" id="L285">                collection = &quot;variation&quot;;</span>
+<span class="nc" id="L286">                break;</span>
+            case &quot;cadd&quot;:
+<span class="nc" id="L288">                collection = &quot;variation_functional_score&quot;;</span>
+<span class="nc" id="L289">                break;</span>
+            case &quot;regulatory_region&quot;:
+<span class="fc" id="L291">                collection = &quot;regulatory_region&quot;;</span>
+<span class="fc" id="L292">                break;</span>
+            case &quot;protein&quot;:
+<span class="fc" id="L294">                collection = &quot;protein&quot;;</span>
+<span class="fc" id="L295">                break;</span>
+            case &quot;protein_protein_interaction&quot;:
+<span class="nc" id="L297">                collection = &quot;protein_protein_interaction&quot;;</span>
+<span class="nc" id="L298">                break;</span>
+            case &quot;protein_functional_prediction&quot;:
+<span class="fc" id="L300">                collection = &quot;protein_functional_prediction&quot;;</span>
+<span class="fc" id="L301">                break;</span>
+            case &quot;conservation&quot;:
+<span class="nc" id="L303">                collection = &quot;conservation&quot;;</span>
+<span class="nc" id="L304">                break;</span>
+            case &quot;cosmic&quot;:
+<span class="nc" id="L306">                clinicalVariantSource = &quot;cosmic&quot;;</span>
+<span class="nc" id="L307">                collection = &quot;clinical&quot;;</span>
+<span class="nc" id="L308">                break;</span>
+            case &quot;clinvar&quot;:
+<span class="nc" id="L310">                clinicalVariantSource = &quot;clinvar&quot;;</span>
+<span class="nc" id="L311">                collection = &quot;clinical&quot;;</span>
+<span class="nc" id="L312">                break;</span>
+            case &quot;gwas&quot;:
+<span class="nc" id="L314">                clinicalVariantSource = &quot;gwas&quot;;</span>
+<span class="nc" id="L315">                collection = &quot;clinical&quot;;</span>
+<span class="nc" id="L316">                break;</span>
+            case &quot;clinical&quot;:
+<span class="nc" id="L318">                collection = &quot;clinical&quot;;</span>
+<span class="nc" id="L319">                break;</span>
+            case &quot;clinical_variants&quot;:
+<span class="fc" id="L321">                collection = CLINICAL_VARIANTS_COLLECTION;</span>
+<span class="fc" id="L322">                break;</span>
+            case &quot;metadata&quot;:
+<span class="nc" id="L324">                collection = &quot;metadata&quot;;</span>
+<span class="nc" id="L325">                break;</span>
+            case &quot;repeats&quot;:
+<span class="fc" id="L327">                collection = &quot;repeats&quot;;</span>
+<span class="fc" id="L328">                break;</span>
+            default:
+<span class="nc" id="L330">                throw new LoaderException(&quot;Unknown data to load: '&quot; + data + &quot;'&quot;);</span>
+        }
+
+<span class="fc" id="L333">        return collection;</span>
+    }
+
+    private void getChunkSizes() {
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">        if (collectionName != null) {</span>
+<span class="pc bpc" id="L338" title="13 of 30 branches missed.">            switch (collectionName) {</span>
+                case &quot;genome_sequence&quot;:
+<span class="fc" id="L340">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.GENOME_SEQUENCE_CHUNK_SIZE};</span>
+<span class="fc" id="L341">                    break;</span>
+                case &quot;gene&quot;:
+<span class="fc" id="L343">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.GENE_CHUNK_SIZE};</span>
+<span class="fc" id="L344">                    break;</span>
+                case &quot;variation&quot;:  // TODO: why are we using different chunk sizes??
+<span class="fc" id="L346">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE,</span>
+                            10 * MongoDBCollectionConfiguration.VARIATION_CHUNK_SIZE, };
+<span class="fc" id="L348">                    break;</span>
+                case &quot;variation_functional_score&quot;:
+<span class="nc" id="L350">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.VARIATION_FUNCTIONAL_SCORE_CHUNK_SIZE};</span>
+<span class="nc" id="L351">                    break;</span>
+                case &quot;regulatory_region&quot;:
+<span class="fc" id="L353">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.REGULATORY_REGION_CHUNK_SIZE};</span>
+<span class="fc" id="L354">                    break;</span>
+                case &quot;repeats&quot;:
+<span class="fc" id="L356">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.REPEATS_CHUNK_SIZE};</span>
+<span class="fc" id="L357">                    break;</span>
+                case &quot;conservation&quot;:
+<span class="nc" id="L359">                    chunkSizes = new int[]{MongoDBCollectionConfiguration.CONSERVATION_CHUNK_SIZE};</span>
+<span class="nc" id="L360">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="fc" id="L365">    }</span>
+
+    @Override
+    public Integer call() {
+<span class="pc bpc" id="L369" title="1 of 2 branches missed.">        if (field != null) {</span>
+<span class="nc" id="L370">            return prepareBatchAndUpdate();</span>
+        } else {
+<span class="fc" id="L372">            return prepareBatchAndLoad();</span>
+        }
+    }
+
+    private int prepareBatchAndUpdate() {
+<span class="nc" id="L377">        int numLoadedObjects = 0;</span>
+<span class="nc" id="L378">        boolean finished = false;</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">        while (!finished) {</span>
+            try {
+<span class="nc" id="L381">                List&lt;String&gt; batch = blockingQueue.take();</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                if (batch == LoadRunner.POISON_PILL) {</span>
+<span class="nc" id="L383">                    finished = true;</span>
+                } else {
+<span class="nc" id="L385">                    List&lt;Document&gt; dbObjectsBatch = new ArrayList&lt;&gt;(batch.size());</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">                    for (String jsonLine : batch) {</span>
+<span class="nc" id="L387">                        Document dbObject = Document.parse(jsonLine);</span>
+<span class="nc" id="L388">                        dbObjectsBatch.add(dbObject);</span>
+<span class="nc" id="L389">                    }</span>
+
+<span class="nc" id="L391">                    Long numUpdates = (Long) dbAdaptor.update(dbObjectsBatch, field, innerFields).first();</span>
+<span class="nc" id="L392">                    numLoadedObjects += numUpdates;</span>
+                }
+<span class="nc" id="L394">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L395">                logger.error(&quot;Loader thread interrupted: &quot; + e.getMessage());</span>
+<span class="nc" id="L396">            } catch (Exception e) {</span>
+<span class="nc" id="L397">                logger.error(&quot;Error Loading batch: &quot; + e.getMessage());</span>
+<span class="nc" id="L398">            }</span>
+        }
+<span class="nc" id="L400">        logger.debug(&quot;'load' finished. &quot; + numLoadedObjects + &quot; records loaded&quot;);</span>
+<span class="nc" id="L401">        return numLoadedObjects;</span>
+    }
+
+    private int prepareBatchAndLoad() {
+<span class="fc" id="L405">        int numLoadedObjects = 0;</span>
+<span class="fc" id="L406">        boolean finished = false;</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        while (!finished) {</span>
+            try {
+<span class="fc" id="L409">                List&lt;String&gt; batch = blockingQueue.take();</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">                if (batch == LoadRunner.POISON_PILL) {</span>
+<span class="fc" id="L411">                    finished = true;</span>
+                } else {
+<span class="fc" id="L413">                    List&lt;Document&gt; documentBatch = new ArrayList&lt;&gt;(batch.size());</span>
+<span class="fc bfc" id="L414" title="All 2 branches covered.">                    for (String jsonLine : batch) {</span>
+<span class="fc" id="L415">                        Document document = Document.parse(jsonLine);</span>
+<span class="fc" id="L416">                        addChunkId(document);</span>
+<span class="fc" id="L417">                        addClinicalPrivateFields(document);</span>
+//                        addVariationPrivateFields(document);
+<span class="fc" id="L419">                        documentBatch.add(document);</span>
+<span class="fc" id="L420">                    }</span>
+<span class="fc" id="L421">                    numLoadedObjects += load(documentBatch);</span>
+                }
+<span class="nc" id="L423">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L424">                e.printStackTrace();</span>
+<span class="nc" id="L425">                logger.error(&quot;Loader thread interrupted: &quot; + e.getMessage());</span>
+<span class="nc" id="L426">            } catch (Exception e) {</span>
+<span class="nc" id="L427">                e.printStackTrace();</span>
+<span class="nc" id="L428">                logger.error(&quot;Error Loading batch: &quot; + e.getMessage());</span>
+<span class="pc" id="L429">            }</span>
+        }
+<span class="fc" id="L431">        logger.debug(&quot;'load' finished. &quot; + numLoadedObjects + &quot; records loaded&quot;);</span>
+<span class="fc" id="L432">        return numLoadedObjects;</span>
+    }
+
+//    private void addVariationPrivateFields(Document document) {
+//        if (data.equals(&quot;variation&quot;)) {
+//            document.put(&quot;_id&quot;, buildId((String) document.get(&quot;chromosome&quot;), (int) document.get(&quot;start&quot;),
+//                    (String) document.get(&quot;reference&quot;), (String) document.get(&quot;alternate&quot;)));
+//        }
+//    }
+
+    private void addClinicalPrivateFields(Document document) throws JsonProcessingException, FileFormatException {
+<span class="fc bfc" id="L443" title="All 2 branches covered.">        if (collectionName.equals(CLINICAL_VARIANTS_COLLECTION)) {</span>
+<span class="fc" id="L444">            Document annotationDocument = (Document) document.get(&quot;annotation&quot;);</span>
+<span class="fc" id="L445">            List&lt;String&gt; featureXrefs = getFeatureXrefsFromClinicalVariants(annotationDocument);</span>
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">            if (!featureXrefs.isEmpty()) {</span>
+<span class="fc" id="L447">                document.put(PRIVATE_FEATURE_XREF_FIELD, featureXrefs);</span>
+            }
+<span class="fc" id="L449">            List&lt;String&gt; traitList = getTraitFromClinicalVariants(annotationDocument);</span>
+<span class="pc bpc" id="L450" title="1 of 2 branches missed.">            if (!featureXrefs.isEmpty()) {</span>
+<span class="fc" id="L451">                document.put(PRIVATE_TRAIT_FIELD, traitList);</span>
+            }
+        }
+//
+//
+//
+//
+//        if (clinicalVariantSource != null) {
+//            List&lt;String&gt; geneIdList = null;
+//            List&lt;String&gt; phenotypeList = null;
+//            switch (clinicalVariantSource) {
+//                case CLINVARVARIANTSOURCE:
+//                    geneIdList = getClinvarGeneIds(document);
+//                    phenotypeList = getClinvarPhenotypes(document);
+//                    break;
+//                case COSMICVARIANTSOURCE:
+//                    geneIdList = document.get(&quot;geneName&quot;) != null ? Collections.singletonList(document.getString(&quot;geneName&quot;)) : null;
+//                    phenotypeList = getCosmicPhenotypes(document);
+//                    break;
+//                case GWASVARIANTSOURCE:
+//                    geneIdList = document.get(&quot;reportedGenes&quot;) != null
+//                            ? Collections.singletonList(document.getString(&quot;reportedGenes&quot;))
+//                            : null;
+//                    phenotypeList = getGwasPhenotypes(document);
+//                    break;
+//                default:
+//                    break;
+//            }
+//            if (geneIdList != null) {
+//                document.put(&quot;_geneIds&quot;, geneIdList);
+//            }
+//            if (phenotypeList != null) {
+//                document.put(&quot;_phenotypes&quot;, phenotypeList);
+//            }
+//        }
+<span class="fc" id="L486">    }</span>
+
+    private List&lt;String&gt; getTraitFromClinicalVariants(Document document) throws JsonProcessingException, FileFormatException {
+<span class="fc" id="L489">        Set&lt;String&gt; values = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L490" title="1 of 2 branches missed.">        if (document.get(TRAIT_ASSOCIATION) != null) {</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">            for (Document evidenceEntryDocument : (List&lt;Document&gt;) document.get(TRAIT_ASSOCIATION)) {</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                if (evidenceEntryDocument.get(SOMATIC_INFORMATION) != null) {</span>
+<span class="fc" id="L493">                    Document somaticInformationDocument = (Document) evidenceEntryDocument.get(SOMATIC_INFORMATION);</span>
+<span class="pc bpc" id="L494" title="1 of 2 branches missed.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(PRIMARY_SITE))) {</span>
+<span class="fc" id="L495">                        values.addAll(splitKeywords(somaticInformationDocument.getString(PRIMARY_SITE)));</span>
+                    }
+<span class="fc bfc" id="L497" title="All 2 branches covered.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(SITE_SUBTYPE))) {</span>
+<span class="fc" id="L498">                        values.addAll(splitKeywords(somaticInformationDocument.getString(SITE_SUBTYPE)));</span>
+                    }
+<span class="pc bpc" id="L500" title="1 of 2 branches missed.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(PRIMARY_HISTOLOGY))) {</span>
+<span class="fc" id="L501">                        values.addAll(splitKeywords(somaticInformationDocument.getString(PRIMARY_HISTOLOGY)));</span>
+                    }
+<span class="pc bpc" id="L503" title="1 of 2 branches missed.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(HISTOLOGY_SUBTYPE))) {</span>
+<span class="fc" id="L504">                        values.addAll(splitKeywords(somaticInformationDocument.getString(HISTOLOGY_SUBTYPE)));</span>
+                    }
+<span class="fc bfc" id="L506" title="All 2 branches covered.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(TUMOUR_ORIGIN))) {</span>
+<span class="fc" id="L507">                        values.addAll(splitKeywords(somaticInformationDocument.getString(TUMOUR_ORIGIN)));</span>
+                    }
+<span class="fc bfc" id="L509" title="All 2 branches covered.">                    if (StringUtils.isNotBlank((String) somaticInformationDocument.get(SAMPLE_SOURCE))) {</span>
+<span class="fc" id="L510">                        values.addAll(splitKeywords(somaticInformationDocument.getString(SAMPLE_SOURCE)));</span>
+                    }
+                }
+<span class="fc bfc" id="L513" title="All 2 branches covered.">                if (evidenceEntryDocument.get(HERITABLE_TRAITS) != null) {</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">                    for (Document traitDocument : (List&lt;Document&gt;) evidenceEntryDocument.get(HERITABLE_TRAITS)) {</span>
+<span class="pc bpc" id="L515" title="1 of 2 branches missed.">                        if (StringUtils.isNotBlank((String) traitDocument.get(TRAIT))) {</span>
+<span class="fc" id="L516">                            values.addAll(splitKeywords(traitDocument.getString(TRAIT)));</span>
+                        }
+<span class="fc" id="L518">                    }</span>
+                }
+<span class="fc" id="L520">            }</span>
+        } else {
+<span class="nc" id="L522">            ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L523">            jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="nc" id="L524">            jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);</span>
+<span class="nc" id="L525">            jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="nc" id="L526">            ObjectWriter jsonObjectWriter = jsonObjectMapper.writer();</span>
+
+<span class="nc" id="L528">            throw new FileFormatException(&quot;traitAssociation field missing in input objects. Please, ensure&quot;</span>
+                    + &quot; that input file contains variants with appropriate clinical annotation: &quot;
+<span class="nc" id="L530">                    + jsonObjectWriter.writeValueAsString(document));</span>
+        }
+
+<span class="fc" id="L533">        return new ArrayList&lt;&gt;(values);</span>
+
+    }
+
+    private List&lt;String&gt; splitKeywords(String string) {
+<span class="fc" id="L538">        String[] stringArray = string.toLowerCase().split(&quot;\\W&quot;);</span>
+<span class="fc" id="L539">        List&lt;String&gt; stringList = new ArrayList&lt;&gt;(stringArray.length);</span>
+<span class="fc bfc" id="L540" title="All 2 branches covered.">        for (String keyword : stringArray) {</span>
+<span class="fc bfc" id="L541" title="All 4 branches covered.">            if (!keyword.isEmpty() &amp;&amp; !SKIP_WORKDS.contains(keyword)) {</span>
+<span class="fc" id="L542">                stringList.add(keyword);</span>
+            }
+        }
+
+<span class="fc" id="L546">        return stringList;</span>
+    }
+
+    private void getValuesFromClinicalObject(List clinicalObjectList, String field, Set&lt;String&gt; values) {
+<span class="nc bnc" id="L550" title="All 4 branches missed.">        if (clinicalObjectList != null &amp;&amp; !clinicalObjectList.isEmpty()) {</span>
+<span class="nc bnc" id="L551" title="All 2 branches missed.">            for (Object object : clinicalObjectList) {</span>
+<span class="nc" id="L552">                String value = (String) ((Document) object).get(field);</span>
+<span class="nc bnc" id="L553" title="All 2 branches missed.">                if (value != null) {</span>
+<span class="nc" id="L554">                    values.add(value);</span>
+                }
+<span class="nc" id="L556">            }</span>
+        }
+<span class="nc" id="L558">    }</span>
+
+    private List&lt;String&gt; getFeatureXrefsFromClinicalVariants(Document document) throws JsonProcessingException, FileFormatException {
+<span class="fc" id="L561">        Set&lt;String&gt; values = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L562" title="1 of 2 branches missed.">        if (document.containsKey(TRAIT_ASSOCIATION)) {</span>
+<span class="fc" id="L563">            List evidenceEntryList = (List) document.get(TRAIT_ASSOCIATION);</span>
+<span class="fc" id="L564">            getFeatureXrefsFromClinicalObject(evidenceEntryList, values);</span>
+<span class="fc" id="L565">            getFeatureXrefsFromConsequenceTypes((List) document.get(&quot;consequenceTypes&quot;), values);</span>
+<span class="fc" id="L566">        } else {</span>
+<span class="nc" id="L567">            ObjectMapper jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L568">            jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="nc" id="L569">            jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);</span>
+<span class="nc" id="L570">            jsonObjectMapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+<span class="nc" id="L571">            ObjectWriter jsonObjectWriter = jsonObjectMapper.writer();</span>
+
+<span class="nc" id="L573">            throw new FileFormatException(&quot;traitAssociation field missing in input objects. Please, ensure&quot;</span>
+                    + &quot; that input file contains variants with appropriate clinical annotation: &quot;
+<span class="nc" id="L575">                    + jsonObjectWriter.writeValueAsString(document));</span>
+        }
+
+<span class="fc" id="L578">        return new ArrayList&lt;&gt;(values);</span>
+
+    }
+
+    private void getFeatureXrefsFromConsequenceTypes(List consequenceTypeObjectList, Set&lt;String&gt; values) {
+<span class="pc bpc" id="L583" title="1 of 4 branches missed.">        if (consequenceTypeObjectList != null &amp;&amp; !consequenceTypeObjectList.isEmpty()) {</span>
+<span class="fc bfc" id="L584" title="All 2 branches covered.">            for (Object consequenceTypeObject : consequenceTypeObjectList) {</span>
+<span class="fc" id="L585">                String geneName = (String) ((Document) consequenceTypeObject).get(&quot;geneName&quot;);</span>
+<span class="fc bfc" id="L586" title="All 2 branches covered.">                if (geneName != null) {</span>
+<span class="fc" id="L587">                    values.add(geneName);</span>
+                }
+<span class="fc" id="L589">                String ensemblGeneId = (String) ((Document) consequenceTypeObject).get(&quot;ensemblGeneId&quot;);</span>
+<span class="fc bfc" id="L590" title="All 2 branches covered.">                if (geneName != null) {</span>
+<span class="fc" id="L591">                    values.add(ensemblGeneId);</span>
+                }
+<span class="fc" id="L593">                String ensemblTranscriptId = (String) ((Document) consequenceTypeObject).get(&quot;ensemblTranscriptId&quot;);</span>
+<span class="fc bfc" id="L594" title="All 2 branches covered.">                if (geneName != null) {</span>
+<span class="fc" id="L595">                    values.add(ensemblTranscriptId);</span>
+                }
+<span class="fc" id="L597">                Document proteinVariantAnnotationObject</span>
+<span class="fc" id="L598">                        = (Document) ((Document) consequenceTypeObject).get(&quot;proteinVariantAnnotation&quot;);</span>
+<span class="fc bfc" id="L599" title="All 2 branches covered.">                if (proteinVariantAnnotationObject != null) {</span>
+<span class="fc" id="L600">                    String uniprotAccession = (String) proteinVariantAnnotationObject.get(&quot;uniprotAccession&quot;);</span>
+<span class="fc bfc" id="L601" title="All 2 branches covered.">                    if (uniprotAccession != null) {</span>
+<span class="fc" id="L602">                        values.add(uniprotAccession);</span>
+                    }
+<span class="fc" id="L604">                    String uniprotName = (String) proteinVariantAnnotationObject.get(&quot;uniprotName&quot;);</span>
+<span class="pc bpc" id="L605" title="1 of 2 branches missed.">                    if (uniprotName != null) {</span>
+<span class="nc" id="L606">                        values.add(uniprotName);</span>
+                    }
+                }
+<span class="fc" id="L609">            }</span>
+        }
+<span class="fc" id="L611">    }</span>
+
+    private void getFeatureXrefsFromClinicalObject(List evidenceEntryList, Set&lt;String&gt; values) {
+<span class="pc bpc" id="L614" title="2 of 4 branches missed.">        if (evidenceEntryList != null &amp;&amp; !evidenceEntryList.isEmpty()) {</span>
+<span class="fc bfc" id="L615" title="All 2 branches covered.">            for (Object object : evidenceEntryList) {</span>
+<span class="fc" id="L616">                List&lt;Document&gt; genomicFeatureList = (List&lt;Document&gt;) ((Document) object).get(GENOMIC_FEATURES);</span>
+<span class="pc bpc" id="L617" title="1 of 2 branches missed.">                if (genomicFeatureList != null) {</span>
+<span class="fc bfc" id="L618" title="All 2 branches covered.">                    for (Document genomicFeature : genomicFeatureList) {</span>
+<span class="pc bpc" id="L619" title="1 of 4 branches missed.">                        if (genomicFeature.get(XREFS) != null &amp;&amp; !((Document) genomicFeature.get(XREFS)).isEmpty()) {</span>
+<span class="fc bfc" id="L620" title="All 2 branches covered.">                            for (String key : ((Document) genomicFeature.get(XREFS)).keySet()) {</span>
+<span class="fc" id="L621">                                values.add((String) ((Document) genomicFeature.get(XREFS)).get(key));</span>
+<span class="fc" id="L622">                            }</span>
+                        }
+<span class="fc" id="L624">                    }</span>
+                }
+<span class="fc" id="L626">            }</span>
+        }
+<span class="fc" id="L628">    }</span>
+
+    private List&lt;String&gt; getGwasPhenotypes(Document document) {
+<span class="nc" id="L631">        List&lt;String&gt; phenotypeList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L632">        List studiesDBList = document.get(&quot;studies&quot;, List.class);</span>
+<span class="nc bnc" id="L633" title="All 2 branches missed.">        for (Object studyObject : studiesDBList) {</span>
+<span class="nc" id="L634">            Document studyDBObject = (Document) studyObject;</span>
+<span class="nc" id="L635">            List traitsDBList = studyDBObject.get(&quot;traits&quot;, List.class);</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">            if (traitsDBList != null) {</span>
+<span class="nc bnc" id="L637" title="All 2 branches missed.">                for (Object traitObject : traitsDBList) {</span>
+<span class="nc" id="L638">                    Document traitDBObject = (Document) traitObject;</span>
+<span class="nc bnc" id="L639" title="All 2 branches missed.">                    if (traitDBObject.get(&quot;diseaseTrait&quot;) != null) {</span>
+<span class="nc" id="L640">                        phenotypeList.add(traitDBObject.getString(&quot;diseaseTrait&quot;));</span>
+                    }
+<span class="nc" id="L642">                }</span>
+            }
+<span class="nc" id="L644">        }</span>
+<span class="nc" id="L645">        return phenotypeList;</span>
+    }
+
+    private List&lt;String&gt; getCosmicPhenotypes(Document document) {
+<span class="nc" id="L649">        List&lt;String&gt; phenotypeList = new ArrayList&lt;&gt;(4);</span>
+<span class="nc" id="L650">        addIfNotEmpty((String) document.get(&quot;primarySite&quot;), phenotypeList);</span>
+<span class="nc" id="L651">        addIfNotEmpty((String) document.get(&quot;histologySubtype&quot;), phenotypeList);</span>
+<span class="nc" id="L652">        addIfNotEmpty((String) document.get(&quot;primaryHistology&quot;), phenotypeList);</span>
+<span class="nc" id="L653">        addIfNotEmpty((String) document.get(&quot;siteSubtype&quot;), phenotypeList);</span>
+
+<span class="nc" id="L655">        return phenotypeList;</span>
+
+    }
+
+    private void addIfNotEmpty(String element, List&lt;String&gt; stringList) {
+<span class="nc bnc" id="L660" title="All 4 branches missed.">        if (element != null &amp;&amp; !element.isEmpty()) {</span>
+<span class="nc" id="L661">            stringList.add(element);</span>
+        }
+<span class="nc" id="L663">    }</span>
+
+    private List&lt;String&gt; getClinvarPhenotypes(Document dbObject) {
+<span class="nc" id="L666">        List&lt;String&gt; phenotypeList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L667">        List basicDBList = ((Document) ((Document) ((Document) dbObject.get(&quot;clinvarSet&quot;)).get(&quot;referenceClinVarAssertion&quot;))</span>
+<span class="nc" id="L668">                .get(&quot;traitSet&quot;)).get(&quot;trait&quot;, List.class);</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">        for (Object object : basicDBList) {</span>
+<span class="nc" id="L670">            Document document = (Document) object;</span>
+<span class="nc" id="L671">            List nameDBList = document.get(&quot;name&quot;, List.class);</span>
+<span class="nc bnc" id="L672" title="All 2 branches missed.">            if (nameDBList != null) {</span>
+<span class="nc bnc" id="L673" title="All 2 branches missed.">                for (Object nameObject : nameDBList) {</span>
+<span class="nc" id="L674">                    Document elementValueDBObject = (Document) ((Document) nameObject).get(&quot;elementValue&quot;);</span>
+<span class="nc bnc" id="L675" title="All 2 branches missed.">                    if (elementValueDBObject != null) {</span>
+<span class="nc" id="L676">                        String phenotype = (String) elementValueDBObject.get(&quot;value&quot;);</span>
+<span class="nc bnc" id="L677" title="All 2 branches missed.">                        if (phenotype != null) {</span>
+<span class="nc" id="L678">                            phenotypeList.add(phenotype);</span>
+                        }
+                    }
+<span class="nc" id="L681">                }</span>
+
+            }
+<span class="nc" id="L684">        }</span>
+<span class="nc bnc" id="L685" title="All 2 branches missed.">        if (phenotypeList.size() &gt; 0) {</span>
+<span class="nc" id="L686">            return phenotypeList;</span>
+        } else {
+<span class="nc" id="L688">            return null;</span>
+        }
+    }
+
+    private List&lt;String&gt; getClinvarGeneIds(Document dbObject) {
+<span class="nc" id="L693">        List&lt;String&gt; geneIdList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L694">        List basicDBList = ((Document) ((Document) ((Document) dbObject.get(&quot;clinvarSet&quot;)).get(&quot;referenceClinVarAssertion&quot;))</span>
+<span class="nc" id="L695">                .get(&quot;measureSet&quot;)).get(&quot;measure&quot;, List.class);</span>
+<span class="nc bnc" id="L696" title="All 2 branches missed.">        for (Object object : basicDBList) {</span>
+<span class="nc" id="L697">            Document document = (Document) object;</span>
+<span class="nc" id="L698">            List measureRelationshipDBList = document.get(&quot;measureRelationship&quot;, List.class);</span>
+<span class="nc bnc" id="L699" title="All 2 branches missed.">            if (measureRelationshipDBList != null) {</span>
+<span class="nc bnc" id="L700" title="All 2 branches missed.">                for (Object measureRelationShipObject : measureRelationshipDBList) {</span>
+<span class="nc" id="L701">                    List symbolDBList = ((Document) measureRelationShipObject).get(&quot;symbol&quot;, List.class);</span>
+<span class="nc bnc" id="L702" title="All 2 branches missed.">                    if (symbolDBList != null) {</span>
+<span class="nc bnc" id="L703" title="All 2 branches missed.">                        for (Object symbolObject : symbolDBList) {</span>
+<span class="nc" id="L704">                            Document elementValueDBObject = (Document) ((Document) symbolObject).get(&quot;elementValue&quot;);</span>
+<span class="nc bnc" id="L705" title="All 2 branches missed.">                            if (elementValueDBObject != null) {</span>
+<span class="nc" id="L706">                                String geneId = (String) elementValueDBObject.get(&quot;value&quot;);</span>
+<span class="nc bnc" id="L707" title="All 2 branches missed.">                                if (geneId != null) {</span>
+<span class="nc" id="L708">                                    geneIdList.add(geneId);</span>
+                                }
+                            }
+<span class="nc" id="L711">                        }</span>
+                    }
+<span class="nc" id="L713">                }</span>
+            }
+<span class="nc" id="L715">        }</span>
+<span class="nc bnc" id="L716" title="All 2 branches missed.">        if (geneIdList.size() &gt; 0) {</span>
+<span class="nc" id="L717">            return geneIdList;</span>
+        } else {
+<span class="nc" id="L719">            return null;</span>
+        }
+    }
+
+    @Override
+    public void createIndex(String data) throws LoaderException {
+<span class="nc" id="L725">        Path indexFilePath = getIndexFilePath(data);</span>
+<span class="nc bnc" id="L726" title="All 2 branches missed.">        if (indexFilePath != null) {</span>
+<span class="nc" id="L727">            logger.info(&quot;Creating indexes...&quot;);</span>
+            try {
+<span class="nc" id="L729">                runCreateIndexProcess(indexFilePath);</span>
+<span class="nc" id="L730">            } catch (IOException | InterruptedException e) {</span>
+<span class="nc" id="L731">                e.printStackTrace();</span>
+<span class="nc" id="L732">            }</span>
+        } else {
+<span class="nc" id="L734">            logger.warn(&quot;No index found for '{}'&quot;, data);</span>
+        }
+<span class="nc" id="L736">    }</span>
+
+
+    public int load(List&lt;Document&gt; batch) {
+        // End recursive calls
+<span class="pc bpc" id="L741" title="1 of 2 branches missed.">        if (batch.size() &gt; 0) {</span>
+            try {
+                // TODO: queryOptions?
+<span class="fc" id="L744">                QueryResult&lt;BulkWriteResult&gt; result = mongoDBCollection.insert(batch, new QueryOptions());</span>
+<span class="fc" id="L745">                return result.first().getInsertedCount();</span>
+<span class="nc" id="L746">            } catch (BsonSerializationException e) {</span>
+                // End recursive calls
+<span class="nc bnc" id="L748" title="All 2 branches missed.">                if (batch.size() == 1) {</span>
+<span class="nc" id="L749">                    logger.warn(&quot;Found document raising load problems: {}...&quot;, batch.get(0).toJson().substring(0, 1000));</span>
+<span class="nc bnc" id="L750" title="All 2 branches missed.">                    if (data.equalsIgnoreCase(&quot;variation&quot;)) {</span>
+<span class="nc" id="L751">                        Document annotationDocument = (Document) batch.get(0).get(&quot;annotation&quot;);</span>
+<span class="nc bnc" id="L752" title="All 4 branches missed.">                        if (annotationDocument.get(&quot;xrefs&quot;) != null &amp;&amp; ((List) annotationDocument.get(&quot;xrefs&quot;)).size() &gt; 3) {</span>
+<span class="nc" id="L753">                            logger.warn(&quot;Truncating xrefs array&quot;);</span>
+<span class="nc" id="L754">                            annotationDocument.put(&quot;xrefs&quot;, ((List) annotationDocument.get(&quot;xrefs&quot;)).subList(0, 3));</span>
+<span class="nc" id="L755">                            return load(batch);</span>
+<span class="nc bnc" id="L756" title="All 2 branches missed.">                        } else if (annotationDocument.get(&quot;additionalAttributes&quot;) != null) {</span>
+<span class="nc" id="L757">                            logger.warn(&quot;Removing additionalAttributes field&quot;);</span>
+<span class="nc" id="L758">                            annotationDocument.remove(&quot;additionalAttributes&quot;);</span>
+<span class="nc" id="L759">                            return load(batch);</span>
+                        } else {
+<span class="nc" id="L761">                            logger.warn(&quot;Skipping and continuing with the load&quot;);</span>
+<span class="nc" id="L762">                            return 0;</span>
+                        }
+                    } else {
+<span class="nc" id="L765">                        logger.warn(&quot;Skipping and continuing with the load&quot;);</span>
+<span class="nc" id="L766">                        return 0;</span>
+                    }
+                }
+<span class="nc" id="L769">                logger.warn(&quot;Found problems loading document batch, loading one by one...&quot;);</span>
+<span class="nc" id="L770">                int nInserted = 0;</span>
+<span class="nc bnc" id="L771" title="All 2 branches missed.">                for (Document document : batch) {</span>
+                    // TODO: queryOptions?
+<span class="nc" id="L773">                    nInserted += load(Collections.singletonList(document));</span>
+<span class="nc" id="L774">                }</span>
+<span class="nc" id="L775">                return nInserted;</span>
+<span class="nc" id="L776">            } catch (MongoBulkWriteException e) {</span>
+<span class="nc bnc" id="L777" title="All 2 branches missed.">                for (BulkWriteError bulkWriteError : e.getWriteErrors()) {</span>
+                    // Duplicated key due to a batch which was partially inserted before, just skip the variant
+<span class="nc bnc" id="L779" title="All 2 branches missed.">                    if (ErrorCategory.fromErrorCode(bulkWriteError.getCode()).equals(ErrorCategory.DUPLICATE_KEY)) {</span>
+<span class="nc" id="L780">                        return 0;</span>
+                    }
+<span class="nc" id="L782">                }</span>
+                // It is not a duplicated key error - propagate it
+<span class="nc" id="L784">                throw e;</span>
+            }
+        } else {
+<span class="nc" id="L787">            return 0;</span>
+        }
+    }
+
+    private void addChunkId(Document document) {
+<span class="pc bpc" id="L792" title="1 of 4 branches missed.">        if (chunkSizes != null &amp;&amp; chunkSizes.length &gt; 0) {</span>
+<span class="fc" id="L793">            List&lt;String&gt; chunkIds = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L794" title="All 2 branches covered.">            for (int chunkSize : chunkSizes) {</span>
+<span class="fc" id="L795">                int chunkStart = (Integer) document.get(&quot;start&quot;) / chunkSize;</span>
+<span class="fc" id="L796">                int chunkEnd = (Integer) document.get(&quot;end&quot;) / chunkSize;</span>
+<span class="fc" id="L797">                String chunkIdSuffix = chunkSize / 1000 + &quot;k&quot;;</span>
+<span class="fc bfc" id="L798" title="All 2 branches covered.">                for (int i = chunkStart; i &lt;= chunkEnd; i++) {</span>
+<span class="fc bfc" id="L799" title="All 2 branches covered.">                    if (document.containsKey(&quot;chromosome&quot;)) {</span>
+<span class="fc" id="L800">                        chunkIds.add(document.get(&quot;chromosome&quot;) + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+                    } else {
+<span class="fc" id="L802">                        chunkIds.add(document.get(&quot;sequenceName&quot;) + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+                    }
+                }
+            }
+<span class="fc" id="L806">            logger.debug(&quot;Setting chunkIds to {}&quot;, chunkIds.toString());</span>
+<span class="fc" id="L807">            document.put(&quot;_chunkIds&quot;, chunkIds);</span>
+        }
+<span class="fc" id="L809">    }</span>
+
+    @Override
+    public void close() {
+<span class="fc" id="L813">        mongoDataStoreManager.close(database);</span>
+<span class="fc" id="L814">    }</span>
+
+    private Path getIndexFilePath(String data) throws LoaderException {
+<span class="nc bnc" id="L817" title="All 4 branches missed.">        if (indexScriptFolder == null || data == null) {</span>
+<span class="nc" id="L818">            logger.error(&quot;No path can be provided for index, check index folder '{}' and data '{}'&quot;,</span>
+                    indexScriptFolder, data);
+<span class="nc" id="L820">            return null;</span>
+        }
+
+<span class="nc" id="L823">        String indexFileName = null;</span>
+<span class="nc bnc" id="L824" title="All 63 branches missed.">        switch (data) {</span>
+            case &quot;genome_info&quot;:
+<span class="nc" id="L826">                indexFileName = null;</span>
+<span class="nc" id="L827">                break;</span>
+            case &quot;genome_sequence&quot;:
+<span class="nc" id="L829">                indexFileName = &quot;genome_sequence-indexes.js&quot;;</span>
+<span class="nc" id="L830">                break;</span>
+            case &quot;gene&quot;:
+<span class="nc" id="L832">                indexFileName = &quot;gene-indexes.js&quot;;</span>
+<span class="nc" id="L833">                break;</span>
+            case &quot;variation&quot;:
+<span class="nc" id="L835">                indexFileName = &quot;variation-indexes.js&quot;;</span>
+<span class="nc" id="L836">                break;</span>
+            case &quot;variation_functional_score&quot;:
+<span class="nc" id="L838">                indexFileName = &quot;variation_functional_score-indexes.js&quot;;</span>
+<span class="nc" id="L839">                break;</span>
+            case &quot;regulatory_region&quot;:
+<span class="nc" id="L841">                indexFileName = &quot;regulatory_region-indexes.js&quot;;</span>
+<span class="nc" id="L842">                break;</span>
+            case &quot;protein&quot;:
+<span class="nc" id="L844">                indexFileName = &quot;protein-indexes.js&quot;;</span>
+<span class="nc" id="L845">                break;</span>
+            case &quot;protein_protein_interaction&quot;:
+<span class="nc" id="L847">                indexFileName = &quot;protein_protein_interaction-indexes.js&quot;;</span>
+<span class="nc" id="L848">                break;</span>
+            case &quot;protein_functional_prediction&quot;:
+<span class="nc" id="L850">                indexFileName = &quot;protein_functional_prediction-indexes.js&quot;;</span>
+<span class="nc" id="L851">                break;</span>
+            case &quot;conservation&quot;:
+<span class="nc" id="L853">                indexFileName = &quot;conservation-indexes.js&quot;;</span>
+<span class="nc" id="L854">                break;</span>
+            case &quot;cosmic&quot;:
+            case &quot;clinvar&quot;:
+            case &quot;gwas&quot;:
+            case &quot;clinical&quot;:
+<span class="nc" id="L859">                indexFileName = &quot;clinical-indexes.js&quot;;</span>
+<span class="nc" id="L860">                break;</span>
+            case &quot;clinical_variants&quot;:
+<span class="nc" id="L862">                indexFileName = &quot;clinical-indexes.js&quot;;</span>
+<span class="nc" id="L863">                break;</span>
+            case &quot;repeats&quot;:
+<span class="nc" id="L865">                indexFileName = &quot;repeat-indexes.js&quot;;</span>
+<span class="nc" id="L866">                break;</span>
+            default:
+                break;
+        }
+<span class="nc bnc" id="L870" title="All 2 branches missed.">        if (indexFileName == null) {</span>
+<span class="nc" id="L871">            return null;</span>
+        }
+<span class="nc" id="L873">        return indexScriptFolder.resolve(indexFileName);</span>
+    }
+
+
+    protected boolean runCreateIndexProcess(Path indexFilePath) throws IOException, InterruptedException {
+//        DatabaseProperties mongodbCredentials = cellBaseConfiguration.getDatabases().get(&quot;mongodb&quot;);
+<span class="nc" id="L879">        DatabaseCredentials mongodbCredentials = cellBaseConfiguration.getDatabases().getMongodb();</span>
+<span class="nc" id="L880">        List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L881">        args.add(&quot;mongo&quot;);</span>
+<span class="nc" id="L882">        args.add(&quot;--host&quot;);</span>
+<span class="nc" id="L883">        args.add(mongodbCredentials.getHost());</span>
+<span class="nc bnc" id="L884" title="All 4 branches missed.">        if (mongodbCredentials.getUser() != null &amp;&amp; !mongodbCredentials.getUser().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L885">            args.addAll(Arrays.asList(</span>
+<span class="nc" id="L886">                    &quot;-u&quot;, mongodbCredentials.getUser(),</span>
+<span class="nc" id="L887">                    &quot;-p&quot;, mongodbCredentials.getPassword()</span>
+            ));
+        }
+<span class="nc bnc" id="L890" title="All 4 branches missed.">        if (cellBaseConfiguration != null &amp;&amp; mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;) != null) {</span>
+<span class="nc" id="L891">            args.add(&quot;--authenticationDatabase&quot;);</span>
+<span class="nc" id="L892">            args.add(mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;));</span>
+<span class="nc" id="L893">            logger.debug(&quot;MongoDB 'authenticationDatabase' database parameter set to '{}'&quot;,</span>
+<span class="nc" id="L894">                    mongodbCredentials.getOptions().get(&quot;authenticationDatabase&quot;));</span>
+        }
+<span class="nc" id="L896">        args.add(database);</span>
+<span class="nc" id="L897">        args.add(indexFilePath.toString());</span>
+
+<span class="nc" id="L899">        ProcessBuilder processBuilder = new ProcessBuilder(args);</span>
+<span class="nc" id="L900">        logger.debug(&quot;Executing command: '{}'&quot;, StringUtils.join(processBuilder.command(), &quot; &quot;));</span>
+
+//        processBuilder.redirectErrorStream(true);
+//        if (logFilePath != null) {
+//            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(new File(logFilePath)));
+//        }
+
+<span class="nc" id="L907">        Process process = processBuilder.start();</span>
+<span class="nc" id="L908">        process.waitFor();</span>
+
+        // Check process output
+<span class="nc" id="L911">        boolean executedWithoutErrors = true;</span>
+<span class="nc" id="L912">        int genomeInfoExitValue = process.exitValue();</span>
+<span class="nc bnc" id="L913" title="All 2 branches missed.">        if (genomeInfoExitValue != 0) {</span>
+<span class="nc" id="L914">            logger.warn(&quot;Error executing {}, error code: {}&quot;, indexFilePath, genomeInfoExitValue);</span>
+<span class="nc" id="L915">            executedWithoutErrors = false;</span>
+        }
+<span class="nc" id="L917">        return executedWithoutErrors;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

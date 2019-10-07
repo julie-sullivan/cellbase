@@ -1,0 +1,607 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RegulatoryRegionParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">RegulatoryRegionParser.java</span></div><h1>RegulatoryRegionParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.models.core.RegulatoryFeature;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.*;
+import java.util.*;
+
+/**
+ * User: fsalavert.
+ * Date: 4/10/13
+ * Time: 10:14 AM
+ */
+public class RegulatoryRegionParser extends CellBaseParser {
+
+    private static final int CHUNK_SIZE = 2000;
+    private static final String REGULATORY_FEATURES = &quot;regulatory_features&quot;;
+    @Deprecated
+    private static final String DEPRECATED_MOTIF_FEATURES = &quot;deprecated_motif_features&quot;;
+    private static final String MOTIF_FEATURES = &quot;motif_features&quot;;
+    private static final String FEATURE_TYPE = &quot;feature_type&quot;;
+    private static final String ID = &quot;id&quot;;
+    private static final String BINDING_MATRIX = &quot;binding_matrix&quot;;
+    private static final String MOTIF_FEATURE_TYPE = &quot;motif_feature_type&quot;;
+    private Path regulatoryRegionPath;
+
+    public RegulatoryRegionParser(Path regulatoryRegionFilesDir, CellBaseSerializer serializer) {
+<span class="fc" id="L51">        super(serializer);</span>
+
+<span class="fc" id="L53">        this.regulatoryRegionPath = regulatoryRegionFilesDir;</span>
+
+<span class="fc" id="L55">    }</span>
+
+    public void createSQLiteRegulatoryFiles(Path regulatoryRegionPath)
+            throws SQLException, IOException, ClassNotFoundException, NoSuchMethodException {
+<span class="fc" id="L59">        List&lt;String&gt; gffColumnNames = Arrays.asList(&quot;seqname&quot;, &quot;source&quot;, &quot;feature&quot;, &quot;start&quot;, &quot;end&quot;, &quot;score&quot;, &quot;strand&quot;, &quot;frame&quot;, &quot;group&quot;);</span>
+<span class="fc" id="L60">        List&lt;String&gt; gffColumnTypes = Arrays.asList(&quot;TEXT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;, &quot;INT&quot;, &quot;INT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;);</span>
+
+        //        Path regulatoryRegionPath = regulationDir.toPath();
+
+        Path filePath;
+
+<span class="fc" id="L66">        filePath = regulatoryRegionPath.resolve(EtlCommons.REGULATORY_FEATURES_FILE);</span>
+<span class="fc" id="L67">        createSQLiteRegulatoryFiles(filePath, REGULATORY_FEATURES, gffColumnNames, gffColumnTypes);</span>
+
+<span class="fc" id="L69">        filePath = regulatoryRegionPath.resolve(EtlCommons.MOTIF_FEATURES_FILE);</span>
+<span class="fc" id="L70">        createSQLiteRegulatoryFiles(filePath, MOTIF_FEATURES, gffColumnNames, gffColumnTypes);</span>
+
+        // TODO: REMOVE
+        // &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; DEPRECATED
+<span class="fc" id="L74">        filePath = regulatoryRegionPath.resolve(&quot;AnnotatedFeatures.gff.gz&quot;);</span>
+<span class="fc" id="L75">        createSQLiteRegulatoryFiles(filePath, &quot;annotated_features&quot;, gffColumnNames, gffColumnTypes);</span>
+
+
+<span class="fc" id="L78">        filePath = regulatoryRegionPath.resolve(&quot;MotifFeatures.gff.gz&quot;);</span>
+<span class="fc" id="L79">        createSQLiteRegulatoryFiles(filePath, DEPRECATED_MOTIF_FEATURES, gffColumnNames, gffColumnTypes);</span>
+
+
+<span class="fc" id="L82">        filePath = regulatoryRegionPath.resolve(&quot;RegulatoryFeatures_MultiCell.gff.gz&quot;);</span>
+<span class="fc" id="L83">        createSQLiteRegulatoryFiles(filePath, &quot;regulatory_features_multicell&quot;, gffColumnNames, gffColumnTypes);</span>
+        // &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; DEPRECATED
+
+
+
+//  GFFColumnNames = Arrays.asList(&quot;seqname&quot;, &quot;source&quot;, &quot;feature&quot;, &quot;start&quot;, &quot;end&quot;, &quot;score&quot;, &quot;strand&quot;, &quot;frame&quot;);
+//  GFFColumnTypes = Arrays.asList(&quot;TEXT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;, &quot;INT&quot;, &quot;INT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;, &quot;TEXT&quot;);
+<span class="fc" id="L90">        filePath = regulatoryRegionPath.resolve(&quot;mirna_uniq.gff.gz&quot;);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (Files.exists(filePath)) {</span>
+<span class="nc" id="L92">            createSQLiteRegulatoryFiles(filePath, &quot;mirna_uniq&quot;, gffColumnNames, gffColumnTypes);</span>
+        }
+
+<span class="fc" id="L95">    }</span>
+
+    @Override
+    public void parse() throws SQLException, IOException, ClassNotFoundException, NoSuchMethodException {
+<span class="pc bpc" id="L99" title="3 of 6 branches missed.">        if (regulatoryRegionPath == null || !Files.exists(regulatoryRegionPath) || !Files.isDirectory(regulatoryRegionPath)) {</span>
+<span class="nc" id="L100">            throw new IOException(&quot;Regulation directory whether does not exist, is not a directory or cannot be read&quot;);</span>
+        }
+
+        // Create the SQLite databases
+<span class="fc" id="L104">        createSQLiteRegulatoryFiles(regulatoryRegionPath);</span>
+
+<span class="fc" id="L106">        String chunkIdSuffix = CHUNK_SIZE / 1000 + &quot;k&quot;;</span>
+
+<span class="fc" id="L108">        Path regulatoryFilePath = regulatoryRegionPath.resolve(EtlCommons.REGULATORY_FEATURES_FILE + &quot;.db&quot;);</span>
+<span class="fc" id="L109">        Path motifFilePath = regulatoryRegionPath.resolve(EtlCommons.MOTIF_FEATURES_FILE + &quot;.db&quot;);</span>
+<span class="fc" id="L110">        Path annotatedFilePath = regulatoryRegionPath.resolve(&quot;AnnotatedFeatures.gff.gz.db&quot;);</span>
+<span class="fc" id="L111">        Path deprecatedMotifFilePath = regulatoryRegionPath.resolve(&quot;MotifFeatures.gff.gz.db&quot;);</span>
+<span class="fc" id="L112">        Path deprecatedRegulatoryFilePath = regulatoryRegionPath.resolve(&quot;RegulatoryFeatures_MultiCell.gff.gz.db&quot;);</span>
+<span class="fc" id="L113">        Path mirnaFilePath = regulatoryRegionPath.resolve(&quot;mirna_uniq.gff.gz.db&quot;);</span>
+
+<span class="fc" id="L115">        List&lt;Path&gt; filePaths = Arrays.asList(regulatoryFilePath, motifFilePath, annotatedFilePath,</span>
+                deprecatedMotifFilePath, deprecatedRegulatoryFilePath);
+<span class="fc" id="L117">        List&lt;String&gt; tableNames = Arrays.asList(REGULATORY_FEATURES, MOTIF_FEATURES, &quot;annotated_features&quot;,</span>
+                DEPRECATED_MOTIF_FEATURES, &quot;regulatory_features_multicell&quot;);
+
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">        if (Files.exists(mirnaFilePath)) {</span>
+<span class="nc" id="L121">            filePaths.add(mirnaFilePath);</span>
+<span class="nc" id="L122">            tableNames.add(&quot;mirna_uniq&quot;);</span>
+        }
+
+        // Fetching and joining all chromosomes found in the different databases
+<span class="fc" id="L126">        Set&lt;String&gt; setChr = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L127">        setChr.addAll(getChromosomesList(regulatoryFilePath, REGULATORY_FEATURES));</span>
+<span class="fc" id="L128">        setChr.addAll(getChromosomesList(motifFilePath, MOTIF_FEATURES));</span>
+<span class="fc" id="L129">        setChr.addAll(getChromosomesList(annotatedFilePath, &quot;annotated_features&quot;));</span>
+<span class="fc" id="L130">        setChr.addAll(getChromosomesList(deprecatedMotifFilePath, DEPRECATED_MOTIF_FEATURES));</span>
+<span class="fc" id="L131">        setChr.addAll(getChromosomesList(deprecatedRegulatoryFilePath, &quot;regulatory_features_multicell&quot;));</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (Files.exists(mirnaFilePath)) {</span>
+<span class="nc" id="L133">            setChr.addAll(getChromosomesList(mirnaFilePath, &quot;mirna_uniq&quot;));</span>
+        }
+
+<span class="fc" id="L136">        List&lt;String&gt; chromosomes = new ArrayList&lt;&gt;(setChr);</span>
+        List&lt;RegulatoryFeature&gt; regulatoryFeatures;
+        HashSet&lt;Integer&gt; chunksHash;
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        for (String chromosome : chromosomes) {</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            for (int i = 0; i &lt; tableNames.size(); i++) {</span>
+<span class="fc" id="L141">                chunksHash = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L142">                regulatoryFeatures = queryChromosomesRegulatoryDB(filePaths.get(i), tableNames.get(i), chromosome);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                for (RegulatoryFeature regulatoryFeature : regulatoryFeatures) {</span>
+<span class="fc" id="L144">                    int firstChunkId = getChunkId(regulatoryFeature.getStart(), CHUNK_SIZE);</span>
+<span class="fc" id="L145">                    int lastChunkId = getChunkId(regulatoryFeature.getEnd(), CHUNK_SIZE);</span>
+
+<span class="fc" id="L147">                    List&lt;String&gt; chunkIds = new ArrayList&lt;&gt;();</span>
+                    String chunkId;
+<span class="fc bfc" id="L149" title="All 2 branches covered.">                    for (int j = firstChunkId; j &lt;= lastChunkId; j++) {</span>
+<span class="fc" id="L150">                        chunkId = chromosome + &quot;_&quot; + j + &quot;_&quot; + chunkIdSuffix;</span>
+<span class="fc" id="L151">                        chunkIds.add(chunkId);</span>
+                        //count chunks
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">                        if (!chunksHash.contains(j)) {</span>
+<span class="fc" id="L154">                            chunksHash.add(j);</span>
+                        }
+                    }
+//                    regulatoryFeature.setChunkIds(chunkIds);
+
+                    // remove 'chr' prefix
+//                    if (genericFeature.getChromosome() != null) {
+//                        genericFeature.setSequenceName(genericFeature.getSequenceName().replace(&quot;chr&quot;, &quot;&quot;));
+//                    }
+<span class="fc" id="L163">                    serializer.serialize(regulatoryFeature);</span>
+<span class="fc" id="L164">                }</span>
+            }
+<span class="fc" id="L166">        }</span>
+<span class="fc" id="L167">    }</span>
+
+
+    public void createSQLiteRegulatoryFiles(Path filePath, String tableName, List&lt;String&gt; columnNames, List&lt;String&gt; columnTypes)
+            throws ClassNotFoundException, IOException, SQLException {
+<span class="fc" id="L172">        int limitRows = 100000;</span>
+<span class="fc" id="L173">        int batchCount = 0;</span>
+
+<span class="pc bpc" id="L175" title="1 of 4 branches missed.">        if (!Files.exists(filePath) || Files.size(filePath) == 0) {</span>
+<span class="fc" id="L176">            return;</span>
+        }
+
+<span class="fc" id="L179">        Path dbPath = Paths.get(filePath.toString() + &quot;.db&quot;);</span>
+<span class="pc bpc" id="L180" title="2 of 4 branches missed.">        if (Files.exists(dbPath) &amp;&amp; Files.size(dbPath) &gt; 0) {</span>
+<span class="fc" id="L181">            return;</span>
+        }
+
+<span class="nc" id="L184">        BufferedReader br = FileUtils.newBufferedReader(filePath);</span>
+
+<span class="nc" id="L186">        Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="nc" id="L187">        Connection conn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + dbPath.toString());</span>
+<span class="nc" id="L188">        conn.setAutoCommit(false); //Set false to perform commits manually and increase performance on insertion</span>
+
+        //Create table query
+<span class="nc" id="L191">        Statement createTables = conn.createStatement();</span>
+
+<span class="nc" id="L193">        StringBuilder sbQuery = new StringBuilder();</span>
+<span class="nc" id="L194">        sbQuery.append(&quot;CREATE TABLE if not exists &quot; + tableName + &quot;(&quot;);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        for (int i = 0; i &lt; columnNames.size(); i++) {    //columnNames and columnTypes must have the same size</span>
+<span class="nc" id="L196">            sbQuery.append(&quot;'&quot; + columnNames.get(i) + &quot;' &quot; + columnTypes.get(i) + &quot;,&quot;);</span>
+        }
+<span class="nc" id="L198">        sbQuery.deleteCharAt(sbQuery.length() - 1);</span>
+<span class="nc" id="L199">        sbQuery.append(&quot;)&quot;);</span>
+
+<span class="nc" id="L201">        System.out.println(sbQuery.toString());</span>
+<span class="nc" id="L202">        createTables.executeUpdate(sbQuery.toString());</span>
+
+        //Prepare insert query
+<span class="nc" id="L205">        sbQuery = new StringBuilder();</span>
+<span class="nc" id="L206">        sbQuery.append(&quot;INSERT INTO &quot; + tableName + &quot;(&quot;);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        for (int i = 0; i &lt; columnNames.size(); i++) {</span>
+<span class="nc" id="L208">            sbQuery.append(&quot;'&quot; + columnNames.get(i) + &quot;',&quot;);</span>
+        }
+<span class="nc" id="L210">        sbQuery.deleteCharAt(sbQuery.length() - 1);</span>
+<span class="nc" id="L211">        sbQuery.append(&quot;) values (&quot;);</span>
+<span class="nc" id="L212">        sbQuery.append(repeat(&quot;?,&quot;, columnNames.size()));</span>
+<span class="nc" id="L213">        sbQuery.deleteCharAt(sbQuery.length() - 1);</span>
+<span class="nc" id="L214">        sbQuery.append(&quot;)&quot;);</span>
+<span class="nc" id="L215">        System.out.println(sbQuery.toString());</span>
+
+<span class="nc" id="L217">        PreparedStatement ps = conn.prepareStatement(sbQuery.toString());</span>
+
+        //Read file
+<span class="nc" id="L220">        String line = null;</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        while ((line = br.readLine()) != null) {</span>
+
+<span class="nc" id="L223">            insertByType(ps, getFields(line, tableName), columnTypes);</span>
+<span class="nc" id="L224">            ps.addBatch();</span>
+<span class="nc" id="L225">            batchCount++;</span>
+
+            //commit batch
+<span class="nc bnc" id="L228" title="All 4 branches missed.">            if (batchCount % limitRows == 0 &amp;&amp; batchCount != 0) {</span>
+<span class="nc" id="L229">                ps.executeBatch();</span>
+<span class="nc" id="L230">                conn.commit();</span>
+            }
+
+        }
+<span class="nc" id="L234">        br.close();</span>
+
+        //Execute last Batch
+<span class="nc" id="L237">        ps.executeBatch();</span>
+<span class="nc" id="L238">        conn.commit();</span>
+
+        //Create index
+<span class="nc" id="L241">        System.out.println(&quot;creating indices...&quot;);</span>
+<span class="nc" id="L242">        createTables.executeUpdate(&quot;CREATE INDEX &quot; + tableName + &quot;_seqname_idx on &quot; + tableName + &quot;(&quot; + columnNames.get(0) + &quot;)&quot;);</span>
+<span class="nc" id="L243">        System.out.println(&quot;indices created.&quot;);</span>
+
+<span class="nc" id="L245">        conn.commit();</span>
+<span class="nc" id="L246">        conn.close();</span>
+<span class="nc" id="L247">    }</span>
+
+    public List&lt;String&gt; getChromosomesList(Path dbPath, String tableName) throws IOException {
+
+        try {
+<span class="fc" id="L252">            FileUtils.checkFile(dbPath);</span>
+<span class="fc" id="L253">        } catch (IOException e) {</span>
+<span class="fc" id="L254">            logger.warn(e.getMessage());</span>
+<span class="fc" id="L255">            return Collections.emptyList();</span>
+<span class="fc" id="L256">        }</span>
+
+<span class="fc" id="L258">        List&lt;String&gt; chromosomes = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L260">            Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="fc" id="L261">            Connection conn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + dbPath.toString());</span>
+
+<span class="fc" id="L263">            Statement query = conn.createStatement();</span>
+<span class="fc" id="L264">            ResultSet rs = query.executeQuery(&quot;select distinct(seqname) from &quot; + tableName);</span>
+//            ResultSet rs = query.executeQuery(&quot;select distinct(seqname) from &quot; + tableName + &quot; where seqname like 'chr%'&quot;);
+
+<span class="fc bfc" id="L267" title="All 2 branches covered.">            while (rs.next()) {</span>
+<span class="fc" id="L268">                chromosomes.add(rs.getString(1));</span>
+            }
+<span class="fc" id="L270">            conn.close();</span>
+
+<span class="fc" id="L272">        } catch (ClassNotFoundException | SQLException e) {</span>
+<span class="fc" id="L273">            e.printStackTrace();</span>
+<span class="fc" id="L274">        }</span>
+<span class="fc" id="L275">        return chromosomes;</span>
+    }
+
+    public List&lt;RegulatoryFeature&gt; queryChromosomesRegulatoryDB(Path dbPath, String tableName, String chromosome) {
+
+        try {
+<span class="fc" id="L281">            FileUtils.checkFile(dbPath);</span>
+<span class="fc" id="L282">        } catch (IOException e) {</span>
+<span class="fc" id="L283">            logger.warn(e.getMessage());</span>
+<span class="fc" id="L284">            return Collections.emptyList();</span>
+<span class="fc" id="L285">        }</span>
+
+        Connection conn;
+<span class="fc" id="L288">        List&lt;RegulatoryFeature&gt; regulatoryFeatures = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L290">            Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="fc" id="L291">            conn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + dbPath.toString());</span>
+
+<span class="fc" id="L293">            Statement query = conn.createStatement();</span>
+<span class="fc" id="L294">            ResultSet rs = query.executeQuery(&quot;select * from &quot; + tableName + &quot; where seqname='&quot; + chromosome + &quot;'&quot;);</span>
+//            ResultSet rs = query.executeQuery(&quot;select * from &quot; + tableName + &quot; where seqname='chr&quot; + chromosome + &quot;'&quot;);
+<span class="fc bfc" id="L296" title="All 2 branches covered.">            while (rs.next()) {</span>
+<span class="fc" id="L297">                regulatoryFeatures.add(getDeprecatedRegulatoryFeature(rs, tableName));</span>
+            }
+<span class="fc" id="L299">            conn.close();</span>
+
+<span class="fc" id="L301">        } catch (ClassNotFoundException | SQLException e) {</span>
+<span class="fc" id="L302">            e.printStackTrace();</span>
+<span class="fc" id="L303">        }</span>
+<span class="fc" id="L304">        return regulatoryFeatures;</span>
+    }
+
+    public static List&lt;RegulatoryFeature&gt; queryRegulatoryDB(Path dbPath, String tableName, String chrFile, int start, int end) {
+<span class="nc" id="L308">        Connection conn = null;</span>
+<span class="nc" id="L309">        List&lt;RegulatoryFeature&gt; regulatoryFeatures = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L311">            Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="nc" id="L312">            conn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + dbPath.toString());</span>
+
+<span class="nc" id="L314">            Statement query = conn.createStatement();</span>
+<span class="nc" id="L315">            ResultSet rs = query.executeQuery(&quot;select * from &quot; + tableName + &quot; where start&lt;=&quot; + end + &quot; AND end&gt;=&quot; + start);</span>
+
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            while (rs.next()) {</span>
+<span class="nc" id="L318">                regulatoryFeatures.add(getDeprecatedRegulatoryFeature(rs, tableName));</span>
+            }
+<span class="nc" id="L320">            conn.close();</span>
+
+<span class="nc" id="L322">        } catch (ClassNotFoundException | SQLException e) {</span>
+<span class="nc" id="L323">            e.printStackTrace();</span>
+<span class="nc" id="L324">        }</span>
+<span class="nc" id="L325">        return regulatoryFeatures;</span>
+    }
+
+    private static RegulatoryFeature getDeprecatedRegulatoryFeature(ResultSet rs, String tableName) throws SQLException {
+<span class="fc" id="L329">        RegulatoryFeature regulatoryFeature = null;</span>
+<span class="pc bpc" id="L330" title="20 of 26 branches missed.">        switch (tableName.toLowerCase()) {</span>
+            case REGULATORY_FEATURES:
+<span class="fc" id="L332">                regulatoryFeature = getRegulatoryFeature(rs);</span>
+<span class="fc" id="L333">                break;</span>
+            case MOTIF_FEATURES:
+<span class="fc" id="L335">                regulatoryFeature = getMotifFeature(rs);</span>
+<span class="fc" id="L336">                break;</span>
+            case &quot;annotated_features&quot;:
+<span class="nc" id="L338">                regulatoryFeature = getAnnotatedFeature(rs);</span>
+<span class="nc" id="L339">                break;</span>
+            case &quot;regulatory_features_multicell&quot;:
+<span class="nc" id="L341">                regulatoryFeature = getDeprecatedRegulatoryFeature(rs);</span>
+<span class="nc" id="L342">                break;</span>
+            case DEPRECATED_MOTIF_FEATURES:
+<span class="nc" id="L344">                regulatoryFeature = getDeprecatedMotifFeature(rs);</span>
+<span class="nc" id="L345">                break;</span>
+            case &quot;mirna_uniq&quot;:
+<span class="nc" id="L347">                regulatoryFeature = getMirnaFeature(rs);</span>
+<span class="nc" id="L348">                break;</span>
+            default:
+                break;
+        }
+<span class="fc" id="L352">        return regulatoryFeature;</span>
+    }
+
+    private static RegulatoryFeature getMotifFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="fc" id="L357">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="fc" id="L358">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="fc" id="L360">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="fc" id="L361">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="fc" id="L362">        regulatoryFeature.setFeatureType(rs.getString(3));</span>
+<span class="fc" id="L363">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="fc" id="L364">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="fc" id="L365">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="fc" id="L366">        regulatoryFeature.setStrand(rs.getString(7));</span>
+
+        // Seems weird that the motif_feature_type property is used to fill the Name field. However, this is how the
+        // it was being done from the previous ENSEMBL files
+<span class="fc" id="L370">        regulatoryFeature.setName(groupFields.get(MOTIF_FEATURE_TYPE));</span>
+
+<span class="fc" id="L372">        regulatoryFeature.setMatrix(groupFields.get(BINDING_MATRIX));</span>
+
+<span class="fc" id="L374">        return regulatoryFeature;</span>
+    }
+
+    private static RegulatoryFeature getRegulatoryFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="fc" id="L379">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="fc" id="L380">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="fc" id="L382">        regulatoryFeature.setId(groupFields.get(ID));</span>
+<span class="fc" id="L383">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="fc" id="L384">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="fc" id="L385">        regulatoryFeature.setFeatureType(groupFields.get(FEATURE_TYPE).replace(&quot; &quot;, &quot;_&quot;));</span>
+<span class="fc" id="L386">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="fc" id="L387">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="fc" id="L388">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="fc" id="L389">        regulatoryFeature.setStrand(rs.getString(7));</span>
+
+<span class="fc" id="L391">        return regulatoryFeature;</span>
+    }
+
+    private static RegulatoryFeature getAnnotatedFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="nc" id="L396">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="nc" id="L397">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="nc" id="L399">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="nc" id="L400">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="nc" id="L401">        regulatoryFeature.setFeatureType(rs.getString(3));</span>
+<span class="nc" id="L402">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="nc" id="L403">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="nc" id="L404">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="nc" id="L405">        regulatoryFeature.setStrand(rs.getString(7));</span>
+<span class="nc" id="L406">        regulatoryFeature.setFrame(rs.getString(8));</span>
+
+<span class="nc" id="L408">        regulatoryFeature.setName(groupFields.get(&quot;name&quot;));</span>
+<span class="nc" id="L409">        regulatoryFeature.setAlias(groupFields.get(&quot;alias&quot;));</span>
+<span class="nc" id="L410">        regulatoryFeature.setFeatureClass(groupFields.get(&quot;class&quot;));</span>
+<span class="nc" id="L411">        regulatoryFeature.getCellTypes().add(groupFields.get(&quot;cell_type&quot;));</span>
+
+<span class="nc" id="L413">        return regulatoryFeature;</span>
+    }
+
+    @Deprecated
+    private static RegulatoryFeature getDeprecatedRegulatoryFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="nc" id="L419">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="nc" id="L420">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="nc" id="L422">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="nc" id="L423">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="nc" id="L424">        regulatoryFeature.setFeatureType(rs.getString(3));</span>
+<span class="nc" id="L425">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="nc" id="L426">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="nc" id="L427">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="nc" id="L428">        regulatoryFeature.setStrand(rs.getString(7));</span>
+<span class="nc" id="L429">        regulatoryFeature.setFrame(rs.getString(8));</span>
+<span class="nc" id="L430">        regulatoryFeature.setFrame(rs.getString(9));</span>
+
+<span class="nc" id="L432">        return regulatoryFeature;</span>
+    }
+
+    @Deprecated
+    private static RegulatoryFeature getDeprecatedMotifFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="nc" id="L438">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="nc" id="L439">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="nc" id="L441">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="nc" id="L442">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="nc" id="L443">        regulatoryFeature.setFeatureType(rs.getString(3) + &quot;_motif&quot;);</span>
+<span class="nc" id="L444">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="nc" id="L445">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="nc" id="L446">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="nc" id="L447">        regulatoryFeature.setStrand(rs.getString(7));</span>
+<span class="nc" id="L448">        regulatoryFeature.setFrame(rs.getString(8));</span>
+
+<span class="nc" id="L450">        String[] split = groupFields.get(&quot;name&quot;).split(&quot;:&quot;);</span>
+<span class="nc" id="L451">        regulatoryFeature.setName(split[0]);</span>
+<span class="nc" id="L452">        regulatoryFeature.setMatrix(split[1]);</span>
+
+<span class="nc" id="L454">        return regulatoryFeature;</span>
+    }
+
+    private static RegulatoryFeature getMirnaFeature(ResultSet rs) throws SQLException {
+        //   GFF     https://genome.ucsc.edu/FAQ/FAQformat.html#format3
+<span class="nc" id="L459">        RegulatoryFeature regulatoryFeature = new RegulatoryFeature();</span>
+<span class="nc" id="L460">        Map&lt;String, String&gt; groupFields = getGroupFields(rs.getString(9));</span>
+
+<span class="nc" id="L462">        regulatoryFeature.setChromosome(rs.getString(1));</span>
+<span class="nc" id="L463">        regulatoryFeature.setSource(rs.getString(2));</span>
+<span class="nc" id="L464">        regulatoryFeature.setFeatureType(rs.getString(3));</span>
+<span class="nc" id="L465">        regulatoryFeature.setStart(rs.getInt(4));</span>
+<span class="nc" id="L466">        regulatoryFeature.setEnd(rs.getInt(5));</span>
+<span class="nc" id="L467">        regulatoryFeature.setScore(rs.getString(6));</span>
+<span class="nc" id="L468">        regulatoryFeature.setStrand(rs.getString(7));</span>
+<span class="nc" id="L469">        regulatoryFeature.setFrame(rs.getString(8));</span>
+
+<span class="nc" id="L471">        regulatoryFeature.setFeatureClass(&quot;microRNA&quot;);</span>
+<span class="nc" id="L472">        regulatoryFeature.setName(groupFields.get(&quot;name&quot;));</span>
+
+<span class="nc" id="L474">        return regulatoryFeature;</span>
+    }
+
+    private static Map&lt;String, String&gt; getGroupFields(String group) {
+        //process group column
+<span class="fc" id="L479">        Map&lt;String, String&gt; groupFields = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L480">        String[] attributeFields = group.split(&quot;;&quot;);</span>
+        String[] attributeKeyValue;
+<span class="fc bfc" id="L482" title="All 2 branches covered.">        for (String attributeField : attributeFields) {</span>
+<span class="fc" id="L483">            attributeKeyValue = attributeField.trim().split(&quot;=&quot;);</span>
+<span class="fc" id="L484">            groupFields.put(attributeKeyValue[0].toLowerCase(), attributeKeyValue[1]);</span>
+        }
+<span class="fc" id="L486">        return groupFields;</span>
+    }
+
+
+    public static List&lt;String&gt; getFields(String line, String tableName) {
+<span class="nc" id="L491">        List&lt;String&gt; fields = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L492" title="All 26 branches missed.">        switch (tableName.toLowerCase()) {</span>
+            case REGULATORY_FEATURES:
+<span class="nc" id="L494">                fields = getRegulatoryFeaturesFields(line);</span>
+<span class="nc" id="L495">                break;</span>
+            case MOTIF_FEATURES:
+<span class="nc" id="L497">                fields = getMotifFeaturesFields(line);</span>
+<span class="nc" id="L498">                break;</span>
+            case &quot;annotated_features&quot;:
+<span class="nc" id="L500">                fields = getAnnotatedFeaturesFields(line);</span>
+<span class="nc" id="L501">                break;</span>
+            case &quot;regulatory_features_multicell&quot;:
+<span class="nc" id="L503">                fields = getRegulatoryFeaturesFields(line);</span>
+<span class="nc" id="L504">                break;</span>
+            case DEPRECATED_MOTIF_FEATURES:
+<span class="nc" id="L506">                fields = getMotifFeaturesFields(line);</span>
+<span class="nc" id="L507">                break;</span>
+            case &quot;mirna_uniq&quot;:
+<span class="nc" id="L509">                fields = getMirnaFeaturesFields(line);</span>
+<span class="nc" id="L510">                break;</span>
+            default:
+                break;
+        }
+<span class="nc" id="L514">        return fields;</span>
+    }
+
+    @Deprecated
+    public static List&lt;String&gt; getAnnotatedFeaturesFields(String line) {
+<span class="nc" id="L519">        String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L520">        fields[0] = fields[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L521">        return Arrays.asList(fields);</span>
+    }
+
+    public static List&lt;String&gt; getRegulatoryFeaturesFields(String line) {
+<span class="nc" id="L525">        String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L526">        fields[0] = fields[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L527">        return Arrays.asList(fields);</span>
+    }
+
+    public static List&lt;String&gt; getMotifFeaturesFields(String line) {
+<span class="nc" id="L531">        String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L532">        fields[0] = fields[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L533">        return Arrays.asList(fields);</span>
+    }
+
+    public static List&lt;String&gt; getMirnaFeaturesFields(String line) {
+<span class="nc" id="L537">        String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L538">        fields[0] = fields[0].replace(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="nc" id="L539">        return Arrays.asList(fields);</span>
+    }
+
+    public static void insertByType(PreparedStatement ps, List&lt;String&gt; fields, List&lt;String&gt; types) throws SQLException {
+        //Datatypes In SQLite Version 3 -&gt; http://www.sqlite.org/datatype3.html
+        String raw;
+        String type;
+<span class="nc bnc" id="L546" title="All 2 branches missed.">        if (types.size() == fields.size()) {</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">            for (int i = 0; i &lt; fields.size(); i++) { //columnNames and columnTypes must have same size</span>
+<span class="nc" id="L548">                int sqliteIndex = i + 1;</span>
+<span class="nc" id="L549">                raw = fields.get(i);</span>
+<span class="nc" id="L550">                type = types.get(i);</span>
+
+<span class="nc bnc" id="L552" title="All 17 branches missed.">                switch (type) {</span>
+                    case &quot;INTEGER&quot;:
+                    case &quot;INT&quot;:
+<span class="nc" id="L555">                        ps.setInt(sqliteIndex, Integer.parseInt(raw));</span>
+<span class="nc" id="L556">                        break;</span>
+                    case &quot;REAL&quot;:
+<span class="nc" id="L558">                        ps.setFloat(sqliteIndex, Float.parseFloat(raw));</span>
+<span class="nc" id="L559">                        break;</span>
+                    case &quot;TEXT&quot;:
+<span class="nc" id="L561">                        ps.setString(sqliteIndex, raw);</span>
+<span class="nc" id="L562">                        break;</span>
+                    default:
+<span class="nc" id="L564">                        ps.setString(sqliteIndex, raw);</span>
+                        break;
+                }
+            }
+        }
+
+<span class="nc" id="L570">    }</span>
+
+    public String repeat(String s, int n) {
+<span class="nc bnc" id="L573" title="All 2 branches missed.">        if (s == null) {</span>
+<span class="nc" id="L574">            return null;</span>
+        }
+<span class="nc" id="L576">        final StringBuilder sb = new StringBuilder();</span>
+<span class="nc bnc" id="L577" title="All 2 branches missed.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="nc" id="L578">            sb.append(s);</span>
+        }
+<span class="nc" id="L580">        return sb.toString();</span>
+    }
+
+    private int getChunkId(int position, int chunksize) {
+<span class="pc bpc" id="L584" title="1 of 2 branches missed.">        if (chunksize &lt;= 0) {</span>
+<span class="nc" id="L585">            return position / CHUNK_SIZE;</span>
+        } else {
+<span class="fc" id="L587">            return position / chunksize;</span>
+        }
+    }
+
+    private int getChunkStart(int id, int chunksize) {
+<span class="nc bnc" id="L592" title="All 2 branches missed.">        if (chunksize &lt;= 0) {</span>
+<span class="nc bnc" id="L593" title="All 2 branches missed.">            return (id == 0) ? 1 : id * CHUNK_SIZE;</span>
+        } else {
+<span class="nc bnc" id="L595" title="All 2 branches missed.">            return (id == 0) ? 1 : id * chunksize;</span>
+        }
+    }
+
+    private int getChunkEnd(int id, int chunksize) {
+<span class="nc bnc" id="L600" title="All 2 branches missed.">        if (chunksize &lt;= 0) {</span>
+<span class="nc" id="L601">            return (id * CHUNK_SIZE) + CHUNK_SIZE - 1;</span>
+        } else {
+<span class="nc" id="L603">            return (id * chunksize) + chunksize - 1;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

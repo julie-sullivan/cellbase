@@ -1,0 +1,794 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">MongoDBAdaptor.java</span></div><h1>MongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.QueryBuilder;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.*;
+import org.bson.*;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.cellbase.core.common.IntervalFeatureFrequency;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.math.BigInteger;
+import java.util.*;
+
+public class MongoDBAdaptor {
+
+<span class="pc" id="L40">    enum QueryValueType {INTEGER, STRING}</span>
+
+    protected String species;
+    protected String assembly;
+
+    protected MongoDataStore mongoDataStore;
+    protected MongoDBCollection mongoDBCollection;
+
+<span class="fc" id="L48">    protected Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+
+    protected ObjectMapper objectMapper;
+
+    public MongoDBAdaptor(MongoDataStore mongoDataStore) {
+<span class="nc" id="L53">        this(&quot;&quot;, &quot;&quot;, mongoDataStore);</span>
+<span class="nc" id="L54">    }</span>
+
+<span class="fc" id="L56">    public MongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {</span>
+<span class="fc" id="L57">        this.species = species;</span>
+<span class="fc" id="L58">        this.assembly = assembly;</span>
+<span class="fc" id="L59">        this.mongoDataStore = mongoDataStore;</span>
+
+<span class="fc" id="L61">        logger = LoggerFactory.getLogger(this.getClass().toString());</span>
+<span class="fc" id="L62">        objectMapper = new ObjectMapper();</span>
+
+<span class="fc" id="L64">        initSpeciesAssembly(species, assembly);</span>
+//        jsonObjectMapper = new ObjectMapper();
+<span class="fc" id="L66">    }</span>
+
+    private void initSpeciesAssembly(String species, String assembly) {
+<span class="pc bpc" id="L69" title="2 of 4 branches missed.">        if (species != null &amp;&amp; !species.equals(&quot;&quot;)) {</span>
+            // if 'version' parameter has not been provided the default version is selected
+<span class="pc bpc" id="L71" title="2 of 4 branches missed.">            if (this.assembly == null || this.assembly.trim().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L72">                this.assembly = &quot;default&quot;;</span>
+            }
+        }
+<span class="fc" id="L75">    }</span>
+
+    protected QueryOptions addPrivateExcludeOptions(QueryOptions options) {
+<span class="fc" id="L78">        return addPrivateExcludeOptions(options, &quot;_id,_chunkIds&quot;);</span>
+    }
+
+    protected QueryOptions addPrivateExcludeOptions(QueryOptions options, String csvFields) {
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if (options != null) {</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">            if (options.get(&quot;exclude&quot;) == null) {</span>
+<span class="fc" id="L84">                options.put(&quot;exclude&quot;, csvFields);</span>
+            } else {
+<span class="fc" id="L86">                String exclude = options.getString(&quot;exclude&quot;);</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                if (exclude.contains(csvFields)) {</span>
+<span class="nc" id="L88">                    return options;</span>
+                } else {
+<span class="fc" id="L90">                    options.put(&quot;exclude&quot;, exclude + &quot;,&quot; + csvFields);</span>
+                }
+<span class="fc" id="L92">            }</span>
+        } else {
+<span class="nc" id="L94">            options = new QueryOptions(&quot;exclude&quot;, csvFields);</span>
+        }
+<span class="fc" id="L96">        return options;</span>
+    }
+
+    protected void createRegionQuery(Query query, String queryParam, List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L100" title="2 of 6 branches missed.">        if (query != null &amp;&amp; query.getString(queryParam) != null &amp;&amp; !query.getString(queryParam).isEmpty()) {</span>
+<span class="fc" id="L101">            List&lt;Region&gt; regions = Region.parseRegions(query.getString(queryParam));</span>
+<span class="pc bpc" id="L102" title="2 of 4 branches missed.">            if (regions != null &amp;&amp; regions.size() &gt; 0) {</span>
+                // if there is only one region we add the AND filter directly to the andBsonList passed
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">                if (regions.size() == 1) {</span>
+<span class="fc" id="L105">                    Bson chromosome = Filters.eq(&quot;chromosome&quot;, regions.get(0).getChromosome());</span>
+<span class="fc" id="L106">                    Bson start = Filters.lte(&quot;start&quot;, regions.get(0).getEnd());</span>
+<span class="fc" id="L107">                    Bson end = Filters.gte(&quot;end&quot;, regions.get(0).getStart());</span>
+<span class="fc" id="L108">                    andBsonList.add(Filters.and(chromosome, start, end));</span>
+<span class="fc" id="L109">                } else {</span>
+                    // when multiple regions then we create and OR list before add it to andBsonList
+<span class="nc" id="L111">                    List&lt;Bson&gt; orRegionBsonList = new ArrayList&lt;&gt;(regions.size());</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                    for (Region region : regions) {</span>
+<span class="nc" id="L113">                        Bson chromosome = Filters.eq(&quot;chromosome&quot;, region.getChromosome());</span>
+<span class="nc" id="L114">                        Bson start = Filters.lte(&quot;start&quot;, region.getEnd());</span>
+<span class="nc" id="L115">                        Bson end = Filters.gte(&quot;end&quot;, region.getStart());</span>
+<span class="nc" id="L116">                        orRegionBsonList.add(Filters.and(chromosome, start, end));</span>
+<span class="nc" id="L117">                    }</span>
+<span class="nc" id="L118">                    andBsonList.add(Filters.or(orRegionBsonList));</span>
+<span class="nc" id="L119">                }</span>
+            } else {
+<span class="nc" id="L121">                logger.warn(&quot;Region query no created, region object is null or empty.&quot;);</span>
+            }
+        }
+<span class="fc" id="L124">    }</span>
+
+    protected void createRegionQuery(Query query, String queryParam, int chunkSize, List&lt;Bson&gt; andBsonList) {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (chunkSize &lt;= 0) {</span>
+            // if chunkSize is not valid we call to the default method
+<span class="nc" id="L129">            createRegionQuery(query, queryParam, andBsonList);</span>
+        } else {
+<span class="pc bpc" id="L131" title="2 of 6 branches missed.">            if (query != null &amp;&amp; query.getString(queryParam) != null &amp;&amp; !query.getString(queryParam).isEmpty()) {</span>
+<span class="fc" id="L132">                List&lt;Region&gt; regions = Region.parseRegions(query.getString(queryParam));</span>
+<span class="pc bpc" id="L133" title="2 of 4 branches missed.">                if (regions != null &amp;&amp; regions.size() &gt; 0) {</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                    if (regions.size() == 1) {</span>
+<span class="fc" id="L135">                        Bson chunkQuery = createChunkQuery(regions.get(0), chunkSize);</span>
+<span class="fc" id="L136">                        andBsonList.add(chunkQuery);</span>
+<span class="fc" id="L137">                    } else {</span>
+                        // if multiple regions we add them first to a OR list
+<span class="fc" id="L139">                        List&lt;Bson&gt; orRegionBsonList = new ArrayList&lt;&gt;(regions.size());</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">                        for (Region region : regions) {</span>
+<span class="fc" id="L141">                            Bson chunkQuery = createChunkQuery(region, chunkSize);</span>
+<span class="fc" id="L142">                            orRegionBsonList.add(chunkQuery);</span>
+<span class="fc" id="L143">                        }</span>
+<span class="fc" id="L144">                        andBsonList.add(Filters.or(orRegionBsonList));</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L149">    }</span>
+
+    private Bson createChunkQuery(Region region, int chunkSize) {
+<span class="fc" id="L152">        int startChunkId = getChunkId(region.getStart(), chunkSize);</span>
+<span class="fc" id="L153">        int endChunkId = getChunkId(region.getEnd(), chunkSize);</span>
+
+<span class="fc" id="L155">        List&lt;String&gt; chunkIds = new ArrayList&lt;&gt;(endChunkId - startChunkId + 1);</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        for (int chunkId = startChunkId; chunkId &lt;= endChunkId; chunkId++) {</span>
+<span class="fc" id="L157">            chunkIds.add(region.getChromosome() + &quot;_&quot; + chunkId + &quot;_&quot; + chunkSize / 1000 + &quot;k&quot;);</span>
+<span class="fc" id="L158">            logger.debug(region.getChromosome() + &quot;_&quot; + chunkId + &quot;_&quot; + chunkSize / 1000 + &quot;k&quot;);</span>
+        }
+
+<span class="fc" id="L161">        Bson chunk = Filters.in(&quot;_chunkIds&quot;, chunkIds);</span>
+<span class="fc" id="L162">        Bson start = Filters.lte(&quot;start&quot;, region.getEnd());</span>
+<span class="fc" id="L163">        Bson end = Filters.gte(&quot;end&quot;, region.getStart());</span>
+<span class="fc" id="L164">        return Filters.and(chunk, start, end);</span>
+
+//        // We only use chunks if region queried belongs to a single chunk
+//        if (startChunkId == endChunkId) {
+//            logger.info(&quot;Querying by chunkId, {}, {}&quot;, startChunkId, endChunkId);
+//            Bson chunk = Filters.eq(&quot;_chunkIds&quot;, getChunkIdPrefix(region.getChromosomeInfo(), region.getStart(), chunkSize));
+//            Bson start = Filters.lte(&quot;start&quot;, region.getEnd());
+//            Bson end = Filters.gte(&quot;end&quot;, region.getStart());
+//            return Filters.and(chunk, start, end);
+//        } else {
+//            Bson chromosome = Filters.eq(&quot;chromosome&quot;, region.getChromosomeInfo());
+//            Bson start = Filters.lte(&quot;start&quot;, region.getEnd());
+//            Bson end = Filters.gte(&quot;end&quot;, region.getStart());
+//            return Filters.and(chromosome, start, end);
+//        }
+    }
+
+    protected void createOrQuery(Query query, String queryParam, String mongoDbField, List&lt;Bson&gt; andBsonList) {
+<span class="fc" id="L182">        createOrQuery(query, queryParam, mongoDbField, andBsonList, QueryValueType.STRING);</span>
+<span class="fc" id="L183">    }</span>
+
+    protected void createOrQuery(Query query, String queryParam, String mongoDbField, List&lt;Bson&gt; andBsonList,
+                                 QueryValueType queryValueType) {
+<span class="pc bpc" id="L187" title="2 of 6 branches missed.">        if (query != null &amp;&amp; query.getString(queryParam) != null &amp;&amp; !query.getString(queryParam).isEmpty()) {</span>
+<span class="pc bfc" id="L188" title="All 2 branches covered.">            switch (queryValueType) {</span>
+                case INTEGER:
+<span class="fc" id="L190">                    createOrQuery(query.getAsIntegerList(queryParam), mongoDbField, andBsonList);</span>
+<span class="fc" id="L191">                    break;</span>
+                default:
+<span class="fc" id="L193">                    createOrQuery(query.getAsStringList(queryParam), mongoDbField, andBsonList);</span>
+            }
+        }
+<span class="fc" id="L196">    }</span>
+
+    protected &lt;T&gt; void createOrQuery(List&lt;T&gt; queryValues, String mongoDbField, List&lt;Bson&gt; andBsonList) {
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (queryValues.size() == 1) {</span>
+<span class="fc" id="L200">            andBsonList.add(Filters.eq(mongoDbField, queryValues.get(0)));</span>
+        } else {
+<span class="fc" id="L202">            List&lt;Bson&gt; orBsonList = new ArrayList&lt;&gt;(queryValues.size());</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            for (T queryItem : queryValues) {</span>
+<span class="fc" id="L204">                orBsonList.add(Filters.eq(mongoDbField, queryItem));</span>
+<span class="fc" id="L205">            }</span>
+<span class="fc" id="L206">            andBsonList.add(Filters.or(orBsonList));</span>
+        }
+<span class="fc" id="L208">    }</span>
+
+    protected QueryResult groupBy(Bson query, String groupByField, String featureIdField, QueryOptions options) {
+<span class="nc bnc" id="L211" title="All 4 branches missed.">        if (groupByField == null || groupByField.isEmpty()) {</span>
+<span class="nc" id="L212">            return new QueryResult();</span>
+        }
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if (groupByField.contains(&quot;,&quot;)) {</span>
+            // call to multiple groupBy if commas are present
+<span class="nc" id="L217">            return groupBy(query, Arrays.asList(groupByField.split(&quot;,&quot;)), featureIdField, options);</span>
+        } else {
+<span class="nc" id="L219">            Bson match = Aggregates.match(query);</span>
+<span class="nc" id="L220">            Bson project = Aggregates.project(Projections.include(groupByField, featureIdField));</span>
+            Bson group;
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if (options.getBoolean(&quot;count&quot;, false)) {</span>
+<span class="nc" id="L223">                group = Aggregates.group(&quot;$&quot; + groupByField, Accumulators.sum(&quot;count&quot;, 1));</span>
+<span class="nc" id="L224">                return mongoDBCollection.aggregate(Arrays.asList(match, project, group), options);</span>
+            } else {
+                // Limit the documents passed if count is false
+<span class="nc" id="L227">                Bson limit = Aggregates.limit(options.getInt(&quot;limit&quot;, 10));</span>
+<span class="nc" id="L228">                group = Aggregates.group(&quot;$&quot; + groupByField, Accumulators.addToSet(&quot;features&quot;, &quot;$&quot; + featureIdField));</span>
+                // TODO change the default &quot;_id&quot; returned by mongodb to id
+<span class="nc" id="L230">                return mongoDBCollection.aggregate(Arrays.asList(match, limit, project, group), options);</span>
+            }
+        }
+    }
+
+    protected QueryResult groupBy(Bson query, List&lt;String&gt; groupByField, String featureIdField, QueryOptions options) {
+<span class="nc bnc" id="L236" title="All 4 branches missed.">        if (groupByField == null || groupByField.isEmpty()) {</span>
+<span class="nc" id="L237">            return new QueryResult();</span>
+        }
+
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (groupByField.size() == 1) {</span>
+            // if only one field then we call to simple groupBy
+<span class="nc" id="L242">            return groupBy(query, groupByField.get(0), featureIdField, options);</span>
+        } else {
+<span class="nc" id="L244">            Bson match = Aggregates.match(query);</span>
+            // add all group-by fields to the projection together with the aggregation field name
+<span class="nc" id="L246">            List&lt;String&gt; groupByFields = new ArrayList&lt;&gt;(groupByField);</span>
+<span class="nc" id="L247">            groupByFields.add(featureIdField);</span>
+<span class="nc" id="L248">            Bson project = Aggregates.project(Projections.include(groupByFields));</span>
+            // _id document creation to have the multiple id
+<span class="nc" id="L250">            Document id = new Document();</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">            for (String s : groupByField) {</span>
+<span class="nc" id="L252">                id.append(s, &quot;$&quot; + s);</span>
+<span class="nc" id="L253">            }</span>
+            Bson group;
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            if (options.getBoolean(&quot;count&quot;, false)) {</span>
+<span class="nc" id="L256">                group = Aggregates.group(id, Accumulators.sum(&quot;count&quot;, 1));</span>
+<span class="nc" id="L257">                return mongoDBCollection.aggregate(Arrays.asList(match, project, group), options);</span>
+            } else {
+                // Limit the documents passed if count is false
+<span class="nc" id="L260">                Bson limit = Aggregates.limit(options.getInt(&quot;limit&quot;, 10));</span>
+<span class="nc" id="L261">                group = Aggregates.group(id, Accumulators.addToSet(&quot;features&quot;, &quot;$&quot; + featureIdField));</span>
+                // TODO change the default &quot;_id&quot; returned by mongodb to id
+<span class="nc" id="L263">                return mongoDBCollection.aggregate(Arrays.asList(match, limit, project, group), options);</span>
+            }
+        }
+    }
+
+
+
+    public QueryResult getIntervalFrequencies(Bson query, Region region, int intervalSize, QueryOptions options) {
+        //  MONGO QUERY TO IMPLEMENT
+        //    db.variation.aggregate({$match: {$and: [{chromosome: &quot;1&quot;}, {start: {$gt: 251391, $lt: 2701391}}]}}, {$group:
+        // {_id: {$subtract: [{$divide: [&quot;$start&quot;, 40000]}, {$divide: [{$mod: [&quot;$start&quot;, 40000]}, 40000]}]}, totalCount: {$sum: 1}}})
+        //        {
+        //            $match: {
+        //                $and: [{
+        //                    chromosome: &quot;1&quot;
+        //                }, {
+        //                    start: {
+        //                        $gt: 251391,
+        //                                $lt: 2701391
+        //                    }
+        //                }
+        //                ]
+        //            }
+        //        }, {
+        //            $group: {
+        //                _id: {
+        //                    $subtract: [{
+        //                        $divide: [&quot;$start&quot;, 40000]
+        //                    }, {
+        //                        $divide: [{
+        //                            $mod: [&quot;$start&quot;, 40000]
+        //                        },
+        //                        40000
+        //                        ]
+        //                    }
+        //                    ]
+        //                },
+        //                totalCount: {
+        //                    $sum: 1
+        //                }
+        //            }
+        //        }
+
+<span class="nc" id="L306">        int interval = 50000;</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">        if (intervalSize &gt; 0) {</span>
+<span class="nc" id="L308">            interval = intervalSize;</span>
+        }
+
+<span class="nc" id="L311">        Bson match = Aggregates.match(query);</span>
+
+        // group
+//        Document divide1 = new Document();
+//        divide1.append(&quot;$start&quot;, interval);
+//        divide1.add(&quot;$start&quot;);
+//        divide1.add(interval);
+<span class="nc" id="L318">        BsonArray divide1 = new BsonArray();</span>
+<span class="nc" id="L319">        divide1.add(new BsonString(&quot;$start&quot;));</span>
+<span class="nc" id="L320">        divide1.add(new BsonInt32(interval));</span>
+
+//        Document divide2 = new Document();
+//        divide2.add(new Document(&quot;$mod&quot;, divide1));
+//        divide2.add(interval);
+<span class="nc" id="L325">        BsonArray divide2 = new BsonArray();</span>
+<span class="nc" id="L326">        divide2.add(new BsonDocument(&quot;$mod&quot;, divide1));</span>
+<span class="nc" id="L327">        divide2.add(new BsonInt32(interval));</span>
+
+//        Document subtractList = new Document();
+//        subtractList.append(&quot;$divide&quot;, divide1);
+//        subtractList.append(&quot;$divide&quot;, divide2);
+<span class="nc" id="L332">        BsonArray subtractList = new BsonArray();</span>
+<span class="nc" id="L333">        subtractList.add(new BsonDocument(&quot;$divide&quot;, divide1));</span>
+<span class="nc" id="L334">        subtractList.add(new BsonDocument(&quot;$divide&quot;, divide2));</span>
+//        subtractList.add(new Document(&quot;$divide&quot;, divide1));
+//        subtractList.add(new Document(&quot;$divide&quot;, divide2));
+
+<span class="nc" id="L338">        Document substract = new Document(&quot;$subtract&quot;, subtractList);</span>
+<span class="nc" id="L339">        Document totalCount = new Document(&quot;$sum&quot;, 1);</span>
+
+<span class="nc" id="L341">        Document g = new Document(&quot;_id&quot;, substract);</span>
+<span class="nc" id="L342">        g.append(&quot;features_count&quot;, totalCount);</span>
+<span class="nc" id="L343">        Document group = new Document(&quot;$group&quot;, g);</span>
+
+//        Bson sort = Sorts.ascending(&quot;$_id&quot;);
+<span class="nc" id="L346">        Document sort = new Document(&quot;$sort&quot;, new Document(&quot;_id&quot;, 1));</span>
+
+<span class="nc" id="L348">        QueryResult&lt;Document&gt; aggregationOutput = mongoDBCollection.aggregate(Arrays.asList(match, group, sort), options);</span>
+
+<span class="nc" id="L350">        Map&lt;Long, Document&gt; ids = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        for (Document intervalObj : aggregationOutput.getResult()) {</span>
+<span class="nc" id="L352">            Long id = Math.round((Double) intervalObj.get(&quot;_id&quot;)); //is double</span>
+
+<span class="nc" id="L354">            Document intervalVisited = ids.get(id);</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">            if (intervalVisited == null) {</span>
+<span class="nc" id="L356">                intervalObj.put(&quot;_id&quot;, id);</span>
+<span class="nc" id="L357">                intervalObj.put(&quot;chromosome&quot;, region.getChromosome());</span>
+<span class="nc" id="L358">                intervalObj.put(&quot;start&quot;, getChunkStart(id.intValue(), interval));</span>
+<span class="nc" id="L359">                intervalObj.put(&quot;end&quot;, getChunkEnd(id.intValue(), interval));</span>
+//                intervalObj.put(&quot;features_count&quot;, Math.log((int) intervalObj.get(&quot;features_count&quot;)));
+<span class="nc" id="L361">                intervalObj.put(&quot;features_count&quot;, intervalObj.getInteger(&quot;features_count&quot;));</span>
+<span class="nc" id="L362">                ids.put(id, intervalObj);</span>
+            } else {
+//                Double sum = (Double) intervalVisited.get(&quot;features_count&quot;) + Math.log((int) intervalObj.get(&quot;features_count&quot;));
+<span class="nc" id="L365">                int sum = intervalVisited.getInteger(&quot;features_count&quot;) + intervalObj.getInteger(&quot;features_count&quot;);</span>
+<span class="nc" id="L366">                intervalVisited.put(&quot;features_count&quot;, sum);</span>
+            }
+<span class="nc" id="L368">        }</span>
+
+<span class="nc" id="L370">        List&lt;Document&gt; resultList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L371">        int firstChunkId = getChunkId(region.getStart(), interval);</span>
+<span class="nc" id="L372">        int lastChunkId = getChunkId(region.getEnd(), interval);</span>
+        Document intervalObj;
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        for (int chunkId = firstChunkId; chunkId &lt;= lastChunkId; chunkId++) {</span>
+<span class="nc" id="L375">            intervalObj = ids.get((long) chunkId);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">            if (intervalObj == null) {</span>
+<span class="nc" id="L377">                intervalObj = new Document();</span>
+<span class="nc" id="L378">                intervalObj.put(&quot;_id&quot;, chunkId);</span>
+<span class="nc" id="L379">                intervalObj.put(&quot;chromosome&quot;, region.getChromosome());</span>
+<span class="nc" id="L380">                intervalObj.put(&quot;start&quot;, getChunkStart(chunkId, interval));</span>
+<span class="nc" id="L381">                intervalObj.put(&quot;end&quot;, getChunkEnd(chunkId, interval));</span>
+<span class="nc" id="L382">                intervalObj.put(&quot;features_count&quot;, 0);</span>
+            } else {
+<span class="nc" id="L384">                intervalObj.put(&quot;features_count&quot;, Math.log(intervalObj.getInteger(&quot;features_count&quot;)));</span>
+            }
+<span class="nc" id="L386">            resultList.add(intervalObj);</span>
+        }
+
+<span class="nc" id="L389">        QueryResult queryResult = new QueryResult();</span>
+<span class="nc" id="L390">        queryResult.setResult(resultList);</span>
+<span class="nc" id="L391">        queryResult.setId(region.toString());</span>
+<span class="nc" id="L392">        queryResult.setResultType(&quot;frequencies&quot;);</span>
+
+<span class="nc" id="L394">        return queryResult;</span>
+    }
+
+
+
+
+
+
+    protected QueryResult executeDistinct(Object id, String fields, Document query) {
+//        long dbTimeStart, dbTimeEnd;
+//        dbTimeStart = System.currentTimeMillis();
+<span class="nc" id="L405">        QueryResult queryResult = mongoDBCollection.distinct(fields, query);</span>
+//        List&lt;Document&gt; dbObjectList = new LinkedList&lt;&gt;();
+//        while (cursor.hasNext()) {
+//            dbObjectList.add(cursor.next());
+//        }
+//        dbTimeEnd = System.currentTimeMillis();
+        // setting queryResult fields
+<span class="nc" id="L412">        queryResult.setId(id.toString());</span>
+//        queryResult.setDbTime(Long.valueOf(dbTimeEnd - dbTimeStart).intValue());
+//        queryResult.setNumResults(dbObjectList.size());
+<span class="nc" id="L415">        return queryResult;</span>
+    }
+
+    protected QueryResult executeQuery(Object id, Document query, QueryOptions options) {
+<span class="nc" id="L419">        return executeQueryList2(Arrays.asList(id), Arrays.asList(query), options, mongoDBCollection).get(0);</span>
+    }
+
+    protected QueryResult executeQuery(Object id, Document query, QueryOptions options, MongoDBCollection mongoDBCollection2) {
+<span class="fc" id="L423">        return executeQueryList2(Arrays.asList(id), Arrays.asList(query), options, mongoDBCollection2).get(0);</span>
+    }
+
+    protected List&lt;QueryResult&gt; executeQueryList2(List&lt;? extends Object&gt; ids, List&lt;Document&gt; queries, QueryOptions options) {
+<span class="fc" id="L427">        return executeQueryList2(ids, queries, options, mongoDBCollection);</span>
+    }
+
+    protected List&lt;QueryResult&gt; executeQueryList2(List&lt;? extends Object&gt; ids, List&lt;Document&gt; queries, QueryOptions options,
+                                                  MongoDBCollection mongoDBCollection2) {
+<span class="fc" id="L432">        List&lt;QueryResult&gt; queryResults = new ArrayList&lt;&gt;(ids.size());</span>
+        long dbTimeStart, dbTimeEnd;
+
+<span class="fc bfc" id="L435" title="All 2 branches covered.">        for (int i = 0; i &lt; queries.size(); i++) {</span>
+<span class="fc" id="L436">            Document query = queries.get(i);</span>
+<span class="fc" id="L437">            QueryResult queryResult = new QueryResult();</span>
+<span class="fc" id="L438">            queryResult.setId(ids.get(i).toString());</span>
+<span class="fc" id="L439">            logger.debug(&quot;query: {}&quot;, query.toJson());</span>
+<span class="fc" id="L440">            logger.debug(&quot;QueryOptions: {}&quot;, options.toJson());</span>
+            // Execute query and calculate time
+<span class="fc" id="L442">            dbTimeStart = System.currentTimeMillis();</span>
+<span class="pc bpc" id="L443" title="3 of 4 branches missed.">            if (options.containsKey(&quot;count&quot;) &amp;&amp; options.getBoolean(&quot;count&quot;)) {</span>
+<span class="nc" id="L444">                queryResult = mongoDBCollection2.count(query);</span>
+            } else {
+<span class="fc" id="L446">                MongoCursor&lt;Document&gt; cursor = mongoDBCollection2.nativeQuery().find(query, options).iterator();</span>
+<span class="fc" id="L447">                List&lt;Document&gt; dbObjectList = new LinkedList&lt;&gt;();</span>
+<span class="fc bfc" id="L448" title="All 2 branches covered.">                while (cursor.hasNext()) {</span>
+<span class="fc" id="L449">                    dbObjectList.add(cursor.next());</span>
+                }
+<span class="fc" id="L451">                queryResult.setNumResults(dbObjectList.size());</span>
+<span class="fc" id="L452">                queryResult.setResult(dbObjectList);</span>
+
+                // Limit is set in queryOptions, count number of total results
+<span class="pc bpc" id="L455" title="2 of 4 branches missed.">                if (options != null &amp;&amp; options.getInt(&quot;limit&quot;, 0) &gt; 0) {</span>
+<span class="nc" id="L456">                    queryResult.setNumTotalResults(mongoDBCollection2.count(query).first());</span>
+                } else {
+<span class="fc" id="L458">                    queryResult.setNumTotalResults(dbObjectList.size());</span>
+                }
+            }
+<span class="fc" id="L461">            dbTimeEnd = System.currentTimeMillis();</span>
+<span class="fc" id="L462">            queryResult.setDbTime(Long.valueOf(dbTimeEnd - dbTimeStart).intValue());</span>
+
+<span class="fc" id="L464">            queryResults.add(queryResult);</span>
+        }
+
+<span class="fc" id="L467">        return queryResults;</span>
+    }
+
+    protected QueryResult executeAggregation2(Object id, List&lt;Bson&gt; pipeline, QueryOptions options) {
+<span class="fc" id="L471">        return executeAggregationist2(Arrays.asList(id), Arrays.asList(pipeline), options, mongoDBCollection).get(0);</span>
+    }
+
+    protected List&lt;QueryResult&gt; executeAggregationList2(List&lt;? extends Object&gt; ids, List&lt;List&lt;Bson&gt;&gt; queries,
+                                                        QueryOptions options) {
+<span class="nc" id="L476">        return executeAggregationist2(ids, queries, options, mongoDBCollection);</span>
+    }
+
+    protected List&lt;QueryResult&gt; executeAggregationist2(List&lt;? extends Object&gt; ids, List&lt;List&lt;Bson&gt;&gt; pipelines,
+                                                       QueryOptions options, MongoDBCollection mongoDBCollection2) {
+<span class="fc" id="L481">        List&lt;QueryResult&gt; queryResults = new ArrayList&lt;&gt;(ids.size());</span>
+//        logger.info(&quot;executeQueryList2&quot;);
+        long dbTimeStart, dbTimeEnd;
+
+<span class="fc bfc" id="L485" title="All 2 branches covered.">        for (int i = 0; i &lt; pipelines.size(); i++) {</span>
+<span class="fc" id="L486">            List&lt;Bson&gt; pipeline = pipelines.get(i);</span>
+//            QueryResult queryResult = new org.opencb.commons.datastore.core.QueryResult();
+
+            // Execute query and calculate time
+<span class="fc" id="L490">            dbTimeStart = System.currentTimeMillis();</span>
+<span class="fc" id="L491">            QueryResult queryResult = mongoDBCollection2.aggregate(pipeline, options);</span>
+//            List&lt;Document&gt; dbObjectList = new LinkedList&lt;&gt;();
+//            while (cursor.hasNext()) {
+//                dbObjectList.add(cursor.next());
+//            }
+<span class="fc" id="L496">            dbTimeEnd = System.currentTimeMillis();</span>
+//            // setting queryResult fields
+<span class="fc" id="L498">            queryResult.setId(ids.get(i).toString());</span>
+<span class="fc" id="L499">            queryResult.setDbTime(Long.valueOf(dbTimeEnd - dbTimeStart).intValue());</span>
+<span class="fc" id="L500">            queryResult.setNumResults(queryResult.getResult().size());</span>
+//            // Limit is set in queryOptions, count number of total results
+//            if(options != null &amp;&amp; options.getInt(&quot;limit&quot;, 0) &gt; 0) {
+//                queryResult.setNumTotalResults(mongoDBCollection.count(pipeline).first());
+//            } else {
+//                queryResult.setNumTotalResults(dbObjectList.size());
+//            }
+//            queryResult.setResult(dbObjectList);
+
+<span class="fc" id="L509">            queryResults.add(queryResult);</span>
+        }
+
+<span class="fc" id="L512">        return queryResults;</span>
+    }
+
+    protected String getChunkIdPrefix(String chromosome, int position, int chunkSize) {
+<span class="fc" id="L516">        return chromosome + &quot;_&quot; + position / chunkSize + &quot;_&quot; + chunkSize / 1000 + &quot;k&quot;;</span>
+    }
+
+    protected int getChunkId(int position, int chunkSize) {
+<span class="fc" id="L520">        return position / chunkSize;</span>
+    }
+
+    private int getChunkStart(int id, int chunkSize) {
+<span class="nc bnc" id="L524" title="All 2 branches missed.">        return (id == 0) ? 1 : id * chunkSize;</span>
+    }
+
+    private int getChunkEnd(int id, int chunkSize) {
+<span class="nc" id="L528">        return (id * chunkSize) + chunkSize - 1;</span>
+    }
+
+
+
+
+
+    public QueryResult next(String chromosome, int position, QueryOptions options, MongoDBCollection mongoDBCollection) {
+        QueryBuilder builder;
+<span class="nc bnc" id="L537" title="All 4 branches missed.">        if (options.getString(&quot;strand&quot;) == null || options.getString(&quot;strand&quot;).equals(&quot;&quot;)</span>
+<span class="nc bnc" id="L538" title="All 4 branches missed.">                || (options.getString(&quot;strand&quot;).equals(&quot;1&quot;) || options.getString(&quot;strand&quot;).equals(&quot;+&quot;))) {</span>
+<span class="nc" id="L539">            builder = QueryBuilder.start(&quot;chromosome&quot;).is(chromosome).and(&quot;start&quot;).greaterThanEquals(position);</span>
+<span class="nc" id="L540">            options.put(&quot;sort&quot;, new HashMap&lt;String, String&gt;().put(&quot;start&quot;, &quot;asc&quot;));</span>
+<span class="nc" id="L541">            options.put(&quot;limit&quot;, 1);</span>
+        } else {
+<span class="nc" id="L543">            builder = QueryBuilder.start(&quot;chromosome&quot;).is(chromosome).and(&quot;end&quot;).lessThanEquals(position);</span>
+<span class="nc" id="L544">            options.put(&quot;sort&quot;, new HashMap&lt;String, String&gt;().put(&quot;end&quot;, &quot;desc&quot;));</span>
+<span class="nc" id="L545">            options.put(&quot;limit&quot;, 1);</span>
+        }
+<span class="nc" id="L547">        return executeQuery(&quot;result&quot;, new Document(builder.get().toMap()), options, mongoDBCollection);</span>
+    }
+
+    @Deprecated
+    protected QueryOptions addIncludeReturnFields(String returnField, QueryOptions options) {
+<span class="nc bnc" id="L552" title="All 2 branches missed.">        if (options != null) { //&amp;&amp; !options.getBoolean(returnField, true)</span>
+<span class="nc bnc" id="L553" title="All 2 branches missed.">            if (options.getList(&quot;include&quot;) != null) {</span>
+//                options.put(&quot;include&quot;, options.get(&quot;include&quot;) + &quot;,&quot; + returnField);
+<span class="nc" id="L555">                options.getList(&quot;include&quot;).add(returnField);</span>
+            } else {
+<span class="nc" id="L557">                options.put(&quot;include&quot;, Arrays.asList(returnField));</span>
+            }
+        } else {
+<span class="nc" id="L560">            options = new QueryOptions(&quot;include&quot;, Arrays.asList(returnField));</span>
+        }
+<span class="nc" id="L562">        return options;</span>
+    }
+
+    @Deprecated
+    protected QueryOptions addExcludeReturnFields(String returnField, QueryOptions options) {
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        if (options != null) { //&amp;&amp; !options.getBoolean(returnField, true)) {</span>
+<span class="nc bnc" id="L568" title="All 2 branches missed.">            if (options.getList(&quot;exclude&quot;) != null) {</span>
+//                options.put(&quot;exclude&quot;, options.get(&quot;exclude&quot;) + &quot;,&quot; + returnField);
+<span class="nc" id="L570">                List&lt;Object&gt; arr = options.getList(&quot;exclude&quot;);</span>
+<span class="nc" id="L571">                arr.add(returnField);</span>
+//                options.getList(&quot;exclude&quot;).add(returnField);
+<span class="nc" id="L573">                options.put(&quot;exclude&quot;, arr);</span>
+<span class="nc" id="L574">            } else {</span>
+<span class="nc" id="L575">                options.put(&quot;exclude&quot;, Arrays.asList(returnField));</span>
+            }
+        } else {
+<span class="nc" id="L578">            options = new QueryOptions(&quot;exclude&quot;, Arrays.asList(returnField));</span>
+        }
+<span class="nc" id="L580">        return options;</span>
+    }
+
+    @Deprecated
+    protected Document getReturnFields(QueryOptions options) {
+        // Select which fields are excluded and included in MongoDB query
+<span class="nc" id="L586">        Document returnFields = new Document(&quot;_id&quot;, 0);</span>
+<span class="nc bnc" id="L587" title="All 2 branches missed.">        if (options != null) {</span>
+//            List&lt;Object&gt; includeList = options.getList(&quot;include&quot;);
+
+            // Read and process 'exclude' field from 'options' object
+//        if (options != null &amp;&amp; options.get(&quot;include&quot;) != null &amp;&amp; !options.getString(&quot;include&quot;).equals(&quot;&quot;)) {
+<span class="nc bnc" id="L592" title="All 6 branches missed.">            if (options != null &amp;&amp; options.getList(&quot;include&quot;) != null &amp;&amp; options.getList(&quot;include&quot;).size() &gt; 0) {</span>
+//            String[] includedOptionFields = options.getString(&quot;include&quot;).split(&quot;,&quot;);
+//            if (includedOptionFields != null &amp;&amp; includedOptionFields.length &gt; 0) {
+//            if (options.getList(&quot;include&quot;) != null &amp;&amp; options.getList(&quot;include&quot;).size() &gt; 0) {
+<span class="nc bnc" id="L596" title="All 2 branches missed.">                for (Object field : options.getList(&quot;include&quot;)) {</span>
+//                    returnFields.put(field, 1);
+<span class="nc" id="L598">                    returnFields.put(field.toString(), 1);</span>
+<span class="nc" id="L599">                }</span>
+            } else {
+//                List&lt;Object&gt; excludeList = options.getList(&quot;exclude&quot;);
+//                if (options != null &amp;&amp; options.get(&quot;exclude&quot;) != null &amp;&amp; !options.getString(&quot;exclude&quot;).equals(&quot;&quot;)) {
+<span class="nc bnc" id="L603" title="All 6 branches missed.">                if (options != null &amp;&amp; options.getList(&quot;exclude&quot;) != null &amp;&amp; options.getList(&quot;exclude&quot;).size() &gt; 0) {</span>
+//                    String[] excludedOptionFields = options.getString(&quot;exclude&quot;).split(&quot;,&quot;);
+//                    if (excludedOptionFields != null &amp;&amp; excludedOptionFields.length &gt; 0) {
+<span class="nc bnc" id="L606" title="All 2 branches missed.">                    for (Object field : options.getList(&quot;exclude&quot;)) {</span>
+<span class="nc" id="L607">                        returnFields.put(field.toString(), 0);</span>
+<span class="nc" id="L608">                    }</span>
+                }
+            }
+        }
+<span class="nc" id="L612">        return returnFields;</span>
+    }
+
+//    @Deprecated
+//    protected BasicDBList executeFind(Document query, Document returnFields, QueryOptions options) {
+//        return executeFind(query, returnFields, options, mongoDBCollection);
+//    }
+//
+//    @Deprecated
+//    protected BasicDBList executeFind(Document query, Document returnFields, QueryOptions options, DBCollection dbCollection) {
+//        BasicDBList list = new BasicDBList();
+//
+//        if (options.getBoolean(&quot;count&quot;)) {
+//            Long count = dbCollection.count(query);
+//            list.add(new Document(&quot;count&quot;, count));
+//        }else {
+//            DBCursor cursor = dbCollection.find(query, returnFields);
+//
+//            int limit = options.getInt(&quot;limit&quot;, 0);
+//            if (limit &gt; 0) {
+//                cursor.limit(limit);
+//            }
+//            int skip = options.getInt(&quot;skip&quot;, 0);
+//            if (skip &gt; 0) {
+//                cursor.skip(skip);
+//            }
+//
+//            Document sort = (Document) options.get(&quot;sort&quot;);
+//            if (sort != null) {
+//                cursor.sort(sort);
+//            }
+//            try {
+//                if (cursor != null) {
+//                    while (cursor.hasNext()) {
+//                        list.add(cursor.next());
+//                    }
+//                }
+//            } finally {
+//                if (cursor != null) {
+//                    cursor.close();
+//                }
+//            }
+//        }
+//        return list;
+//    }
+
+//    @Deprecated
+//    protected QueryResult executeDistinct(Object id, String key) {
+//        return executeDistinct(id, key, mongoDBCollection);
+//    }
+//
+//    @Deprecated
+//    protected QueryResult executeDistinct(Object id, String key, DBCollection dbCollection) {
+//        QueryResult queryResult = new QueryResult();
+//        long dbTimeStart = System.currentTimeMillis();
+//        List&lt;String&gt; diseases = dbCollection.distinct(key);
+//        long dbTimeEnd = System.currentTimeMillis();
+//        queryResult.setId(id.toString());
+////        queryResult.setDbTime(dbTimeEnd - dbTimeStart);
+//        queryResult.setResult(diseases);
+//        queryResult.setNumResults(diseases.size());
+//
+//        return queryResult;
+//    }
+
+//    @Deprecated
+//    protected QueryResult executeQuery(Object id, Document query, QueryOptions options) {
+//        return executeQuery(id, query, options, mongoDBCollection);
+//    }
+
+//    @Deprecated
+//    protected QueryResult executeQuery(Object id, Document query, QueryOptions options, DBCollection dbCollection) {
+//        return executeQueryList(Arrays.asList(id), Arrays.asList(query), options, dbCollection).get(0);
+//    }
+//
+//    @Deprecated
+//    protected List&lt;QueryResult&gt; executeQueryList(List&lt;? extends Object&gt; ids, List&lt;Document&gt; queries, QueryOptions options) {
+//        return executeQueryList(ids, queries, options, mongoDBCollection);
+//    }
+
+//    public List&lt;QueryResult&gt; getAllIntervalFrequencies(List&lt;Region&gt; regions, QueryOptions queryOptions) {
+//        List&lt;QueryResult&gt; queryResult = new ArrayList&lt;&gt;(regions.size());
+//        for (Region region : regions) {
+//            queryResult.add(getIntervalFrequencies(region, queryOptions));
+//        }
+//        return queryResult;
+//    }
+
+
+
+
+
+    /*
+     * For histograms
+     */
+    protected List&lt;IntervalFeatureFrequency&gt; getIntervalFeatureFrequencies(Region region, int interval, List&lt;Object[]&gt; objectList,
+                                                                           int numFeatures, double maxSnpsInterval) {
+
+<span class="nc" id="L710">        int numIntervals = (region.getEnd() - region.getStart()) / interval + 1;</span>
+<span class="nc" id="L711">        List&lt;IntervalFeatureFrequency&gt; intervalFeatureFrequenciesList = new ArrayList&lt;&gt;(numIntervals);</span>
+
+<span class="nc" id="L713">        float maxNormValue = 1;</span>
+
+<span class="nc bnc" id="L715" title="All 2 branches missed.">        if (numFeatures != 0) {</span>
+<span class="nc" id="L716">            maxNormValue = (float) maxSnpsInterval / numFeatures;</span>
+        }
+
+<span class="nc" id="L719">        int start = region.getStart();</span>
+<span class="nc" id="L720">        int end = start + interval;</span>
+<span class="nc bnc" id="L721" title="All 2 branches missed.">        for (int i = 0, j = 0; i &lt; numIntervals; i++) {</span>
+<span class="nc bnc" id="L722" title="All 4 branches missed.">            if (j &lt; objectList.size() &amp;&amp; ((BigInteger) objectList.get(j)[0]).intValue() == i) {</span>
+<span class="nc bnc" id="L723" title="All 2 branches missed.">                if (numFeatures != 0) {</span>
+<span class="nc" id="L724">                    intervalFeatureFrequenciesList.add(new IntervalFeatureFrequency(start, end,</span>
+<span class="nc" id="L725">                            ((BigInteger) objectList.get(j)[0]).intValue(), ((BigInteger) objectList.get(j)[1]).intValue(),</span>
+<span class="nc" id="L726">                            (float) Math.log(((BigInteger) objectList.get(j)[1]).doubleValue()) / numFeatures / maxNormValue));</span>
+                } else {    // no features for this chromosome
+<span class="nc" id="L728">                    intervalFeatureFrequenciesList.add(new IntervalFeatureFrequency(start, end,</span>
+<span class="nc" id="L729">                            ((BigInteger) objectList.get(j)[0]).intValue(), ((BigInteger) objectList.get(j)[1]).intValue(), 0));</span>
+                }
+<span class="nc" id="L731">                j++;</span>
+            } else {
+<span class="nc" id="L733">                intervalFeatureFrequenciesList.add(new IntervalFeatureFrequency(start, end, i, 0, 0.0f));</span>
+            }
+<span class="nc" id="L735">            start += interval;</span>
+<span class="nc" id="L736">            end += interval;</span>
+        }
+
+<span class="nc" id="L739">        return intervalFeatureFrequenciesList;</span>
+    }
+
+
+    protected List&lt;IntervalFeatureFrequency&gt; getIntervalFeatureFrequencies(Region region, int interval, List&lt;Object[]&gt; objectList) {
+
+<span class="nc" id="L745">        int numIntervals = (region.getEnd() - region.getStart()) / interval + 1;</span>
+<span class="nc" id="L746">        List&lt;IntervalFeatureFrequency&gt; intervalFeatureFrequenciesList = new ArrayList&lt;IntervalFeatureFrequency&gt;(numIntervals);</span>
+
+<span class="nc" id="L748">        BigInteger max = new BigInteger(&quot;-1&quot;);</span>
+<span class="nc bnc" id="L749" title="All 2 branches missed.">        for (int i = 0; i &lt; objectList.size(); i++) {</span>
+<span class="nc bnc" id="L750" title="All 2 branches missed.">            if (((BigInteger) objectList.get(i)[1]).compareTo(max) &gt; 0) {</span>
+<span class="nc" id="L751">                max = (BigInteger) objectList.get(i)[1];</span>
+            }
+        }
+
+<span class="nc" id="L755">        int start = region.getStart();</span>
+<span class="nc" id="L756">        int end = start + interval;</span>
+<span class="nc bnc" id="L757" title="All 2 branches missed.">        for (int i = 0, j = 0; i &lt; numIntervals; i++) {</span>
+<span class="nc bnc" id="L758" title="All 4 branches missed.">            if (j &lt; objectList.size() &amp;&amp; ((BigInteger) objectList.get(j)[0]).intValue() == i) {</span>
+<span class="nc" id="L759">                intervalFeatureFrequenciesList.add(new IntervalFeatureFrequency(start, end, ((BigInteger) objectList.get(j)[0]).intValue(),</span>
+<span class="nc" id="L760">                        ((BigInteger) objectList.get(j)[1]).intValue(),</span>
+<span class="nc" id="L761">                        ((BigInteger) objectList.get(j)[1]).floatValue() / max.floatValue()));</span>
+<span class="nc" id="L762">                j++;</span>
+            } else {
+<span class="nc" id="L764">                intervalFeatureFrequenciesList.add(new IntervalFeatureFrequency(start, end, i, 0, 0.0f));</span>
+            }
+<span class="nc" id="L766">            start += interval;</span>
+<span class="nc" id="L767">            end += interval;</span>
+        }
+
+<span class="nc" id="L770">        return intervalFeatureFrequenciesList;</span>
+    }
+
+
+    public String getSpecies() {
+<span class="nc" id="L775">        return species;</span>
+    }
+
+
+    public void setSpecies(String species) {
+<span class="nc" id="L780">        this.species = species;</span>
+<span class="nc" id="L781">    }</span>
+
+
+    public String getAssembly() {
+<span class="nc" id="L785">        return this.assembly;</span>
+    }
+
+
+    public void setAssembly(String assembly) {
+<span class="nc" id="L790">        this.assembly = assembly;</span>
+<span class="nc" id="L791">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

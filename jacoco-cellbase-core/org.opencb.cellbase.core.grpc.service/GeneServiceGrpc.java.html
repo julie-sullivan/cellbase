@@ -1,0 +1,600 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeneServiceGrpc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.grpc.service</a> &gt; <span class="el_source">GeneServiceGrpc.java</span></div><h1>GeneServiceGrpc.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.grpc.service;
+
+import static io.grpc.stub.ClientCalls.asyncUnaryCall;
+import static io.grpc.stub.ClientCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ClientCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ClientCalls.blockingUnaryCall;
+import static io.grpc.stub.ClientCalls.blockingServerStreamingCall;
+import static io.grpc.stub.ClientCalls.futureUnaryCall;
+import static io.grpc.MethodDescriptor.generateFullMethodName;
+import static io.grpc.stub.ServerCalls.asyncUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncServerStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncClientStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncBidiStreamingCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
+import static io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall;
+
+/**
+ */
+@javax.annotation.Generated(
+    value = &quot;by gRPC proto compiler (version 1.0.1)&quot;,
+    comments = &quot;Source: protobuf/opencb/service/gene_service.proto&quot;)
+public class GeneServiceGrpc {
+
+<span class="nc" id="L25">  private GeneServiceGrpc() {}</span>
+
+  public static final String SERVICE_NAME = &quot;protobuf.opencb.service.GeneService&quot;;
+
+  // Static method descriptors that strictly reflect the proto.
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L32">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; METHOD_COUNT =</span>
+<span class="nc" id="L33">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L35">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;count&quot;),
+<span class="nc" id="L37">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L38">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L41">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; METHOD_DISTINCT =</span>
+<span class="nc" id="L42">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L44">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;distinct&quot;),
+<span class="nc" id="L46">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L47">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L50">      org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; METHOD_FIRST =</span>
+<span class="nc" id="L51">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L53">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;first&quot;),
+<span class="nc" id="L55">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L56">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.GeneModel.Gene.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L59">      org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; METHOD_NEXT =</span>
+<span class="nc" id="L60">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L62">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;next&quot;),
+<span class="nc" id="L64">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L65">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.GeneModel.Gene.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L68">      org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; METHOD_GET =</span>
+<span class="nc" id="L69">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L71">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;get&quot;),
+<span class="nc" id="L73">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L74">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.GeneModel.Gene.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L77">      org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; METHOD_GROUP_BY =</span>
+<span class="nc" id="L78">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.UNARY,
+<span class="nc" id="L80">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;groupBy&quot;),
+<span class="nc" id="L82">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L83">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L86">      org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt; METHOD_GET_TRANSCRIPTS =</span>
+<span class="nc" id="L87">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L89">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;getTranscripts&quot;),
+<span class="nc" id="L91">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L92">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L95">      org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt; METHOD_GET_REGULATORY_REGIONS =</span>
+<span class="nc" id="L96">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L98">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;getRegulatoryRegions&quot;),
+<span class="nc" id="L100">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L101">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion.getDefaultInstance()));</span>
+  @io.grpc.ExperimentalApi(&quot;https://github.com/grpc/grpc-java/issues/1901&quot;)
+  public static final io.grpc.MethodDescriptor&lt;org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+<span class="nc" id="L104">      org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt; METHOD_GET_TRANSCRIPT_TFBS =</span>
+<span class="nc" id="L105">      io.grpc.MethodDescriptor.create(</span>
+          io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING,
+<span class="nc" id="L107">          generateFullMethodName(</span>
+              &quot;protobuf.opencb.service.GeneService&quot;, &quot;getTranscriptTfbs&quot;),
+<span class="nc" id="L109">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request.getDefaultInstance()),</span>
+<span class="nc" id="L110">          io.grpc.protobuf.ProtoUtils.marshaller(org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs.getDefaultInstance()));</span>
+
+  /**
+   * Creates a new async stub that supports all call types for the service
+   */
+  public static GeneServiceStub newStub(io.grpc.Channel channel) {
+<span class="nc" id="L116">    return new GeneServiceStub(channel);</span>
+  }
+
+  /**
+   * Creates a new blocking-style stub that supports unary and streaming output calls on the service
+   */
+  public static GeneServiceBlockingStub newBlockingStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L124">    return new GeneServiceBlockingStub(channel);</span>
+  }
+
+  /**
+   * Creates a new ListenableFuture-style stub that supports unary and streaming output calls on the service
+   */
+  public static GeneServiceFutureStub newFutureStub(
+      io.grpc.Channel channel) {
+<span class="nc" id="L132">    return new GeneServiceFutureStub(channel);</span>
+  }
+
+  /**
+   */
+<span class="nc" id="L137">  public static abstract class GeneServiceImplBase implements io.grpc.BindableService {</span>
+
+    /**
+     */
+    public void count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; responseObserver) {
+<span class="nc" id="L143">      asyncUnimplementedUnaryCall(METHOD_COUNT, responseObserver);</span>
+<span class="nc" id="L144">    }</span>
+
+    /**
+     */
+    public void distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; responseObserver) {
+<span class="nc" id="L150">      asyncUnimplementedUnaryCall(METHOD_DISTINCT, responseObserver);</span>
+<span class="nc" id="L151">    }</span>
+
+    /**
+     */
+    public void first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L157">      asyncUnimplementedUnaryCall(METHOD_FIRST, responseObserver);</span>
+<span class="nc" id="L158">    }</span>
+
+    /**
+     */
+    public void next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L164">      asyncUnimplementedUnaryCall(METHOD_NEXT, responseObserver);</span>
+<span class="nc" id="L165">    }</span>
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L171">      asyncUnimplementedUnaryCall(METHOD_GET, responseObserver);</span>
+<span class="nc" id="L172">    }</span>
+
+    /**
+     */
+    public void groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; responseObserver) {
+<span class="nc" id="L178">      asyncUnimplementedUnaryCall(METHOD_GROUP_BY, responseObserver);</span>
+<span class="nc" id="L179">    }</span>
+
+    /**
+     */
+    public void getTranscripts(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt; responseObserver) {
+<span class="nc" id="L185">      asyncUnimplementedUnaryCall(METHOD_GET_TRANSCRIPTS, responseObserver);</span>
+<span class="nc" id="L186">    }</span>
+
+    /**
+     */
+    public void getRegulatoryRegions(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt; responseObserver) {
+<span class="nc" id="L192">      asyncUnimplementedUnaryCall(METHOD_GET_REGULATORY_REGIONS, responseObserver);</span>
+<span class="nc" id="L193">    }</span>
+
+    /**
+     */
+    public void getTranscriptTfbs(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt; responseObserver) {
+<span class="nc" id="L199">      asyncUnimplementedUnaryCall(METHOD_GET_TRANSCRIPT_TFBS, responseObserver);</span>
+<span class="nc" id="L200">    }</span>
+
+    @java.lang.Override public io.grpc.ServerServiceDefinition bindService() {
+<span class="nc" id="L203">      return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())</span>
+<span class="nc" id="L204">          .addMethod(</span>
+            METHOD_COUNT,
+<span class="nc" id="L206">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt;(
+                  this, METHODID_COUNT)))
+<span class="nc" id="L211">          .addMethod(</span>
+            METHOD_DISTINCT,
+<span class="nc" id="L213">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt;(
+                  this, METHODID_DISTINCT)))
+<span class="nc" id="L218">          .addMethod(</span>
+            METHOD_FIRST,
+<span class="nc" id="L220">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;(
+                  this, METHODID_FIRST)))
+<span class="nc" id="L225">          .addMethod(</span>
+            METHOD_NEXT,
+<span class="nc" id="L227">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;(
+                  this, METHODID_NEXT)))
+<span class="nc" id="L232">          .addMethod(</span>
+            METHOD_GET,
+<span class="nc" id="L234">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;(
+                  this, METHODID_GET)))
+<span class="nc" id="L239">          .addMethod(</span>
+            METHOD_GROUP_BY,
+<span class="nc" id="L241">            asyncUnaryCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt;(
+                  this, METHODID_GROUP_BY)))
+<span class="nc" id="L246">          .addMethod(</span>
+            METHOD_GET_TRANSCRIPTS,
+<span class="nc" id="L248">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt;(
+                  this, METHODID_GET_TRANSCRIPTS)))
+<span class="nc" id="L253">          .addMethod(</span>
+            METHOD_GET_REGULATORY_REGIONS,
+<span class="nc" id="L255">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt;(
+                  this, METHODID_GET_REGULATORY_REGIONS)))
+<span class="nc" id="L260">          .addMethod(</span>
+            METHOD_GET_TRANSCRIPT_TFBS,
+<span class="nc" id="L262">            asyncServerStreamingCall(</span>
+              new MethodHandlers&lt;
+                org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request,
+                org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt;(
+                  this, METHODID_GET_TRANSCRIPT_TFBS)))
+<span class="nc" id="L267">          .build();</span>
+    }
+  }
+
+  /**
+   */
+  public static final class GeneServiceStub extends io.grpc.stub.AbstractStub&lt;GeneServiceStub&gt; {
+    private GeneServiceStub(io.grpc.Channel channel) {
+<span class="nc" id="L275">      super(channel);</span>
+<span class="nc" id="L276">    }</span>
+
+    private GeneServiceStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L280">      super(channel, callOptions);</span>
+<span class="nc" id="L281">    }</span>
+
+    @java.lang.Override
+    protected GeneServiceStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L286">      return new GeneServiceStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public void count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; responseObserver) {
+<span class="nc" id="L293">      asyncUnaryCall(</span>
+<span class="nc" id="L294">          getChannel().newCall(METHOD_COUNT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L295">    }</span>
+
+    /**
+     */
+    public void distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; responseObserver) {
+<span class="nc" id="L301">      asyncUnaryCall(</span>
+<span class="nc" id="L302">          getChannel().newCall(METHOD_DISTINCT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L303">    }</span>
+
+    /**
+     */
+    public void first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L309">      asyncUnaryCall(</span>
+<span class="nc" id="L310">          getChannel().newCall(METHOD_FIRST, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L311">    }</span>
+
+    /**
+     */
+    public void next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L317">      asyncUnaryCall(</span>
+<span class="nc" id="L318">          getChannel().newCall(METHOD_NEXT, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L319">    }</span>
+
+    /**
+     */
+    public void get(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; responseObserver) {
+<span class="nc" id="L325">      asyncServerStreamingCall(</span>
+<span class="nc" id="L326">          getChannel().newCall(METHOD_GET, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L327">    }</span>
+
+    /**
+     */
+    public void groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; responseObserver) {
+<span class="nc" id="L333">      asyncUnaryCall(</span>
+<span class="nc" id="L334">          getChannel().newCall(METHOD_GROUP_BY, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L335">    }</span>
+
+    /**
+     */
+    public void getTranscripts(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt; responseObserver) {
+<span class="nc" id="L341">      asyncServerStreamingCall(</span>
+<span class="nc" id="L342">          getChannel().newCall(METHOD_GET_TRANSCRIPTS, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L343">    }</span>
+
+    /**
+     */
+    public void getRegulatoryRegions(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt; responseObserver) {
+<span class="nc" id="L349">      asyncServerStreamingCall(</span>
+<span class="nc" id="L350">          getChannel().newCall(METHOD_GET_REGULATORY_REGIONS, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L351">    }</span>
+
+    /**
+     */
+    public void getTranscriptTfbs(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request,
+        io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt; responseObserver) {
+<span class="nc" id="L357">      asyncServerStreamingCall(</span>
+<span class="nc" id="L358">          getChannel().newCall(METHOD_GET_TRANSCRIPT_TFBS, getCallOptions()), request, responseObserver);</span>
+<span class="nc" id="L359">    }</span>
+  }
+
+  /**
+   */
+  public static final class GeneServiceBlockingStub extends io.grpc.stub.AbstractStub&lt;GeneServiceBlockingStub&gt; {
+    private GeneServiceBlockingStub(io.grpc.Channel channel) {
+<span class="nc" id="L366">      super(channel);</span>
+<span class="nc" id="L367">    }</span>
+
+    private GeneServiceBlockingStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L371">      super(channel, callOptions);</span>
+<span class="nc" id="L372">    }</span>
+
+    @java.lang.Override
+    protected GeneServiceBlockingStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L377">      return new GeneServiceBlockingStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse count(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L383">      return blockingUnaryCall(</span>
+<span class="nc" id="L384">          getChannel(), METHOD_COUNT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse distinct(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L390">      return blockingUnaryCall(</span>
+<span class="nc" id="L391">          getChannel(), METHOD_DISTINCT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.core.protobuf.GeneModel.Gene first(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L397">      return blockingUnaryCall(</span>
+<span class="nc" id="L398">          getChannel(), METHOD_FIRST, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.core.protobuf.GeneModel.Gene next(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L404">      return blockingUnaryCall(</span>
+<span class="nc" id="L405">          getChannel(), METHOD_NEXT, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; get(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L412">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L413">          getChannel(), METHOD_GET, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse groupBy(org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L419">      return blockingUnaryCall(</span>
+<span class="nc" id="L420">          getChannel(), METHOD_GROUP_BY, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt; getTranscripts(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L427">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L428">          getChannel(), METHOD_GET_TRANSCRIPTS, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt; getRegulatoryRegions(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L435">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L436">          getChannel(), METHOD_GET_REGULATORY_REGIONS, getCallOptions(), request);</span>
+    }
+
+    /**
+     */
+    public java.util.Iterator&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt; getTranscriptTfbs(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L443">      return blockingServerStreamingCall(</span>
+<span class="nc" id="L444">          getChannel(), METHOD_GET_TRANSCRIPT_TFBS, getCallOptions(), request);</span>
+    }
+  }
+
+  /**
+   */
+  public static final class GeneServiceFutureStub extends io.grpc.stub.AbstractStub&lt;GeneServiceFutureStub&gt; {
+    private GeneServiceFutureStub(io.grpc.Channel channel) {
+<span class="nc" id="L452">      super(channel);</span>
+<span class="nc" id="L453">    }</span>
+
+    private GeneServiceFutureStub(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L457">      super(channel, callOptions);</span>
+<span class="nc" id="L458">    }</span>
+
+    @java.lang.Override
+    protected GeneServiceFutureStub build(io.grpc.Channel channel,
+        io.grpc.CallOptions callOptions) {
+<span class="nc" id="L463">      return new GeneServiceFutureStub(channel, callOptions);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt; count(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L470">      return futureUnaryCall(</span>
+<span class="nc" id="L471">          getChannel().newCall(METHOD_COUNT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt; distinct(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L478">      return futureUnaryCall(</span>
+<span class="nc" id="L479">          getChannel().newCall(METHOD_DISTINCT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; first(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L486">      return futureUnaryCall(</span>
+<span class="nc" id="L487">          getChannel().newCall(METHOD_FIRST, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt; next(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L494">      return futureUnaryCall(</span>
+<span class="nc" id="L495">          getChannel().newCall(METHOD_NEXT, getCallOptions()), request);</span>
+    }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt; groupBy(
+        org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request request) {
+<span class="nc" id="L502">      return futureUnaryCall(</span>
+<span class="nc" id="L503">          getChannel().newCall(METHOD_GROUP_BY, getCallOptions()), request);</span>
+    }
+  }
+
+  private static final int METHODID_COUNT = 0;
+  private static final int METHODID_DISTINCT = 1;
+  private static final int METHODID_FIRST = 2;
+  private static final int METHODID_NEXT = 3;
+  private static final int METHODID_GET = 4;
+  private static final int METHODID_GROUP_BY = 5;
+  private static final int METHODID_GET_TRANSCRIPTS = 6;
+  private static final int METHODID_GET_REGULATORY_REGIONS = 7;
+  private static final int METHODID_GET_TRANSCRIPT_TFBS = 8;
+
+  private static class MethodHandlers&lt;Req, Resp&gt; implements
+      io.grpc.stub.ServerCalls.UnaryMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ServerStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.ClientStreamingMethod&lt;Req, Resp&gt;,
+      io.grpc.stub.ServerCalls.BidiStreamingMethod&lt;Req, Resp&gt; {
+    private final GeneServiceImplBase serviceImpl;
+    private final int methodId;
+
+<span class="nc" id="L525">    public MethodHandlers(GeneServiceImplBase serviceImpl, int methodId) {</span>
+<span class="nc" id="L526">      this.serviceImpl = serviceImpl;</span>
+<span class="nc" id="L527">      this.methodId = methodId;</span>
+<span class="nc" id="L528">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public void invoke(Req request, io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc bnc" id="L533" title="All 10 branches missed.">      switch (methodId) {</span>
+        case METHODID_COUNT:
+<span class="nc" id="L535">          serviceImpl.count((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.LongResponse&gt;) responseObserver);
+<span class="nc" id="L537">          break;</span>
+        case METHODID_DISTINCT:
+<span class="nc" id="L539">          serviceImpl.distinct((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.StringArrayResponse&gt;) responseObserver);
+<span class="nc" id="L541">          break;</span>
+        case METHODID_FIRST:
+<span class="nc" id="L543">          serviceImpl.first((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;) responseObserver);
+<span class="nc" id="L545">          break;</span>
+        case METHODID_NEXT:
+<span class="nc" id="L547">          serviceImpl.next((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;) responseObserver);
+<span class="nc" id="L549">          break;</span>
+        case METHODID_GET:
+<span class="nc" id="L551">          serviceImpl.get((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.GeneModel.Gene&gt;) responseObserver);
+<span class="nc" id="L553">          break;</span>
+        case METHODID_GROUP_BY:
+<span class="nc" id="L555">          serviceImpl.groupBy((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel.GroupResponse&gt;) responseObserver);
+<span class="nc" id="L557">          break;</span>
+        case METHODID_GET_TRANSCRIPTS:
+<span class="nc" id="L559">          serviceImpl.getTranscripts((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.Transcript&gt;) responseObserver);
+<span class="nc" id="L561">          break;</span>
+        case METHODID_GET_REGULATORY_REGIONS:
+<span class="nc" id="L563">          serviceImpl.getRegulatoryRegions((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel.RegulatoryRegion&gt;) responseObserver);
+<span class="nc" id="L565">          break;</span>
+        case METHODID_GET_TRANSCRIPT_TFBS:
+<span class="nc" id="L567">          serviceImpl.getTranscriptTfbs((org.opencb.cellbase.core.grpc.service.GenericServiceModel.Request) request,</span>
+              (io.grpc.stub.StreamObserver&lt;org.opencb.biodata.models.core.protobuf.TranscriptModel.TranscriptTfbs&gt;) responseObserver);
+<span class="nc" id="L569">          break;</span>
+        default:
+<span class="nc" id="L571">          throw new AssertionError();</span>
+      }
+<span class="nc" id="L573">    }</span>
+
+    @java.lang.Override
+    @java.lang.SuppressWarnings(&quot;unchecked&quot;)
+    public io.grpc.stub.StreamObserver&lt;Req&gt; invoke(
+        io.grpc.stub.StreamObserver&lt;Resp&gt; responseObserver) {
+<span class="nc" id="L579">      switch (methodId) {</span>
+        default:
+<span class="nc" id="L581">          throw new AssertionError();</span>
+      }
+    }
+  }
+
+  public static io.grpc.ServiceDescriptor getServiceDescriptor() {
+<span class="nc" id="L587">    return new io.grpc.ServiceDescriptor(SERVICE_NAME,</span>
+        METHOD_COUNT,
+        METHOD_DISTINCT,
+        METHOD_FIRST,
+        METHOD_NEXT,
+        METHOD_GET,
+        METHOD_GROUP_BY,
+        METHOD_GET_TRANSCRIPTS,
+        METHOD_GET_REGULATORY_REGIONS,
+        METHOD_GET_TRANSCRIPT_TFBS);
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

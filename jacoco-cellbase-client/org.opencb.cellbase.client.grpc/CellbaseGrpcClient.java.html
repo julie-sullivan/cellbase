@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellbaseGrpcClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.grpc</a> &gt; <span class="el_source">CellbaseGrpcClient.java</span></div><h1>CellbaseGrpcClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.grpc;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Created by swaathi on 27/05/16.
+ */
+public class CellbaseGrpcClient {
+
+    private Map&lt;String, ParentGrpcClient&gt; clients;
+
+    private ManagedChannel channel;
+
+<span class="nc" id="L18">    public CellbaseGrpcClient(String host, int port) {</span>
+<span class="nc" id="L19">        this.channel = ManagedChannelBuilder.forAddress(host, port)</span>
+<span class="nc" id="L20">                .usePlaintext(true)</span>
+<span class="nc" id="L21">                .build();</span>
+
+<span class="nc" id="L23">        clients = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L24">    }</span>
+
+    public GeneGrpcClient getGeneClient() {
+<span class="nc" id="L27">        clients.putIfAbsent(&quot;GENE&quot;, new GeneGrpcClient(channel));</span>
+<span class="nc" id="L28">        return (GeneGrpcClient) clients.get(&quot;GENE&quot;);</span>
+    }
+
+    public TranscriptGrpcClient getTranscriptClient() {
+<span class="nc" id="L32">        clients.putIfAbsent(&quot;TRANSCRIPT&quot;, new TranscriptGrpcClient(channel));</span>
+<span class="nc" id="L33">        return (TranscriptGrpcClient) clients.get(&quot;TRANSCRIPT&quot;);</span>
+    }
+
+    public VariationGrpcClient getVariationClient() {
+<span class="nc" id="L37">        clients.putIfAbsent(&quot;VARIATION&quot;, new VariationGrpcClient(channel));</span>
+<span class="nc" id="L38">        return (VariationGrpcClient) clients.get(&quot;VARIATION&quot;);</span>
+    }
+
+    public RegulatoryGrpcClient getRegulatoryRegionClient() {
+<span class="nc" id="L42">        clients.putIfAbsent(&quot;REGULATORY_REGION&quot;, new RegulatoryGrpcClient(channel));</span>
+<span class="nc" id="L43">        return (RegulatoryGrpcClient) clients.get(&quot;REGULATORY_REGION&quot;);</span>
+    }
+
+    public VariantAnnotationGrpcClient getVariantAnnotationGrpcClient() {
+<span class="nc" id="L47">        clients.putIfAbsent(&quot;VARIANT_ANNOTATION&quot;, new VariantAnnotationGrpcClient(channel));</span>
+<span class="nc" id="L48">        return (VariantAnnotationGrpcClient) clients.get(&quot;VARIANT_ANNOTATION&quot;);</span>
+    }
+
+    public GenomicRegionGrpcClient getGenomicRegionClient() {
+<span class="nc" id="L52">        clients.putIfAbsent(&quot;GENOMIC_REGION&quot;, new GenomicRegionGrpcClient(channel));</span>
+<span class="nc" id="L53">        return (GenomicRegionGrpcClient) clients.get(&quot;GENOMIC_REGION&quot;);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

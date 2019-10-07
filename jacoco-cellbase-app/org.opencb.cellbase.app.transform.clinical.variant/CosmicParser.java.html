@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CosmicParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">CosmicParser.java</span></div><h1>CosmicParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform.clinical.variant;
+
+import org.opencb.cellbase.app.transform.CellBaseParser;
+import org.opencb.cellbase.core.common.clinical.Cosmic;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.text.NumberFormat;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+
+/**
+ * @author by jpflorido on 26/05/14.
+ * @author Luis Miguel Cruz.
+ * @since October 08, 2014
+ */
+@Deprecated
+public class CosmicParser extends CellBaseParser {
+
+    private final Path cosmicFilePath;
+    private static final String CHROMOSOME = &quot;CHR&quot;;
+    private static final String START = &quot;START&quot;;
+    private static final String END = &quot;END&quot;;
+    private static final String REF = &quot;REF&quot;;
+    private static final String ALT = &quot;ALT&quot;;
+    private final int mutationSomaticStatusColumn;
+    private final int pubmedPMIDColumn;
+    private final int idStudyColumn;
+    private final int sampleSourceColumn;
+    private final int tumourOriginColumn;
+    private final int ageColumn;
+    private Pattern mutationGRCh37GenomePositionPattern;
+    private Pattern snvPattern;
+    private long invalidPositionLines;
+    private long invalidSubstitutionLines;
+    private long invalidInsertionLines;
+    private long invalidDeletionLines;
+    private long invalidDuplicationLines;
+    private long invalidMutationCDSOtherReason;
+
+    private static final String VARIANT_STRING_PATTERN = &quot;[ACGT]*&quot;;
+
+    public CosmicParser(Path cosmicFilePath, CellBaseSerializer serializer, String assembly) {
+<span class="nc" id="L66">        super(serializer);</span>
+<span class="nc" id="L67">        this.cosmicFilePath = cosmicFilePath;</span>
+<span class="nc" id="L68">        this.compileRegularExpressionPatterns();</span>
+
+        // COSMIC v78 GRCh38 includes one more column at position 27 (1-based) &quot;Resistance Mutation&quot; which is not
+        // provided in the GRCh37 file
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (assembly.equalsIgnoreCase(&quot;grch37&quot;)) {</span>
+<span class="nc" id="L73">            this.mutationSomaticStatusColumn = 29;</span>
+<span class="nc" id="L74">            this.pubmedPMIDColumn = 30;</span>
+<span class="nc" id="L75">            this.idStudyColumn = 31;</span>
+<span class="nc" id="L76">            this.sampleSourceColumn = 32;</span>
+<span class="nc" id="L77">            this.tumourOriginColumn = 33;</span>
+<span class="nc" id="L78">            this.ageColumn = 34;</span>
+        } else {
+<span class="nc" id="L80">            this.mutationSomaticStatusColumn = 29;</span>
+<span class="nc" id="L81">            this.pubmedPMIDColumn = 30;</span>
+<span class="nc" id="L82">            this.idStudyColumn = 31;</span>
+<span class="nc" id="L83">            this.sampleSourceColumn = 32;</span>
+<span class="nc" id="L84">            this.tumourOriginColumn = 33;</span>
+<span class="nc" id="L85">            this.ageColumn = 34;</span>
+        }
+
+<span class="nc" id="L88">    }</span>
+
+    private void compileRegularExpressionPatterns() {
+<span class="nc" id="L91">        mutationGRCh37GenomePositionPattern = Pattern.compile(&quot;(?&lt;&quot; + CHROMOSOME + &quot;&gt;\\S+):(?&lt;&quot; + START + &quot;&gt;\\d+)-(?&lt;&quot; + END + &quot;&gt;\\d+)&quot;);</span>
+<span class="nc" id="L92">        snvPattern = Pattern.compile(&quot;c\\.\\d+(_\\d+)?(?&lt;&quot; + REF + &quot;&gt;(A|C|T|G)+)&gt;(?&lt;&quot; + ALT + &quot;&gt;(A|C|T|G)+)&quot;);</span>
+<span class="nc" id="L93">    }</span>
+
+    public void parse() {
+<span class="nc" id="L96">        logger.info(&quot;Parsing cosmic file ...&quot;);</span>
+<span class="nc" id="L97">        long processedCosmicLines = 0, ignoredCosmicLines = 0;</span>
+
+        try {
+<span class="nc" id="L100">            BufferedReader cosmicReader = new BufferedReader(new InputStreamReader(new FileInputStream(cosmicFilePath.toFile())));</span>
+
+            String line;
+<span class="nc" id="L103">            cosmicReader.readLine(); // First line is the header -&gt; ignore it</span>
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            while ((line = cosmicReader.readLine()) != null) {</span>
+<span class="nc" id="L106">                logger.debug(line);</span>
+<span class="nc" id="L107">                Cosmic cosmic = buildCosmic(line);</span>
+
+<span class="nc bnc" id="L109" title="All 4 branches missed.">                if (parseChromosomeStartAndEnd(cosmic) &amp;&amp; parseVariant(cosmic)) {</span>
+<span class="nc" id="L110">                    serializer.serialize(cosmic);</span>
+                } else {
+<span class="nc" id="L112">                    ignoredCosmicLines++;</span>
+                }
+<span class="nc" id="L114">                processedCosmicLines++;</span>
+<span class="nc" id="L115">            }</span>
+<span class="nc" id="L116">        } catch (IOException ex) {</span>
+<span class="nc" id="L117">            ex.printStackTrace();</span>
+        } finally {
+<span class="nc" id="L119">            logger.info(&quot;Done&quot;);</span>
+<span class="nc" id="L120">            this.printSummary(processedCosmicLines, ignoredCosmicLines);</span>
+<span class="nc" id="L121">        }</span>
+<span class="nc" id="L122">    }</span>
+
+    private Cosmic buildCosmic(String line) {
+        // COSMIC file is a tab-delimited file with the following fields (columns)
+        // 0 Gene name
+        // 1 Accession Number
+        // 2 Gene CDS length
+        // 3 HGNC ID
+        // 4 Sample name
+        // 5 ID sample
+        // 6 ID tumour
+        // 7 Primary site
+        // 8 Site subtype
+        // 11 Primary histology
+        // 12 Histology subtype
+        // 15 Genome-wide screen
+        // 16 Mutation ID
+        // 17 Mutation CDS
+        // 18 Mutation AA
+        // 19 Mutation Description
+        // 29 Mutation zygosity
+        // 23 Mutation GRCh37 genome position
+        // 24 Mutation GRCh37 strand
+        // 25 Snp
+        // 26 FATHMM Prediction
+        // 28 Mutation somatic status
+        // 29 PubMed PMID
+        // 30 ID STUDY
+        // 31 Sample source
+        // 32 Tumour origin
+        // 33 Age
+        // 34 Comments
+<span class="nc" id="L154">        String[] fields = line.split(&quot;\t&quot;, -1); // -1 argument make split return also empty fields</span>
+<span class="nc" id="L155">        Cosmic cosmic = new Cosmic();</span>
+<span class="nc" id="L156">        cosmic.setGeneName(fields[0]);</span>
+<span class="nc" id="L157">        cosmic.setAccessionNumber(fields[1]);</span>
+<span class="nc" id="L158">        cosmic.setGeneCDSLength(Integer.parseInt(fields[2]));</span>
+<span class="nc" id="L159">        cosmic.setHgncId(fields[3]);</span>
+<span class="nc" id="L160">        cosmic.setSampleName(fields[4]);</span>
+<span class="nc" id="L161">        cosmic.setIdSample(fields[5]);</span>
+<span class="nc" id="L162">        cosmic.setIdTumour(fields[6]);</span>
+<span class="nc" id="L163">        cosmic.setPrimarySite(fields[7]);</span>
+<span class="nc" id="L164">        cosmic.setSiteSubtype(fields[8]);</span>
+<span class="nc" id="L165">        cosmic.setPrimaryHistology(fields[11]);</span>
+<span class="nc" id="L166">        cosmic.setHistologySubtype(fields[12]);</span>
+<span class="nc" id="L167">        cosmic.setGenomeWideScreen(fields[15]);</span>
+<span class="nc" id="L168">        cosmic.setMutationID(fields[16]);</span>
+<span class="nc" id="L169">        cosmic.setMutationCDS(fields[17]);</span>
+<span class="nc" id="L170">        cosmic.setMutationAA(fields[18]);</span>
+<span class="nc" id="L171">        cosmic.setMutationDescription(fields[19]);</span>
+<span class="nc" id="L172">        cosmic.setMutationZygosity(fields[20]);</span>
+<span class="nc" id="L173">        cosmic.setMutationGRCh37GenomePosition(fields[23]);</span>
+<span class="nc" id="L174">        cosmic.setMutationGRCh37Strand(fields[24]);</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">        if (!fields[25].isEmpty() &amp;&amp; fields[25].equalsIgnoreCase(&quot;y&quot;)) {</span>
+<span class="nc" id="L176">            cosmic.setSnp(true);</span>
+        }
+<span class="nc" id="L178">        cosmic.setFathmmPrediction(fields[27]);</span>
+<span class="nc" id="L179">        cosmic.setMutationSomaticStatus(fields[mutationSomaticStatusColumn]);</span>
+<span class="nc" id="L180">        cosmic.setPubmedPMID(fields[pubmedPMIDColumn]);</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">        if (!fields[idStudyColumn].isEmpty() &amp;&amp; !fields[idStudyColumn].equals(&quot;NS&quot;)) {</span>
+<span class="nc" id="L182">            cosmic.setIdStudy(Integer.parseInt(fields[idStudyColumn]));</span>
+        }
+<span class="nc" id="L184">        cosmic.setSampleSource(fields[sampleSourceColumn]);</span>
+<span class="nc" id="L185">        cosmic.setTumourOrigin(fields[tumourOriginColumn]);</span>
+<span class="nc bnc" id="L186" title="All 4 branches missed.">        if (!fields[ageColumn].isEmpty() &amp;&amp; !fields[ageColumn].equals(&quot;NS&quot;)) {</span>
+<span class="nc" id="L187">            cosmic.setAge(Float.parseFloat(fields[ageColumn]));</span>
+        }
+//        cosmic.setComments(fields[34]);
+<span class="nc" id="L190">        return cosmic;</span>
+    }
+
+    public boolean parseChromosomeStartAndEnd(Cosmic cosmic) {
+<span class="nc" id="L194">        boolean success = false;</span>
+<span class="nc bnc" id="L195" title="All 4 branches missed.">        if (cosmic.getMutationGRCh37GenomePosition() != null &amp;&amp; !cosmic.getMutationGRCh37GenomePosition().isEmpty()) {</span>
+<span class="nc" id="L196">            Matcher matcher = mutationGRCh37GenomePositionPattern.matcher(cosmic.getMutationGRCh37GenomePosition());</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            if (matcher.matches()) {</span>
+<span class="nc" id="L198">                setCosmicChromosome(matcher.group(CHROMOSOME), cosmic);</span>
+<span class="nc" id="L199">                cosmic.setStart(getStart(Integer.parseInt(matcher.group(START)), cosmic.getMutationCDS()));</span>
+<span class="nc" id="L200">                cosmic.setEnd(Integer.parseInt(matcher.group(END)));</span>
+<span class="nc" id="L201">                success = true;</span>
+            }
+        }
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (!success) {</span>
+<span class="nc" id="L205">            this.invalidPositionLines++;</span>
+        }
+<span class="nc" id="L207">        return success;</span>
+    }
+
+    private Integer getStart(Integer readPosition, String mutationCDS) {
+        // In order to agree with the Variant model and what it's stored in variation, the start must be incremented in
+        // 1 for insertions given what is provided in the COSMIC file
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (mutationCDS.contains(&quot;ins&quot;)) {</span>
+<span class="nc" id="L214">            return readPosition + 1;</span>
+        } else {
+<span class="nc" id="L216">            return readPosition;</span>
+        }
+    }
+
+    private void setCosmicChromosome(String chromosome, Cosmic cosmic) {
+<span class="nc bnc" id="L221" title="All 14 branches missed.">        switch (chromosome) {</span>
+            case &quot;23&quot;:
+<span class="nc" id="L223">                cosmic.setChromosome(&quot;X&quot;);</span>
+<span class="nc" id="L224">                break;</span>
+            case &quot;24&quot;:
+<span class="nc" id="L226">                cosmic.setChromosome(&quot;Y&quot;);</span>
+<span class="nc" id="L227">                break;</span>
+            case &quot;25&quot;:
+<span class="nc" id="L229">                cosmic.setChromosome(&quot;MT&quot;);</span>
+<span class="nc" id="L230">                break;</span>
+            default:
+<span class="nc" id="L232">                cosmic.setChromosome(chromosome);</span>
+        }
+<span class="nc" id="L234">    }</span>
+
+    /**
+     * Check whether the variant is valid and parse it.
+     *
+     * @return true if valid mutation, false otherwise
+     */
+    private boolean parseVariant(Cosmic cosmic) {
+        boolean validVariant;
+
+<span class="nc" id="L244">        String mutationCds = cosmic.getMutationCDS();</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if (mutationCds.contains(&quot;&gt;&quot;)) {</span>
+<span class="nc" id="L246">            validVariant = parseSnv(mutationCds, cosmic);</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L248">                invalidSubstitutionLines++;</span>
+            }
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;del&quot;)) {</span>
+<span class="nc" id="L251">            validVariant = parseDeletion(mutationCds, cosmic);</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L253">                invalidDeletionLines++;</span>
+            }
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;ins&quot;)) {</span>
+<span class="nc" id="L256">            validVariant = parseInsertion(mutationCds, cosmic);</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L258">                invalidInsertionLines++;</span>
+            }
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        } else if (mutationCds.contains(&quot;dup&quot;)) {</span>
+<span class="nc" id="L261">            validVariant = parseDuplication(mutationCds);</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L263">                invalidDuplicationLines++;</span>
+            }
+        } else {
+<span class="nc" id="L266">            validVariant = false;</span>
+<span class="nc" id="L267">            invalidMutationCDSOtherReason++;</span>
+        }
+
+<span class="nc" id="L270">        return validVariant;</span>
+    }
+
+    private boolean parseDuplication(String dup) {
+        // TODO: The only Duplication in Cosmic V70 is a structural variation that is not going to be serialized
+<span class="nc" id="L275">        return false;</span>
+    }
+
+    private boolean parseInsertion(String mutationCds, Cosmic cosmic) {
+<span class="nc" id="L279">        boolean validVariant = true;</span>
+<span class="nc" id="L280">        String insertedNucleotides = mutationCds.split(&quot;ins&quot;)[1];</span>
+<span class="nc bnc" id="L281" title="All 4 branches missed.">        if (insertedNucleotides.matches(&quot;\\d+&quot;) || !insertedNucleotides.matches(VARIANT_STRING_PATTERN)) {</span>
+            //c.503_508ins30
+<span class="nc" id="L283">            validVariant = false;</span>
+        } else {
+<span class="nc" id="L285">            cosmic.setReference(&quot;&quot;);</span>
+<span class="nc" id="L286">            cosmic.setAlternate(getPositiveStrandString(insertedNucleotides, cosmic.getMutationGRCh37Strand()));</span>
+        }
+
+<span class="nc" id="L289">        return validVariant;</span>
+    }
+
+    private boolean parseDeletion(String mutationCds, Cosmic cosmic) {
+<span class="nc" id="L293">        boolean validVariant = true;</span>
+<span class="nc" id="L294">        String[] mutationCDSArray = mutationCds.split(&quot;del&quot;);</span>
+
+        // For deletions, only deletions of, at most, deletionLength nucleotide are allowed
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (mutationCDSArray.length &lt; 2) { // c.503_508del (usually, deletions of several nucleotides)</span>
+            // TODO: allow these variants
+<span class="nc" id="L299">            validVariant = false;</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        } else if (mutationCDSArray[1].matches(&quot;\\d+&quot;)</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">                || !mutationCDSArray[1].matches(VARIANT_STRING_PATTERN)) { // Avoid allele strings containing Ns, for example</span>
+<span class="nc" id="L302">            validVariant = false;</span>
+        } else {
+<span class="nc" id="L304">            cosmic.setReference(getPositiveStrandString(mutationCDSArray[1], cosmic.getMutationGRCh37Strand()));</span>
+<span class="nc" id="L305">            cosmic.setAlternate(&quot;&quot;);</span>
+        }
+
+<span class="nc" id="L308">        return validVariant;</span>
+    }
+
+    private boolean parseSnv(String mutationCds, Cosmic cosmic) {
+<span class="nc" id="L312">        boolean validVariant = true;</span>
+<span class="nc" id="L313">        Matcher snvMatcher = snvPattern.matcher(mutationCds);</span>
+
+<span class="nc bnc" id="L315" title="All 2 branches missed.">        if (snvMatcher.matches()) {</span>
+<span class="nc" id="L316">            String ref = snvMatcher.group(REF);</span>
+<span class="nc" id="L317">            String alt = snvMatcher.group(ALT);</span>
+<span class="nc bnc" id="L318" title="All 4 branches missed.">            if (!ref.equalsIgnoreCase(&quot;N&quot;) &amp;&amp; !alt.equalsIgnoreCase(&quot;N&quot;)) {</span>
+<span class="nc" id="L319">                cosmic.setReference(getPositiveStrandString(ref, cosmic.getMutationGRCh37Strand()));</span>
+<span class="nc" id="L320">                cosmic.setAlternate(getPositiveStrandString(alt, cosmic.getMutationGRCh37Strand()));</span>
+            } else {
+<span class="nc" id="L322">                validVariant = false;</span>
+            }
+<span class="nc" id="L324">        } else {</span>
+<span class="nc" id="L325">            validVariant = false;</span>
+        }
+
+<span class="nc" id="L328">        return validVariant;</span>
+    }
+
+    private String getPositiveStrandString(String alleleString, String strand) {
+<span class="nc bnc" id="L332" title="All 2 branches missed.">        if (strand.equals(&quot;-&quot;)) {</span>
+<span class="nc" id="L333">            return reverseComplementary(alleleString);</span>
+        } else {
+<span class="nc" id="L335">            return alleleString;</span>
+        }
+    }
+
+    private String reverseComplementary(String alleleString) {
+<span class="nc" id="L340">        char[] reverseAlleleString = new StringBuilder(alleleString).reverse().toString().toCharArray();</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">        for (int i = 0; i &lt; reverseAlleleString.length; i++) {</span>
+<span class="nc" id="L342">            reverseAlleleString[i] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(reverseAlleleString[i]);</span>
+        }
+
+<span class="nc" id="L345">        return String.valueOf(reverseAlleleString);</span>
+    }
+
+    private void printSummary(long processedCosmicLines, long ignoredCosmicLines) {
+<span class="nc" id="L349">        NumberFormat formatter = NumberFormat.getInstance();</span>
+<span class="nc" id="L350">        logger.info(&quot;&quot;);</span>
+<span class="nc" id="L351">        logger.info(&quot;Summary&quot;);</span>
+<span class="nc" id="L352">        logger.info(&quot;=======&quot;);</span>
+<span class="nc" id="L353">        logger.info(&quot;Processed &quot; + formatter.format(processedCosmicLines) + &quot; cosmic lines&quot;);</span>
+<span class="nc" id="L354">        logger.info(&quot;Serialized &quot; + formatter.format(processedCosmicLines - ignoredCosmicLines) + &quot; cosmic objects&quot;);</span>
+<span class="nc" id="L355">        logger.info(formatter.format(ignoredCosmicLines) + &quot; cosmic lines ignored: &quot;);</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">        if (invalidPositionLines &gt; 0) {</span>
+<span class="nc" id="L357">            logger.info(&quot;\t-&quot; + formatter.format(invalidPositionLines) + &quot; lines by invalid position&quot;);</span>
+        }
+<span class="nc bnc" id="L359" title="All 2 branches missed.">        if (invalidSubstitutionLines &gt; 0) {</span>
+<span class="nc" id="L360">            logger.info(&quot;\t-&quot; + formatter.format(invalidSubstitutionLines) + &quot; lines by invalid substitution CDS&quot;);</span>
+        }
+<span class="nc bnc" id="L362" title="All 2 branches missed.">        if (invalidInsertionLines &gt; 0) {</span>
+<span class="nc" id="L363">            logger.info(&quot;\t-&quot; + formatter.format(invalidInsertionLines) + &quot; lines by invalid insertion CDS&quot;);</span>
+        }
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        if (invalidDeletionLines &gt; 0) {</span>
+<span class="nc" id="L366">            logger.info(&quot;\t-&quot; + formatter.format(invalidDeletionLines) + &quot; lines by invalid deletion CDS&quot;);</span>
+        }
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (invalidDuplicationLines &gt; 0) {</span>
+<span class="nc" id="L369">            logger.info(&quot;\t-&quot; + formatter.format(invalidDuplicationLines) + &quot; lines because mutation CDS is a duplication&quot;);</span>
+        }
+<span class="nc bnc" id="L371" title="All 2 branches missed.">        if (invalidMutationCDSOtherReason &gt; 0) {</span>
+<span class="nc" id="L372">            logger.info(&quot;\t-&quot; + formatter.format(invalidMutationCDSOtherReason)</span>
+                    + &quot; lines because mutation CDS is invalid for other reasons&quot;);
+        }
+<span class="nc" id="L375">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

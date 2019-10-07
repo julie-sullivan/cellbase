@@ -1,0 +1,631 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IARCTP53Indexer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform.clinical.variant</a> &gt; <span class="el_source">IARCTP53Indexer.java</span></div><h1>IARCTP53Indexer.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform.clinical.variant;
+
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.biodata.tools.sequence.FastaIndexManager;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.text.NumberFormat;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Created by fjlopez on 21/11/16.
+ */
+public class IARCTP53Indexer extends ClinicalIndexer {
+
+    private static final String IARCTP53_NAME = &quot;iarctp53&quot;;
+    private static final String VARIANT_STRING_PATTERN = &quot;[ACGT]*&quot;;
+
+    private static final String REF = &quot;REF&quot;;
+    private static final String ALT = &quot;ALT&quot;;
+
+    private static final int GERMLINE_ID_COLUMN = 9;
+    private static final int SOMATIC_ID_COLUMN = 1;
+    private static final int GERMLINE_TOPOGRAPHY_COLUMN = 49;
+    private static final int MORPHOLOGY_COLUMN = 38;
+    private static final String TP53 = &quot;TP53&quot;;
+    private static final int MODE_OF_INHERITANCE_COLUMN = 44;
+    private static final int TUMOR_ORIGIN_COLUMN = 33;
+    private static final int SOMATIC_TOPOGRAPHY_COLUMN = 34;
+    private static final int SAMPLE_SOURCE_COLUMN = 32;
+
+    private final Path germlineFile;
+    private final Path somaticFile;
+    private final String assembly;
+    private final Pattern snvPattern;
+    private final Path germlineReferencesFile;
+    private final Path somaticReferencesFile;
+    private final Path genomeSequenceFilePath;
+    private final Pattern kbSizePattern;
+    private final Pattern mbSizePattern;
+    private final Pattern smallSizePattern;
+<span class="fc" id="L50">    private int ignoredRecords = 0;</span>
+<span class="fc" id="L51">    private int invalidSubstitutionLines = 0;</span>
+<span class="fc" id="L52">    private int invalidDeletionLines = 0;</span>
+<span class="fc" id="L53">    private int invalidInsertionLines = 0;</span>
+<span class="fc" id="L54">    private int invalidgDescriptionOtherReason = 0;</span>
+<span class="fc" id="L55">    private int nDuplications = 0;</span>
+
+    public IARCTP53Indexer(Path germlineFile, Path germlineReferencesFile, Path somaticFile,
+                           Path somaticReferencesFile, boolean normalize, Path genomeSequenceFilePath, String assembly,
+                           RocksDB rdb) throws IOException {
+<span class="fc" id="L60">        super(genomeSequenceFilePath);</span>
+<span class="fc" id="L61">        this.rdb = rdb;</span>
+<span class="fc" id="L62">        this.assembly = assembly;</span>
+<span class="fc" id="L63">        this.germlineFile = germlineFile;</span>
+<span class="fc" id="L64">        this.germlineReferencesFile = germlineReferencesFile;</span>
+<span class="fc" id="L65">        this.somaticFile = somaticFile;</span>
+<span class="fc" id="L66">        this.somaticReferencesFile = somaticReferencesFile;</span>
+<span class="fc" id="L67">        this.normalize = normalize;</span>
+<span class="fc" id="L68">        this.genomeSequenceFilePath = genomeSequenceFilePath;</span>
+<span class="fc" id="L69">        snvPattern = Pattern.compile(&quot;g\\.\\d+(_\\d+)?(?&lt;&quot; + REF + &quot;&gt;(A|C|T|G)+)&gt;(?&lt;&quot; + ALT + &quot;&gt;(A|C|T|G)+)&quot;);</span>
+<span class="fc" id="L70">        kbSizePattern = Pattern.compile(&quot;\\d+((kb)|(Kb)|(KB))&quot;);</span>
+<span class="fc" id="L71">        mbSizePattern = Pattern.compile(&quot;\\d+((mb)|(Mb)|(MB))&quot;);</span>
+<span class="fc" id="L72">        smallSizePattern = Pattern.compile(&quot;\\d+&quot;);</span>
+<span class="fc" id="L73">    }</span>
+
+    public void index() throws RocksDBException {
+<span class="fc" id="L76">        index(germlineFile, germlineReferencesFile, true);</span>
+<span class="fc" id="L77">        index(somaticFile, somaticReferencesFile, false);</span>
+<span class="fc" id="L78">        this.printSummary();</span>
+<span class="fc" id="L79">    }</span>
+
+    private void index(Path filePath, Path referencesFilePath, boolean isGermline) throws RocksDBException {
+
+        // Preparing the fasta file for fast accessing
+<span class="fc" id="L84">        FastaIndexManager fastaIndexManager = null;</span>
+        try {
+<span class="fc" id="L86">            fastaIndexManager = new FastaIndexManager(genomeSequenceFilePath, true);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            if (!fastaIndexManager.isConnected()) {</span>
+<span class="fc" id="L88">                fastaIndexManager.index();</span>
+            }
+<span class="nc" id="L90">        } catch (Exception e) {</span>
+<span class="nc" id="L91">            e.printStackTrace();</span>
+<span class="nc" id="L92">            return;</span>
+<span class="fc" id="L93">        }</span>
+
+<span class="fc" id="L95">        logger.info(&quot;Parsing {} ...&quot;, filePath.toString());</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        int variantIdColumnIndex = isGermline ? 9 : 1;</span>
+
+        try {
+<span class="fc" id="L99">            BufferedReader reader = FileUtils.newBufferedReader(filePath);</span>
+            String line;
+<span class="fc" id="L101">            reader.readLine(); // First line is the header -&gt; ignore it</span>
+<span class="fc" id="L102">            String previousVariantId = null;</span>
+<span class="fc" id="L103">            SequenceLocation sequenceLocation = null;</span>
+<span class="fc" id="L104">            List&lt;EvidenceEntry&gt; evidenceEntryList = null;</span>
+<span class="fc" id="L105">            Map&lt;String, String&gt; references = loadReferences(referencesFilePath, isGermline);</span>
+<span class="fc" id="L106">            boolean skip = false;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            while ((line = reader.readLine()) != null) {</span>
+<span class="fc" id="L108">                String[] fields = line.split(&quot;\t&quot;, -1);  // -1 argument make split return also empty fields</span>
+<span class="fc" id="L109">                logger.debug(line);</span>
+                // One variant may appear in multiple lines - one for each individual in which was observed. fields[9]
+                // contains MUT_ID
+<span class="fc bfc" id="L112" title="All 2 branches covered.">                if (!fields[variantIdColumnIndex].equals(previousVariantId)) {</span>
+<span class="fc" id="L113">                    totalNumberRecords++;</span>
+                    // Do not update RocksDB on first iteration
+<span class="fc bfc" id="L115" title="All 4 branches covered.">                    if (previousVariantId != null &amp;&amp; !skip) {</span>
+<span class="fc" id="L116">                        boolean success = updateRocksDB(sequenceLocation, evidenceEntryList);</span>
+                        // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">                        if (success) {</span>
+<span class="fc" id="L119">                            numberIndexedRecords++;</span>
+                        }
+                    }
+<span class="fc" id="L122">                    sequenceLocation = parseVariant(fields, fastaIndexManager, isGermline);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">                    if (sequenceLocation != null) {</span>
+<span class="fc" id="L124">                        evidenceEntryList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L125">                        skip = false;</span>
+                    } else {
+<span class="fc" id="L127">                        skip = true;</span>
+<span class="fc" id="L128">                        ignoredRecords++;</span>
+                    }
+<span class="fc" id="L130">                    previousVariantId = fields[variantIdColumnIndex];</span>
+
+                }
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                if (!skip) {</span>
+<span class="fc" id="L135">                    List&lt;String&gt; bibliography = parseBibliography(fields, references, isGermline);</span>
+<span class="fc" id="L136">                    EvidenceEntry evidenceEntry = buildEvidenceEntry(fields, isGermline);</span>
+<span class="fc" id="L137">                    evidenceEntry.setBibliography(bibliography);</span>
+<span class="fc" id="L138">                    evidenceEntryList.add(evidenceEntry);</span>
+
+//                    if (isGermline) {
+//                        Germline germlineObject = buildEvidenceEntry(fields);
+//                        if (bibliography != null) {
+//                            germlineObject.setBibliography(bibliography);
+//                        }
+//                        variantTraitAssociation.getGermline().add(germlineObject);
+//                    } else {
+//                        Somatic somaticObject = buildSomatic(fields);
+//                        if (bibliography != null) {
+//                            somaticObject.setBibliography(bibliography);
+//                        }
+//                        variantTraitAssociation.getSomatic().add(somaticObject);
+//                    }
+                }
+<span class="fc" id="L154">            }</span>
+
+            // Write last variant
+            // Do not update RocksDB on first iteration
+<span class="pc bpc" id="L158" title="1 of 4 branches missed.">            if (previousVariantId != null &amp;&amp; !skip) {</span>
+<span class="fc" id="L159">                boolean success = updateRocksDB(sequenceLocation, evidenceEntryList);</span>
+                // updateRocksDB may fail (false) if normalisation process fails
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">                if (success) {</span>
+<span class="fc" id="L162">                    numberIndexedRecords++;</span>
+                }
+            }
+<span class="nc" id="L165">        } catch (RocksDBException e) {</span>
+<span class="nc" id="L166">            logger.error(&quot;Error reading/writing from/to the RocksDB index while indexing IARCTP53&quot;);</span>
+<span class="nc" id="L167">            throw e;</span>
+<span class="nc" id="L168">        } catch (IOException ex) {</span>
+<span class="nc" id="L169">            ex.printStackTrace();</span>
+        } finally {
+<span class="pc" id="L171">            logger.info(&quot;Done&quot;);</span>
+<span class="pc" id="L172">        }</span>
+
+<span class="fc" id="L174">    }</span>
+
+    private List&lt;String&gt; parseBibliography(String[] fields, Map&lt;String, String&gt; references, boolean isGermline) {
+<span class="fc" id="L177">        List&lt;String&gt; bibliography = null;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        int bibliographyColumnIndex = isGermline ? 53 : 64;</span>
+        // fields[53] may contain bibliography ids
+<span class="pc bpc" id="L180" title="2 of 4 branches missed.">        if (!fields[bibliographyColumnIndex].isEmpty() &amp;&amp; !fields[bibliographyColumnIndex].equalsIgnoreCase(&quot;na&quot;)) {</span>
+<span class="fc" id="L181">            bibliography = new ArrayList&lt;&gt;();</span>
+            // - 1 since ids in the file are assigned 1-based while indexing in the references array is
+            // 0 based
+<span class="fc" id="L184">            bibliography.add(references.get(fields[bibliographyColumnIndex]));</span>
+        }
+
+<span class="fc" id="L187">        return bibliography;</span>
+    }
+
+    private Map&lt;String, String&gt; loadReferences(Path filePath, boolean isGermline) throws IOException {
+<span class="fc" id="L191">        BufferedReader reader = FileUtils.newBufferedReader(filePath);</span>
+
+<span class="fc" id="L193">        reader.readLine(); // Skip header on the first line</span>
+<span class="fc" id="L194">        logger.info(&quot;Loading references from {} &quot;, filePath.toString());</span>
+<span class="fc" id="L195">        Map&lt;String, String&gt; references = new HashMap&lt;&gt;(300);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        int pubmedIdPosition = isGermline ? 8 : 9;</span>
+        String line;
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        while ((line = reader.readLine()) != null) {</span>
+<span class="fc" id="L199">            String[] fields = line.split(&quot;\t&quot;, -1); // -1 argument make split return also empty fields</span>
+<span class="fc" id="L200">            references.put(fields[0], &quot;PMID:&quot; + fields[pubmedIdPosition]);</span>
+
+<span class="fc" id="L202">        }</span>
+<span class="fc" id="L203">        logger.info(&quot;{} references loaded&quot;, references.size());</span>
+
+<span class="fc" id="L205">        return references;</span>
+
+    }
+
+    private void printSummary() {
+<span class="fc" id="L210">        logger.info(&quot;Total number of parsed IARCTP53 records: {}&quot;, totalNumberRecords);</span>
+<span class="fc" id="L211">        logger.info(&quot;Number of indexed IARCTP53 records: {}&quot;, numberIndexedRecords);</span>
+<span class="fc" id="L212">        logger.info(&quot;Number of new variants in IARCTP53 not previously indexed in RocksDB: {}&quot;, numberNewVariants);</span>
+<span class="fc" id="L213">        logger.info(&quot;Number of updated variants during IARCTP53 indexing: {}&quot;, numberVariantUpdates);</span>
+
+<span class="fc" id="L215">        NumberFormat formatter = NumberFormat.getInstance();</span>
+<span class="fc" id="L216">        logger.info(formatter.format(ignoredRecords) + &quot; IARCTP53 records ignored: &quot;);</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (invalidSubstitutionLines &gt; 0) {</span>
+<span class="nc" id="L218">            logger.info(&quot;\t&quot; + formatter.format(invalidSubstitutionLines) + &quot; lines by invalid substitution&quot;);</span>
+        }
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if (invalidInsertionLines &gt; 0) {</span>
+<span class="fc" id="L221">            logger.info(&quot;\t&quot; + formatter.format(invalidInsertionLines) + &quot; lines by invalid insertion&quot;);</span>
+        }
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (invalidDeletionLines &gt; 0) {</span>
+<span class="fc" id="L224">            logger.info(&quot;\t&quot; + formatter.format(invalidDeletionLines) + &quot; lines by invalid deletion&quot;);</span>
+        }
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        if (nDuplications &gt; 0) {</span>
+<span class="nc" id="L227">            logger.info(&quot;\t&quot; + formatter.format(nDuplications) + &quot; lines by duplication&quot;);</span>
+        }
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        if (invalidgDescriptionOtherReason &gt; 0) {</span>
+<span class="nc" id="L230">            logger.info(&quot;\t&quot; + formatter.format(invalidgDescriptionOtherReason)</span>
+                    + &quot; lines because g. description is invalid for other reasons&quot;);
+        }
+<span class="fc" id="L233">    }</span>
+
+    private boolean updateRocksDB(SequenceLocation sequenceLocation, List&lt;EvidenceEntry&gt; evidenceEntryList)
+            throws RocksDBException, IOException {
+
+        // More than one variant being returned from the normalisation process would mean it's and MNV which has been
+        // decomposed
+<span class="fc" id="L240">        List&lt;String&gt; normalisedVariantStringList = getNormalisedVariantString(sequenceLocation.getChromosome(),</span>
+<span class="fc" id="L241">                sequenceLocation.getStart(), sequenceLocation.getReference(),</span>
+<span class="fc" id="L242">                sequenceLocation.getAlternate());</span>
+
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (normalisedVariantStringList != null) {</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">            for (String normalisedVariantString : normalisedVariantStringList) {</span>
+<span class="fc" id="L246">                VariantAnnotation variantAnnotation = getVariantAnnotation(normalisedVariantString.getBytes());</span>
+
+                // Add haplotype property to all EvidenceEntry objects in variant if there are more than 1 variants in
+                // normalisedVariantStringList, i.e. if this variant is part of an MNV (haplotype)
+<span class="fc" id="L250">                addHaplotypeProperty(evidenceEntryList, normalisedVariantStringList);</span>
+
+<span class="fc" id="L252">                variantAnnotation.getTraitAssociation().addAll(evidenceEntryList);</span>
+<span class="fc" id="L253">                rdb.put(normalisedVariantString.getBytes(), jsonObjectWriter.writeValueAsBytes(variantAnnotation));</span>
+<span class="fc" id="L254">            }</span>
+
+<span class="fc" id="L256">            return true;</span>
+        }
+<span class="nc" id="L258">        return false;</span>
+    }
+
+    /**
+     * Check whether the variant is valid and parse it.
+     *
+     * @return true if valid mutation, false otherwise
+     */
+    private SequenceLocation parseVariant(String[] fields, FastaIndexManager fastaIndexManager,
+                                          boolean isGermline) throws RocksDBException {
+
+<span class="fc" id="L269">        SequenceLocation sequenceLocation = parsePosition(fields, isGermline);</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        int gDescriptionColumnIndex = isGermline ? 19 : 10;</span>
+<span class="fc" id="L271">        String gDescription = fields[gDescriptionColumnIndex];</span>
+
+<span class="fc" id="L273">        boolean validVariant = true;</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">        if (gDescription.contains(&quot;&gt;&quot;)) {</span>
+<span class="fc" id="L275">            validVariant = parseSnv(gDescription, sequenceLocation);</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">            if (!validVariant) {</span>
+<span class="nc" id="L277">                invalidSubstitutionLines++;</span>
+            }
+<span class="fc bfc" id="L279" title="All 2 branches covered.">        } else if (gDescription.contains(&quot;del&quot;)) {</span>
+<span class="fc" id="L280">            validVariant = parseDeletion(gDescription, sequenceLocation, fastaIndexManager);</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">            if (!validVariant) {</span>
+<span class="fc" id="L282">                invalidDeletionLines++;</span>
+            }
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">        } else if (gDescription.contains(&quot;ins&quot;)) {</span>
+<span class="fc" id="L285">            validVariant = parseInsertion(gDescription, sequenceLocation);</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">            if (!validVariant) {</span>
+<span class="fc" id="L287">                invalidInsertionLines++;</span>
+            }
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        } else if (gDescription.contains(&quot;dup&quot;)) {</span>
+<span class="nc" id="L290">            parseDuplication(gDescription);</span>
+<span class="nc" id="L291">            nDuplications++;</span>
+<span class="nc" id="L292">            validVariant = false;</span>
+        } else {
+<span class="nc" id="L294">            validVariant = false;</span>
+<span class="nc" id="L295">            invalidgDescriptionOtherReason++;</span>
+        }
+
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        return validVariant ? sequenceLocation : null;</span>
+    }
+
+    private void parseDuplication(String dup) {
+        // TODO: No duplications seen so far
+<span class="nc" id="L303">        logger.warn(&quot;Duplication found when parsing the IARC TP53 file: {}. No action currently &quot;</span>
+                + &quot;implemented. Variant will be skipped.&quot;, dup);
+<span class="nc" id="L305">    }</span>
+
+    private boolean parseInsertion(String mutationCds, SequenceLocation sequenceLocation) {
+<span class="fc" id="L308">        boolean validVariant = true;</span>
+<span class="fc" id="L309">        String insertedNucleotides = mutationCds.split(&quot;ins&quot;)[1];</span>
+<span class="pc bpc" id="L310" title="3 of 4 branches missed.">        if (insertedNucleotides.matches(&quot;\\d+&quot;) || !insertedNucleotides.matches(VARIANT_STRING_PATTERN)) {</span>
+            //c.503_508ins30
+<span class="fc" id="L312">            validVariant = false;</span>
+        } else {
+<span class="nc" id="L314">            sequenceLocation.setReference(&quot;&quot;);</span>
+<span class="nc" id="L315">            sequenceLocation.setAlternate(insertedNucleotides);</span>
+        }
+
+<span class="fc" id="L318">        return validVariant;</span>
+    }
+
+    private boolean parseDeletion(String gDescription, SequenceLocation sequenceLocation,
+                                  FastaIndexManager fastaIndexManager) throws RocksDBException {
+<span class="fc" id="L323">        boolean validVariant = true;</span>
+<span class="fc" id="L324">        String[] gDescriptionArray = gDescription.split(&quot;del&quot;);</span>
+
+        // For deletions, only deletions of, at most, deletionLength nucleotide are allowed
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (gDescriptionArray.length &lt; 2) { // c.503_508del (usually, deletions of several nucleotides)</span>
+            // TODO: allow these variants
+<span class="nc" id="L329">            validVariant = false;</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">        } else if (gDescriptionArray[1].matches(&quot;\\d+&quot;)) { // Expecting number of deleted nts here</span>
+<span class="fc" id="L331">            sequenceLocation.setReference(fastaIndexManager.query(&quot;17&quot;, sequenceLocation.getStart(),</span>
+<span class="fc" id="L332">                    sequenceLocation.getEnd()));</span>
+<span class="fc" id="L333">            sequenceLocation.setAlternate(&quot;&quot;);</span>
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">        } else if (gDescriptionArray[1].matches(VARIANT_STRING_PATTERN)) { // Avoid allele strings containing Ns, for example</span>
+<span class="nc" id="L335">            sequenceLocation.setReference(gDescriptionArray[1]);</span>
+<span class="nc" id="L336">            validVariant = true;</span>
+        } else {
+<span class="fc" id="L338">            validVariant = false;</span>
+        }
+
+<span class="fc" id="L341">        return validVariant;</span>
+    }
+
+    private boolean parseSnv(String gDescription, SequenceLocation sequenceLocation) {
+<span class="fc" id="L345">        boolean validVariant = true;</span>
+<span class="fc" id="L346">        Matcher snvMatcher = snvPattern.matcher(gDescription);</span>
+
+<span class="pc bpc" id="L348" title="1 of 2 branches missed.">        if (snvMatcher.matches()) {</span>
+<span class="fc" id="L349">            String ref = snvMatcher.group(REF);</span>
+<span class="fc" id="L350">            String alt = snvMatcher.group(ALT);</span>
+<span class="pc bpc" id="L351" title="2 of 4 branches missed.">            if (!ref.equalsIgnoreCase(&quot;N&quot;) &amp;&amp; !alt.equalsIgnoreCase(&quot;N&quot;)) {</span>
+<span class="fc" id="L352">                sequenceLocation.setReference(ref);</span>
+<span class="fc" id="L353">                sequenceLocation.setAlternate(alt);</span>
+            } else {
+<span class="nc" id="L355">                validVariant = false;</span>
+            }
+<span class="fc" id="L357">        } else {</span>
+<span class="nc" id="L358">            validVariant = false;</span>
+        }
+
+<span class="fc" id="L361">        return validVariant;</span>
+    }
+
+    private String getPositiveStrandString(String alleleString, String strand) {
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        if (strand.equals(&quot;-&quot;)) {</span>
+<span class="nc" id="L366">            return reverseComplementary(alleleString);</span>
+        } else {
+<span class="nc" id="L368">            return alleleString;</span>
+        }
+    }
+
+    private String reverseComplementary(String alleleString) {
+<span class="nc" id="L373">        char[] reverseAlleleString = new StringBuilder(alleleString).reverse().toString().toCharArray();</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        for (int i = 0; i &lt; reverseAlleleString.length; i++) {</span>
+<span class="nc" id="L375">            reverseAlleleString[i] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(reverseAlleleString[i]);</span>
+        }
+
+<span class="nc" id="L378">        return String.valueOf(reverseAlleleString);</span>
+    }
+
+    private EvidenceEntry buildEvidenceEntry(String[] fields, boolean isGermline) {
+        // IARC TP53 Germline file is a tab-delimited file with the following fields (columns)
+//        1 Family_ID
+//        2 Family_code
+//        3 Country
+//        4 Population
+//        5 Region
+//        6 Development
+//        7 Class
+//        8 Generations_analyzed
+//        9 Germline_mutation
+//        10 MUT_ID
+//        11 hg18_Chr17_coordinates
+//        12 hg19_Chr17_coordinates
+//        13 hg38_Chr17_coordinates
+//        14 ExonIntron
+//        15 Genomic_nt
+//        16 Codon_number
+//        17 Type
+//        18 Description
+//        19 c_description
+//        20 g_description
+//        21 WT_nucleotide
+//        22 Mutant_nucleotide
+//        23 WT_codon
+//        24 Mutant_codon
+//        25 CpG_site
+//        26 Splice_site
+//        27 WT_AA
+//        28 Mutant_AA
+//        29 Effect
+//        30 AGVGDClass
+//        31 SIFTClass
+//        32 Polyphen2
+//        33 TransactivationClass
+//        34 DNEclass
+//        35 ProtDescription
+//        36 Domain_function
+//        37 Residue_function
+//        38 Individual_ID
+//        39 Individual_code
+//        40 FamilyCase
+//        41 FamilyCase_group
+//        42 Generation
+//        43 Sex
+//        44 Germline_carrier
+//        45 Mode_of_inheritance
+//        46 Dead
+//        47 Unaffected
+//        48 Age
+//        49 Tumor_ID
+//        50 Topography
+//        51 Short_topo
+//        52 Morphology
+//        53 Age_at_diagnosis
+//        54 Ref_ID
+//        55 Other_infos
+//        56 p53mut_ID
+
+<span class="fc" id="L440">        EvidenceSource evidenceSource = new EvidenceSource(IARCTP53_NAME, null, null);</span>
+
+<span class="fc" id="L442">        SomaticInformation somaticInformation = null;</span>
+<span class="fc bfc" id="L443" title="All 2 branches covered.">        if (!isGermline) {</span>
+<span class="fc" id="L444">            somaticInformation = getSomaticInformation(fields);</span>
+        }
+
+        List&lt;HeritableTrait&gt; heritableTraitList;
+<span class="fc bfc" id="L448" title="All 2 branches covered.">        if (!isGermline) {</span>
+<span class="fc" id="L449">            heritableTraitList = getHeritableTrait(fields);</span>
+        } else {
+<span class="fc" id="L451">            heritableTraitList = Collections.emptyList();</span>
+        }
+
+<span class="fc bfc" id="L454" title="All 4 branches covered.">        EvidenceEntry evidenceEntry = new EvidenceEntry(evidenceSource, Collections.emptyList(), somaticInformation,</span>
+                null, fields[isGermline ? GERMLINE_ID_COLUMN : SOMATIC_ID_COLUMN], null,
+<span class="fc" id="L456">                Collections.singletonList(isGermline ? AlleleOrigin.germline_variant : AlleleOrigin.somatic_variant),</span>
+<span class="fc" id="L457">                heritableTraitList, Collections.singletonList(createGeneGenomicFeature(TP53)), null,</span>
+                null, null, null, EthnicCategory.Z, null,
+<span class="fc" id="L459">                null, null, Collections.emptyList(), Collections.emptyList());</span>
+
+<span class="fc" id="L461">        return evidenceEntry;</span>
+    }
+
+    private List&lt;HeritableTrait&gt; getHeritableTrait(String[] fields) {
+<span class="fc bfc" id="L465" title="All 2 branches covered.">        if (!EtlCommons.isMissing(fields[GERMLINE_TOPOGRAPHY_COLUMN])) {</span>
+<span class="fc" id="L466">            return Collections.singletonList(new HeritableTrait(fields[GERMLINE_TOPOGRAPHY_COLUMN], null));</span>
+        } else {
+<span class="fc" id="L468">            return Collections.emptyList();</span>
+        }
+//                VariantAnnotationUtils.MODEOFINHERITANCE_MAP.get(fields[MODE_OF_INHERITANCE_COLUMN])));
+    }
+
+    private SomaticInformation getSomaticInformation(String[] fields) {
+        // IARC TP53 Germline file is a tab-delimited file with the following fields (columns)
+//      1 Mutation_ID
+//      2 MUT_ID
+//      3 hg18_Chr17_coordinates
+//      4 hg19_Chr17_coordinates
+//      5 hg38_Chr17_coordinates
+//      6 ExonIntron
+//      7 Genomic_nt
+//      8 Codon_number
+//      9 Description
+//     10 c_description
+//     11 g_description
+//     12 WT_nucleotide
+//     13 Mutant_nucleotide
+//     14 Splice_site
+//     15 CpG_site
+//     16 Context_coding_3
+//     17 Type
+//     18 Mut_rate
+//     19 WT_codon
+//     20 Mutant_codon
+//     21 WT_AA
+//     22 Mutant_AA
+//     23 ProtDescription
+//     24 Mut_rateAA
+//     25 Effect
+//     26 SIFTClass
+//     27 Polyphen2
+//     28 TransactivationClass
+//     29 DNEclass
+//     30 Structural_motif
+//     31 Sample_Name
+//     32 Sample_ID
+//     33 Sample_source
+//     34 Tumor_origin
+//     35 Topography
+//     36 Short_topo
+//     37 Topo_code
+//     38 Sub_topography
+//     39 Morphology
+//     40 Morpho_code
+//     41 Grade
+//     42 Stage
+//     43 TNM
+//     44 p53_IHC
+//     45 KRAS_status
+//     46 Other_mutations
+//     47 Other_associations
+//     48 Add_Info
+//     49 Individual_ID
+//     50 Sex
+//     51 Age
+//     52 Ethnicity
+//     53 Geo_area
+//     54 Country
+//     55 Development
+//     56 Population
+//     57 Region
+//     58 TP53polymorphism
+//     59 Germline_mutation
+//     60 Family_history
+//     61 Tobacco
+//     62 Alcohol
+//     63 Exposure
+//     64 Infectious_agent
+//     65 Ref_ID
+//     66 Cross_Ref_ID
+//     67 PubMed
+//     68 Exclude_analysis
+//     69 WGS_WXS
+
+
+<span class="fc" id="L546">        String primarySite = null;</span>
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[SOMATIC_TOPOGRAPHY_COLUMN])) {</span>
+<span class="fc" id="L548">            primarySite = fields[SOMATIC_TOPOGRAPHY_COLUMN];</span>
+        }
+
+<span class="fc" id="L551">        String siteSubtype = null;</span>
+<span class="fc" id="L552">        String tumorOrigin = null;</span>
+<span class="pc bpc" id="L553" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[TUMOR_ORIGIN_COLUMN])) {</span>
+<span class="fc" id="L554">            siteSubtype = fields[TUMOR_ORIGIN_COLUMN];</span>
+<span class="fc" id="L555">            tumorOrigin = fields[TUMOR_ORIGIN_COLUMN];</span>
+        }
+
+<span class="fc" id="L558">        String histologySubtype = null;</span>
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[MORPHOLOGY_COLUMN])) {</span>
+<span class="fc" id="L560">            histologySubtype = fields[MORPHOLOGY_COLUMN];</span>
+        }
+
+<span class="fc" id="L563">        String sampleSource = null;</span>
+<span class="pc bpc" id="L564" title="1 of 2 branches missed.">        if (!EtlCommons.isMissing(fields[SAMPLE_SOURCE_COLUMN])) {</span>
+<span class="fc" id="L565">            sampleSource = fields[SAMPLE_SOURCE_COLUMN];</span>
+        }
+
+<span class="fc" id="L568">        SomaticInformation somaticInformation = new SomaticInformation(primarySite, siteSubtype, null,</span>
+                histologySubtype, tumorOrigin, sampleSource);
+
+<span class="fc" id="L571">        return somaticInformation;</span>
+    }
+
+    public SequenceLocation parsePosition(String[] fields, boolean isGermline) {
+<span class="fc" id="L575">        SequenceLocation sequenceLocation = new SequenceLocation();</span>
+<span class="fc" id="L576">        sequenceLocation.setChromosome(&quot;17&quot;); // all variants in this database appear in the same gene</span>
+
+<span class="fc bfc" id="L578" title="All 2 branches covered.">        int grch37ColumnPosition = isGermline ? 11 : 3;</span>
+<span class="fc bfc" id="L579" title="All 2 branches covered.">        int grch38ColumnPosition = isGermline ? 12 : 4;</span>
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">        if (&quot;grch37&quot;.equalsIgnoreCase(assembly)) {</span>
+<span class="fc" id="L581">            sequenceLocation.setStart(Integer.valueOf(fields[grch37ColumnPosition]));</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">        } else if (&quot;grch38&quot;.equalsIgnoreCase(assembly)) {</span>
+<span class="nc" id="L583">            sequenceLocation.setStart(Integer.valueOf(fields[grch38ColumnPosition]));</span>
+        }
+
+<span class="fc bfc" id="L586" title="All 2 branches covered.">        int hgvsColumnPosition = isGermline ? 17 : 10;</span>
+<span class="fc bfc" id="L587" title="All 2 branches covered.">        if (fields[hgvsColumnPosition].contains(&quot;del&quot;)) {</span>
+<span class="fc" id="L588">            String[] deletionParts = fields[hgvsColumnPosition].split(&quot;del&quot;);</span>
+<span class="pc bpc" id="L589" title="1 of 2 branches missed.">            if (deletionParts.length == 2) {</span>
+<span class="fc" id="L590">                Integer deletionSize = parseDeletionSize(fields[hgvsColumnPosition].split(&quot;del&quot;)[1]);</span>
+<span class="fc bfc" id="L591" title="All 2 branches covered.">                if (deletionSize != null) {</span>
+<span class="fc" id="L592">                    sequenceLocation.setEnd(sequenceLocation.getStart() + deletionSize - 1);</span>
+                } else {
+<span class="fc" id="L594">                    logger.warn(&quot;Deletion size format not recognized: \&quot;{}\&quot;&quot;, fields[hgvsColumnPosition].split(&quot;del&quot;)[1]);</span>
+<span class="fc" id="L595">                    sequenceLocation = null;</span>
+                }
+<span class="fc" id="L597">            } else {</span>
+<span class="nc" id="L598">                logger.warn(&quot;Deletion format not recognized: \&quot;{}\&quot;&quot;, fields[hgvsColumnPosition]);</span>
+<span class="nc" id="L599">                sequenceLocation = null;</span>
+            }
+<span class="fc bfc" id="L601" title="All 2 branches covered.">        } else if (fields[hgvsColumnPosition].contains(&quot;ins&quot;)) {</span>
+<span class="fc" id="L602">            sequenceLocation.setEnd(sequenceLocation.getStart() - 1);</span>
+        } else {
+<span class="fc" id="L604">            sequenceLocation.setEnd(sequenceLocation.getStart());</span>
+        }
+
+<span class="fc" id="L607">        return sequenceLocation;</span>
+    }
+
+    private Integer parseDeletionSize(String sizeString) {
+        // Size of the deletion may be provided as 45kb for example
+<span class="fc bfc" id="L612" title="All 2 branches covered.">        if (smallSizePattern.matcher(sizeString).matches()) {</span>
+<span class="fc" id="L613">            return Integer.valueOf(sizeString);</span>
+<span class="pc bpc" id="L614" title="1 of 2 branches missed.">        } else if (kbSizePattern.matcher(sizeString).matches()) {</span>
+//            return Integer.valueOf(sizeString.substring(0, sizeString.length() - 2)) * 1000;
+            // TODO: appropriately parse big deletions
+<span class="fc" id="L617">            return null;</span>
+<span class="nc bnc" id="L618" title="All 2 branches missed.">        } else if (mbSizePattern.matcher(sizeString).matches()) {</span>
+//            return Integer.valueOf(sizeString.substring(0, sizeString.length() - 2)) * 1000000;
+            // TODO: appropriately parse big deletions
+<span class="nc" id="L621">            return null;</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">        } else if (sizeString.matches(VARIANT_STRING_PATTERN)) {</span>
+<span class="nc" id="L623">            return sizeString.length();</span>
+        } else {
+<span class="nc" id="L625">            logger.warn(&quot;Deletion size string format not recognized: \&quot;{}\&quot;&quot;, sizeString);</span>
+<span class="nc" id="L626">            return null;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

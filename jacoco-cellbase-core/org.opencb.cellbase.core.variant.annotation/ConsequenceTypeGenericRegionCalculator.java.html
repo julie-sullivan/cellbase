@@ -1,0 +1,795 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsequenceTypeGenericRegionCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation</a> &gt; <span class="el_source">ConsequenceTypeGenericRegionCalculator.java</span></div><h1>ConsequenceTypeGenericRegionCalculator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation;
+
+import org.opencb.biodata.models.core.Exon;
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.biodata.models.core.Transcript;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.ConsequenceType;
+import org.opencb.biodata.models.variant.avro.ExonOverlap;
+import org.opencb.commons.datastore.core.QueryOptions;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by fjlopez on 29/03/17.
+ */
+<span class="nc" id="L17">public class ConsequenceTypeGenericRegionCalculator extends ConsequenceTypeCalculator {</span>
+    protected int variantStart;
+    protected int variantEnd;
+    protected static final int BIG_VARIANT_SIZE_THRESHOLD = 50;
+
+    public List&lt;ConsequenceType&gt; run(Variant inputVariant, List&lt;Gene&gt; geneList, boolean[] overlapsRegulatoryRegion,
+                                     QueryOptions queryOptions) {
+<span class="nc" id="L24">        parseQueryParam(queryOptions);</span>
+<span class="nc" id="L25">        List&lt;ConsequenceType&gt; consequenceTypeList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L26">        variant = inputVariant;</span>
+<span class="nc" id="L27">        variantEnd = getEnd(svExtraPadding);</span>
+<span class="nc" id="L28">        variantStart = getStart(svExtraPadding);</span>
+//        isBigDeletion = ((variantEnd - variantStart) &gt; BIG_VARIANT_SIZE_THRESHOLD);
+<span class="nc" id="L30">        boolean isIntergenic = true;</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        for (Gene currentGene : geneList) {</span>
+<span class="nc" id="L32">            gene = currentGene;</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            for (Transcript currentTranscript : gene.getTranscripts()) {</span>
+<span class="nc bnc" id="L34" title="All 6 branches missed.">                isIntergenic = isIntergenic &amp;&amp; (variantEnd &lt; currentTranscript.getStart() || variantStart &gt; currentTranscript.getEnd());</span>
+<span class="nc" id="L35">                transcript = currentTranscript;</span>
+<span class="nc" id="L36">                consequenceType = new ConsequenceType();</span>
+<span class="nc" id="L37">                consequenceType.setGeneName(gene.getName());</span>
+<span class="nc" id="L38">                consequenceType.setEnsemblGeneId(gene.getId());</span>
+<span class="nc" id="L39">                consequenceType.setEnsemblTranscriptId(transcript.getId());</span>
+<span class="nc" id="L40">                consequenceType.setStrand(transcript.getStrand());</span>
+<span class="nc" id="L41">                consequenceType.setBiotype(transcript.getBiotype());</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">                consequenceType.setTranscriptAnnotationFlags(transcript.getAnnotationFlags() != null</span>
+<span class="nc" id="L43">                        ? new ArrayList&lt;&gt;(transcript.getAnnotationFlags()) : null);</span>
+<span class="nc" id="L44">                SoNames.clear();</span>
+
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+                    // whole transcript affected
+<span class="nc bnc" id="L48" title="All 4 branches missed.">                    if (variantStart &lt;= transcript.getStart() &amp;&amp; variantEnd &gt;= transcript.getEnd()) {</span>
+<span class="nc" id="L49">                        SoNames.add(VariantAnnotationUtils.STRUCTURAL_VARIANT);</span>
+<span class="nc" id="L50">                        consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L51">                        consequenceTypeList.add(consequenceType);</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                    } else if (regionsOverlap(transcript.getStart(), transcript.getEnd(), variantStart, variantEnd)) {</span>
+<span class="nc" id="L53">                        solvePositiveTranscript(consequenceTypeList);</span>
+                    } else {
+<span class="nc" id="L55">                        solveTranscriptFlankingRegions(VariantAnnotationUtils.UPSTREAM_GENE_VARIANT,</span>
+                                VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT);
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                        if (SoNames.size() &gt; 0) { // Variant does not overlap gene region, just may have upstream/downstream annotations</span>
+<span class="nc" id="L58">                            consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L59">                            consequenceTypeList.add(consequenceType);</span>
+                        }
+                    }
+                } else {
+<span class="nc bnc" id="L63" title="All 4 branches missed.">                    if (variantStart &lt;= transcript.getStart() &amp;&amp; variantEnd &gt;= transcript.getEnd()) { // whole trans. affected</span>
+<span class="nc" id="L64">                        SoNames.add(VariantAnnotationUtils.STRUCTURAL_VARIANT);</span>
+//                        consequenceType.setSoTermsFromSoNames(new ArrayList&lt;&gt;(SoNames));
+<span class="nc" id="L66">                        consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L67">                        consequenceTypeList.add(consequenceType);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                    } else if (regionsOverlap(transcript.getStart(), transcript.getEnd(), variantStart, variantEnd)) {</span>
+//                        if (isBigDeletion) {  // Big deletion
+//                            SoNames.add(VariantAnnotationUtils.FEATURE_TRUNCATION);
+//                        }
+<span class="nc" id="L72">                        solveNegativeTranscript(consequenceTypeList);</span>
+                    } else {
+<span class="nc" id="L74">                        solveTranscriptFlankingRegions(VariantAnnotationUtils.DOWNSTREAM_GENE_VARIANT,</span>
+                                VariantAnnotationUtils.UPSTREAM_GENE_VARIANT);
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                        if (SoNames.size() &gt; 0) { // Variant does not overlap gene region, just has upstream/downstream annotations</span>
+//                            consequenceType.setSoTermsFromSoNames(new ArrayList&lt;&gt;(SoNames));
+<span class="nc" id="L78">                            consequenceType.setSequenceOntologyTerms(getSequenceOntologyTerms(SoNames));</span>
+<span class="nc" id="L79">                            consequenceTypeList.add(consequenceType);</span>
+                        }
+                    }
+                }
+<span class="nc" id="L83">            }</span>
+<span class="nc" id="L84">        }</span>
+
+<span class="nc" id="L86">        solveIntergenic(consequenceTypeList, isIntergenic);</span>
+<span class="nc" id="L87">        solveRegulatoryRegions(overlapsRegulatoryRegion, consequenceTypeList);</span>
+<span class="nc" id="L88">        return consequenceTypeList;</span>
+    }
+
+    protected void solveTranscriptFlankingRegions(String leftRegionTag, String rightRegionTag) {
+        // Variant overlaps with -5kb region
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (regionsOverlap(transcript.getStart() - 5000, transcript.getStart() - 1, variantStart, variantEnd)) {</span>
+            // Variant overlaps with -2kb region
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            if (regionsOverlap(transcript.getStart() - 2000, transcript.getStart() - 1, variantStart, variantEnd)) {</span>
+<span class="nc" id="L96">                SoNames.add(&quot;2KB_&quot; + leftRegionTag.replace(DOWN_UP_STREAM_GENE_TAG, &quot;&quot;));</span>
+            } else {
+<span class="nc" id="L98">                SoNames.add(leftRegionTag);</span>
+            }
+        }
+        // Variant overlaps with +5kb region
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (regionsOverlap(transcript.getEnd() + 1, transcript.getEnd() + 5000, variantStart, variantEnd)) {</span>
+            // Variant overlaps with +2kb region
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (regionsOverlap(transcript.getEnd() + 1, transcript.getEnd() + 2000, variantStart, variantEnd)) {</span>
+<span class="nc" id="L105">                SoNames.add(&quot;2KB_&quot; + rightRegionTag.replace(DOWN_UP_STREAM_GENE_TAG, &quot;&quot;));</span>
+            } else {
+<span class="nc" id="L107">                SoNames.add(rightRegionTag);</span>
+            }
+        }
+<span class="nc" id="L110">    }</span>
+
+    protected void solveNonCodingNegativeTranscript() {
+<span class="nc" id="L113">        Exon exon = transcript.getExons().get(0);</span>
+<span class="nc" id="L114">        int exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L115">        String exonStringSuffix = &quot;/&quot; + transcript.getExons().size();</span>
+<span class="nc" id="L116">        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed</span>
+<span class="nc" id="L117">        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L118">        int cdnaVariantStart = -1;</span>
+<span class="nc" id="L119">        int cdnaVariantEnd = -1;</span>
+<span class="nc" id="L120">        int firstCdsPhase = -1;</span>
+<span class="nc" id="L121">        boolean[] junctionSolution = {false, false};</span>
+<span class="nc" id="L122">        boolean splicing = false;</span>
+//        Integer variantStartExonNumber = null;
+//        Integer variantEndExonNumber = null;
+<span class="nc" id="L125">        List&lt;ExonOverlap&gt; exonOverlap = new ArrayList&lt;&gt;(transcript.getExons().size());</span>
+
+
+<span class="nc bnc" id="L128" title="All 4 branches missed.">        if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {</span>
+<span class="nc" id="L129">            firstCdsPhase = exon.getPhase();</span>
+        }
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (variantEnd &gt;= exon.getStart()) {  // Variant end within the exon</span>
+<span class="nc" id="L133">                cdnaVariantStart = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+<span class="nc" id="L134">                consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                if (variantStart &gt;= exon.getStart()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L137">                    cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L138">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L139">                            (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                } else {
+<span class="nc" id="L141">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L142">                            (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+                }
+            }
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        } else if (variantStart &gt;= exon.getStart()) {</span>
+            // We do not contemplate that variant end can be located before this exon since this is the first exon
+<span class="nc" id="L147">            cdnaVariantEnd = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+//            variantEndExonNumber = exon.getExonNumber();
+<span class="nc" id="L149">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L150">                    (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+        // Variant includes the whole exon. Variant end is located before the exon, variant start is located after the exon
+        } else {
+<span class="nc" id="L153">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+        }
+
+<span class="nc" id="L156">        int exonCounter = 1;</span>
+        // This is not a do-while since we cannot call solveJunction until
+<span class="nc bnc" id="L158" title="All 4 branches missed.">        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {</span>
+<span class="nc" id="L159">            int prevSpliceSite = exon.getStart() - 1;</span>
+<span class="nc" id="L160">            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded</span>
+<span class="nc" id="L161">            exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+            // Set firsCdsPhase only when the first coding exon is reached
+<span class="nc bnc" id="L163" title="All 4 branches missed.">            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {</span>
+<span class="nc" id="L164">                firstCdsPhase = exon.getPhase();</span>
+            }
+<span class="nc" id="L166">            solveJunction(exon.getEnd() + 1, prevSpliceSite, VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT,</span>
+                    VariantAnnotationUtils.SPLICE_DONOR_VARIANT, junctionSolution);
+<span class="nc bnc" id="L168" title="All 4 branches missed.">            splicing = (splicing || junctionSolution[0]);</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L171">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                if (variantEnd &gt;= exon.getStart()) {  // Variant end within the exon</span>
+<span class="nc" id="L173">                    cdnaVariantStart = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+<span class="nc" id="L174">                    consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                    variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L176" title="All 2 branches missed.">                    if (variantStart &gt;= exon.getStart()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L177">                        cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L178">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L179">                                (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                    } else {
+<span class="nc" id="L181">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L182">                                (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+                    }
+                }
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            } else if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (variantStart &lt;= exon.getEnd()) {  // Only variant start within the exon  ----||||||||||E||||----</span>
+<span class="nc" id="L187">                    cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L188">                    cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L189">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L190">                            (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+//                    variantEndExonNumber = exon.getExonNumber();
+                } else {  // Variant does not include this exon, variant is located before this exon
+<span class="nc" id="L193">                    variantAhead = false;</span>
+                }
+            } else {  // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+<span class="nc" id="L196">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L197">                exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+            }
+<span class="nc" id="L199">            exonCounter++;</span>
+<span class="nc" id="L200">        }</span>
+//        consequenceType.setExonNumber(variantStartExonNumber != null ? variantStartExonNumber : variantEndExonNumber);
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        if (exonOverlap.size() &gt; 0) {</span>
+<span class="nc" id="L203">            consequenceType.setExonOverlap(exonOverlap);</span>
+        }
+<span class="nc" id="L205">        solveMiRNA(cdnaVariantStart, cdnaVariantEnd, junctionSolution[1]);</span>
+<span class="nc" id="L206">    }</span>
+
+    protected void solveCodingNegativeTranscript() {
+<span class="nc" id="L209">        Exon exon = transcript.getExons().get(0);</span>
+<span class="nc" id="L210">        int exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L211">        String exonStringSuffix = &quot;/&quot; + transcript.getExons().size();</span>
+<span class="nc" id="L212">        String transcriptSequence = exon.getSequence();</span>
+<span class="nc" id="L213">        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed</span>
+<span class="nc" id="L214">        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L215">        int cdnaVariantStart = -1;</span>
+<span class="nc" id="L216">        int cdnaVariantEnd = -1;</span>
+<span class="nc" id="L217">        int firstCdsPhase = -1;</span>
+<span class="nc" id="L218">        boolean[] junctionSolution = {false, false};</span>
+<span class="nc" id="L219">        boolean splicing = false;</span>
+//        Integer variantStartExonNumber = null;
+//        Integer variantEndExonNumber = null;
+<span class="nc" id="L222">        List&lt;ExonOverlap&gt; exonOverlap = new ArrayList&lt;&gt;(transcript.getExons().size());</span>
+
+<span class="nc bnc" id="L224" title="All 4 branches missed.">        if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {</span>
+<span class="nc" id="L225">            firstCdsPhase = exon.getPhase();</span>
+        }
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            if (variantEnd &gt;= exon.getStart()) {  // Variant end within the exon</span>
+<span class="nc" id="L229">                cdnaVariantStart = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+<span class="nc" id="L230">                consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (variantStart &gt;= exon.getStart()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L233">                    cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L234">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L235">                            (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                } else {
+<span class="nc" id="L237">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L238">                            (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+                }
+
+            }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        } else if (variantStart &gt;= exon.getStart()) {</span>
+            // We do not contemplate that variant end can be located before this exon since this is the first exon
+<span class="nc" id="L244">            cdnaVariantEnd = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+//            variantEndExonNumber = exon.getExonNumber();
+<span class="nc" id="L246">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L247">                    (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+            // Variant includes the whole exon. Variant end is located before the exon, variant start is located after the exon
+        } else {
+<span class="nc" id="L250">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+        }
+
+<span class="nc" id="L253">        int exonCounter = 1;</span>
+        // This is not a do-while since we cannot call solveJunction  until
+<span class="nc bnc" id="L255" title="All 4 branches missed.">        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {</span>
+<span class="nc" id="L256">            int prevSpliceSite = exon.getStart() - 1;</span>
+<span class="nc" id="L257">            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded</span>
+<span class="nc" id="L258">            exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L259">            transcriptSequence = exon.getSequence() + transcriptSequence;</span>
+            // Set firsCdsPhase only when the first coding exon is reached
+<span class="nc bnc" id="L261" title="All 4 branches missed.">            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingEnd() &gt;= exon.getStart()) {</span>
+<span class="nc" id="L262">                firstCdsPhase = exon.getPhase();</span>
+            }
+<span class="nc" id="L264">            solveJunction(exon.getEnd() + 1, prevSpliceSite, VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT,</span>
+                    VariantAnnotationUtils.SPLICE_DONOR_VARIANT, junctionSolution);
+<span class="nc bnc" id="L266" title="All 4 branches missed.">            splicing = (splicing || junctionSolution[0]);</span>
+
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L269">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                if (variantEnd &gt;= exon.getStart()) {  // Variant end within the exon</span>
+<span class="nc" id="L271">                    cdnaVariantStart = cdnaExonEnd - (variantEnd - exon.getStart());</span>
+<span class="nc" id="L272">                    consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                    variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                    if (variantStart &gt;= exon.getStart()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L275">                        cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L276">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L277">                                (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                    } else {
+<span class="nc" id="L279">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L280">                                (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+                    }
+                }
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            } else if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">                if (variantStart &lt;= exon.getEnd()) {  // Only variant start within the exon  ----||||||||||E||||----</span>
+<span class="nc" id="L285">                    cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L286">                    cdnaVariantEnd = cdnaExonEnd - (variantStart - exon.getStart());</span>
+<span class="nc" id="L287">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L288">                            (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+//                    variantEndExonNumber = exon.getExonNumber();
+                } else {  // Variant does not include this exon, variant is located before this exon
+<span class="nc" id="L291">                    variantAhead = false;</span>
+                }
+            } else {  // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+<span class="nc" id="L294">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L295">                exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+            }
+<span class="nc" id="L297">            exonCounter++;</span>
+<span class="nc" id="L298">        }</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        if (exonOverlap.size() &gt; 0) {</span>
+<span class="nc" id="L300">            consequenceType.setExonOverlap(exonOverlap);</span>
+        }
+//        consequenceType.setExonNumber(variantStartExonNumber != null ? variantStartExonNumber : variantEndExonNumber);
+        // Is not intron variant (both ends fall within the same intron)
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        if (!junctionSolution[1]) {</span>
+<span class="nc" id="L305">            solveExonVariantInNegativeTranscript(splicing, transcriptSequence, cdnaVariantStart, cdnaVariantEnd,</span>
+                    firstCdsPhase);
+        }
+
+<span class="nc" id="L309">    }</span>
+
+    protected void solveExonVariantInNegativeTranscript(boolean splicing, String transcriptSequence,
+                                                      int cdnaVariantStart, int cdnaVariantEnd, int firstCdsPhase) {
+<span class="nc bnc" id="L313" title="All 2 branches missed.">        if (variantEnd &gt; transcript.getGenomicCodingEnd()) {</span>
+<span class="nc bnc" id="L314" title="All 4 branches missed.">            if (transcript.getEnd() &gt; transcript.getGenomicCodingEnd() || transcript.unconfirmedStart()) { // Check transcript has 3 UTR</span>
+<span class="nc" id="L315">                SoNames.add(VariantAnnotationUtils.FIVE_PRIME_UTR_VARIANT);</span>
+            }
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            if (variantStart &lt;= transcript.getGenomicCodingEnd()) {</span>
+<span class="nc" id="L318">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+                // cdnaCodingStart &lt; 1 if cds_start_NF and phase!=0
+<span class="nc bnc" id="L320" title="All 4 branches missed.">                if (transcript.getCdnaCodingStart() &gt; 0 || !transcript.unconfirmedStart()) {</span>
+<span class="nc" id="L321">                    SoNames.add(VariantAnnotationUtils.INITIATOR_CODON_VARIANT);</span>
+                }
+<span class="nc bnc" id="L323" title="All 2 branches missed.">                if (variantStart &lt; (transcript.getGenomicCodingStart() + 3)) {</span>
+<span class="nc" id="L324">                    SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">                    if (variantStart &lt; transcript.getGenomicCodingStart()) {</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                        if (transcript.getStart() &lt; transcript.getGenomicCodingStart()</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                                || transcript.unconfirmedEnd()) { // Check transcript has 3 UTR)</span>
+<span class="nc" id="L328">                            SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+                        }
+                    }
+                }
+            }
+<span class="nc bnc" id="L333" title="All 2 branches missed.">        } else if (variantEnd &gt;= transcript.getGenomicCodingStart()) {</span>
+            // Need to define a local cdnaCodingStart because may modified in two lines below
+<span class="nc" id="L335">            int cdnaCodingStart = transcript.getCdnaCodingStart();</span>
+<span class="nc" id="L336">            cdnaCodingStart = setCdsAndProteinPosition(cdnaVariantStart, firstCdsPhase, cdnaCodingStart);</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">            if (variantStart &gt;= transcript.getGenomicCodingStart()) {  // Variant start also within coding region</span>
+<span class="nc" id="L338">                solveCodingExonVariantInNegativeTranscript(splicing, transcriptSequence, cdnaCodingStart, cdnaVariantStart,</span>
+                        cdnaVariantEnd);
+            } else {
+                // Check transcript has 3 UTR)
+<span class="nc bnc" id="L342" title="All 4 branches missed.">                if (transcript.getStart() &lt; transcript.getGenomicCodingStart() || transcript.unconfirmedEnd()) {</span>
+<span class="nc" id="L343">                    SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+                }
+<span class="nc" id="L345">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+<span class="nc" id="L346">                SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+            }
+            // Check transcript has 3 UTR)
+<span class="nc bnc" id="L349" title="All 4 branches missed.">        } else if (transcript.getStart() &lt; transcript.getGenomicCodingStart() || transcript.unconfirmedEnd()) {</span>
+<span class="nc" id="L350">            SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+        }
+<span class="nc" id="L352">    }</span>
+
+    protected void solveCodingExonVariantInNegativeTranscript(boolean splicing, String transcriptSequence, int cdnaCodingStart,
+                                                            int cdnaVariantStart, int cdnaVariantEnd) {
+<span class="nc" id="L356">        Boolean codingAnnotationAdded = false;</span>
+
+        // cdnaVariantStart=null if variant is intronic. cdnaCodingStart&lt;1 if cds_start_NF and phase!=0
+<span class="nc bnc" id="L359" title="All 6 branches missed.">        if (cdnaVariantStart != -1 &amp;&amp; cdnaVariantStart &lt; (cdnaCodingStart + 3) &amp;&amp; (cdnaCodingStart &gt; 0</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">                || !transcript.unconfirmedStart())) {</span>
+<span class="nc" id="L361">            SoNames.add(VariantAnnotationUtils.INITIATOR_CODON_VARIANT);</span>
+<span class="nc" id="L362">            codingAnnotationAdded = true;</span>
+        }
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        if (cdnaVariantEnd != -1) {</span>
+<span class="nc" id="L365">            int finalNtPhase = (transcript.getCdnaCodingEnd() - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L366">            Boolean stopToSolve = true;</span>
+            // just checks cdnaVariantStart!=null because no splicing means cdnaVariantEnd is also != null
+<span class="nc bnc" id="L368" title="All 4 branches missed.">            if (!splicing &amp;&amp; cdnaVariantStart != -1) {</span>
+<span class="nc" id="L369">                codingAnnotationAdded = true;</span>
+//                if (variant.getReference().length() % 3 == 0) {
+//                    SoNames.add(VariantAnnotationUtils.INFRAME_DELETION);
+//                } else {
+//                    SoNames.add(VariantAnnotationUtils.FRAMESHIFT_VARIANT);
+//                }
+<span class="nc" id="L375">                stopToSolve = false;  // Stop codon annotation will be solved in the line below.</span>
+<span class="nc" id="L376">                solveStopCodonNegativeVariant(transcriptSequence, cdnaCodingStart, cdnaVariantStart, cdnaVariantEnd);</span>
+            }
+<span class="nc bnc" id="L378" title="All 2 branches missed.">            if (cdnaVariantEnd &gt;= (transcript.getCdnaCodingEnd() - finalNtPhase)) {</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">                if (finalNtPhase != 2) {</span>
+//                if (transcript.unconfirmedEnd() &amp;&amp; (finalNtPhase != 2)) {
+<span class="nc" id="L381">                    SoNames.add(VariantAnnotationUtils.INCOMPLETE_TERMINAL_CODON_VARIANT);</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                } else if (stopToSolve) {  // Only if stop codon annotation was not already solved in the if block above</span>
+<span class="nc" id="L383">                    SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+                }
+            }
+        }
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        if (!codingAnnotationAdded) {</span>
+<span class="nc" id="L388">            SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+        }
+<span class="nc" id="L390">    }</span>
+
+    protected void solveStopCodonNegativeVariant(String transcriptSequence, int cdnaCodingStart,
+                                                 int cdnaVariantStart, int cdnaVariantEnd) {
+<span class="nc" id="L394">        Integer variantPhaseShift1 = (cdnaVariantStart - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L395">        Integer variantPhaseShift2 = (cdnaVariantEnd - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L396">        int modifiedCodon1Start = cdnaVariantStart - variantPhaseShift1;</span>
+<span class="nc" id="L397">        int modifiedCodon2Start = cdnaVariantEnd - variantPhaseShift2;</span>
+<span class="nc bnc" id="L398" title="All 4 branches missed.">        if (modifiedCodon1Start &gt; 0 &amp;&amp; (modifiedCodon2Start + 2) &lt;= transcriptSequence.length()) {</span>
+<span class="nc" id="L399">            String reverseCodon1 = new StringBuilder(transcriptSequence.substring(transcriptSequence.length() - modifiedCodon1Start - 2,</span>
+                    // Rigth limit of the substring sums +1 because substring does not include that position
+<span class="nc" id="L401">                    transcriptSequence.length() - modifiedCodon1Start + 1)).reverse().toString();</span>
+<span class="nc" id="L402">            String reverseCodon2 = new StringBuilder(transcriptSequence.substring(transcriptSequence.length() - modifiedCodon2Start - 2,</span>
+                    // Rigth limit of the substring sums +1 because substring does not include that position
+<span class="nc" id="L404">                    transcriptSequence.length() - modifiedCodon2Start + 1)).reverse().toString();</span>
+<span class="nc" id="L405">            String reverseTranscriptSequence = new StringBuilder(</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">                    transcriptSequence.substring(((transcriptSequence.length() - cdnaVariantEnd) &gt; 2)</span>
+<span class="nc" id="L407">                                    ? (transcriptSequence.length() - cdnaVariantEnd - 3)</span>
+                                    : 0,  // Be careful reaching the end of the transcript sequence
+                            // Rigth limit of the substring -2 because substring does not include that position
+<span class="nc" id="L410">                            transcriptSequence.length() - cdnaVariantEnd)).reverse().toString();</span>
+<span class="nc" id="L411">            char[] referenceCodon1Array = reverseCodon1.toCharArray();</span>
+<span class="nc" id="L412">            referenceCodon1Array[0] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon1Array[0]);</span>
+<span class="nc" id="L413">            referenceCodon1Array[1] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon1Array[1]);</span>
+<span class="nc" id="L414">            referenceCodon1Array[2] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon1Array[2]);</span>
+<span class="nc" id="L415">            String referenceCodon1 = String.valueOf(referenceCodon1Array);</span>
+<span class="nc" id="L416">            char[] referenceCodon2Array = reverseCodon2.toCharArray();</span>
+<span class="nc" id="L417">            referenceCodon2Array[0] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon2Array[0]);</span>
+<span class="nc" id="L418">            referenceCodon2Array[1] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon2Array[1]);</span>
+<span class="nc" id="L419">            referenceCodon2Array[2] = VariantAnnotationUtils.COMPLEMENTARY_NT.get(referenceCodon2Array[2]);</span>
+<span class="nc" id="L420">            String referenceCodon2 = String.valueOf(referenceCodon2Array);</span>
+
+<span class="nc" id="L422">            boolean useMitochondrialCode = variant.getChromosome().equals(&quot;MT&quot;);</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">            if (VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon1)</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">                    || VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon2)) {</span>
+<span class="nc" id="L425">                SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+            } else {
+<span class="nc" id="L427">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+            }
+        }
+<span class="nc" id="L430">    }</span>
+
+    protected void solveJunction(Integer spliceSite1, Integer spliceSite2, String leftSpliceSiteTag,
+                               String rightSpliceSiteTag, boolean[] junctionSolution) {
+
+<span class="nc" id="L435">        junctionSolution[0] = false;  // Is splicing variant in non-coding region</span>
+<span class="nc" id="L436">        junctionSolution[1] = false;  // Variant is intronic and both ends fall within the intron</span>
+
+        // Variant overlaps the rest of intronic region (splice region within the intron and/or rest of intron)
+<span class="nc bnc" id="L439" title="All 2 branches missed.">        if (regionsOverlap(spliceSite1 + 2, spliceSite2 - 2, variantStart, variantEnd)) {</span>
+<span class="nc" id="L440">            SoNames.add(VariantAnnotationUtils.INTRON_VARIANT);</span>
+        }
+<span class="nc bnc" id="L442" title="All 4 branches missed.">        if (variantStart &gt;= spliceSite1 &amp;&amp; variantEnd &lt;= spliceSite2) {</span>
+<span class="nc" id="L443">            junctionSolution[1] = true;  // variant start &amp; end fall within the intron</span>
+        }
+
+<span class="nc bnc" id="L446" title="All 2 branches missed.">        if (regionsOverlap(spliceSite1, spliceSite1 + 1, variantStart, variantEnd)) {  // Variant donor/acceptor</span>
+<span class="nc bnc" id="L447" title="All 2 branches missed.">            if ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD) {  // Big cnvs should not be annotated with such a detail</span>
+<span class="nc" id="L448">                SoNames.add(leftSpliceSiteTag);  // donor/acceptor depending on transcript strand</span>
+                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L450" title="All 4 branches missed.">                junctionSolution[0] = (variantStart &lt;= spliceSite2 || variantEnd &lt;= spliceSite2);</span>
+            } else {
+                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L453" title="All 4 branches missed.">                junctionSolution[0] = (variantStart &lt;= spliceSite2 || variantEnd &lt;= spliceSite2);</span>
+            }
+<span class="nc bnc" id="L455" title="All 2 branches missed.">        } else if (regionsOverlap(spliceSite1 + 2, spliceSite1 + 7, variantStart, variantEnd)) {</span>
+            // Insertion coordinates are passed to this function as (variantStart-1,variantStart)
+<span class="nc bnc" id="L457" title="All 2 branches missed.">            if ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD) {</span>
+<span class="nc" id="L458">                SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);</span>
+            }
+            // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L461" title="All 4 branches missed.">            junctionSolution[0] = (variantStart &lt;= spliceSite2 || variantEnd &lt;= spliceSite2);</span>
+<span class="nc bnc" id="L462" title="All 4 branches missed.">        } else if (regionsOverlap(spliceSite1 - 3, spliceSite1 - 1, variantStart, variantEnd)</span>
+                // Insertion coordinates are passed to this function as (variantStart-1,variantStart)
+                &amp;&amp; ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD)) {
+<span class="nc" id="L465">            SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);</span>
+        }
+
+<span class="nc bnc" id="L468" title="All 2 branches missed.">        if (regionsOverlap(spliceSite2 - 1, spliceSite2, variantStart, variantEnd)) {  // Variant donor/acceptor</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">            if ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD) {  // Big cnvs should not be annotated with such a detail</span>
+<span class="nc" id="L470">                SoNames.add(rightSpliceSiteTag);  // donor/acceptor depending on transcript strand</span>
+                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L472" title="All 4 branches missed.">                junctionSolution[0] = (spliceSite1 &lt;= variantStart || spliceSite1 &lt;= variantEnd);</span>
+            } else {
+                // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L475" title="All 4 branches missed.">                junctionSolution[0] = (spliceSite1 &lt;= variantStart || spliceSite1 &lt;= variantEnd);</span>
+            }
+<span class="nc bnc" id="L477" title="All 2 branches missed.">        } else if (regionsOverlap(spliceSite2 - 7, spliceSite2 - 2, variantStart, variantEnd)) {</span>
+            // Insertion coordinates are passed to this function as (variantStart-1,variantStart) {
+<span class="nc bnc" id="L479" title="All 2 branches missed.">            if ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD) {</span>
+<span class="nc" id="L480">                SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);</span>
+            }
+            // BE CAREFUL: there are introns shorter than 7nts, and even just 1nt long!! (22:36587846)
+<span class="nc bnc" id="L483" title="All 4 branches missed.">            junctionSolution[0] = (spliceSite1 &lt;= variantStart || spliceSite1 &lt;= variantEnd);</span>
+<span class="nc bnc" id="L484" title="All 4 branches missed.">        } else if (regionsOverlap(spliceSite2 + 1, spliceSite2 + 3, variantStart, variantEnd)</span>
+                // Insertion coordinates are passed to this function as (variantStart-1,variantStart) {
+                &amp;&amp; ((variantEnd - variantStart) &lt;= BIG_VARIANT_SIZE_THRESHOLD)) {
+<span class="nc" id="L487">            SoNames.add(VariantAnnotationUtils.SPLICE_REGION_VARIANT);</span>
+        }
+<span class="nc" id="L489">    }</span>
+
+    protected void solveCodingPositiveTranscript() {
+<span class="nc" id="L492">        Exon exon = transcript.getExons().get(0);</span>
+<span class="nc" id="L493">        int exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L494">        String exonStringSuffix = &quot;/&quot; + transcript.getExons().size();</span>
+<span class="nc" id="L495">        String transcriptSequence = exon.getSequence();</span>
+<span class="nc" id="L496">        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed</span>
+<span class="nc" id="L497">        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L498">        int cdnaVariantStart = -1;</span>
+<span class="nc" id="L499">        int cdnaVariantEnd = -1;</span>
+<span class="nc" id="L500">        int firstCdsPhase = -1;</span>
+<span class="nc" id="L501">        boolean[] junctionSolution = {false, false};</span>
+<span class="nc" id="L502">        boolean splicing = false;</span>
+//        Integer variantStartExonNumber = null;
+//        Integer variantEndExonNumber = null;
+<span class="nc" id="L505">        List&lt;ExonOverlap&gt; exonOverlap = new ArrayList&lt;&gt;(transcript.getExons().size());</span>
+
+<span class="nc bnc" id="L507" title="All 2 branches missed.">        if (transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L508">            firstCdsPhase = exon.getPhase();</span>
+        }
+<span class="nc bnc" id="L510" title="All 2 branches missed.">        if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc bnc" id="L511" title="All 2 branches missed.">            if (variantStart &lt;= exon.getEnd()) {  // Variant start within the exon</span>
+<span class="nc" id="L512">                cdnaVariantStart = cdnaExonEnd - (exon.getEnd() - variantStart);</span>
+<span class="nc" id="L513">                consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L515" title="All 2 branches missed.">                if (variantEnd &lt;= exon.getEnd()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L516">                    cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L517">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L518">                            (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                } else {
+<span class="nc" id="L520">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L521">                            (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+                }
+            }
+<span class="nc bnc" id="L524" title="All 2 branches missed.">        } else if (variantEnd &lt;= exon.getEnd()) {</span>
+            // We do not contemplate that variant end can be located before this exon since this is the first exon
+<span class="nc" id="L526">            cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L527">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L528">                    (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+//            variantEndExonNumber = exon.getExonNumber();
+        // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+        } else {
+<span class="nc" id="L532">            exonOverlap.add(new ExonOverlap(String.valueOf(exon.getExonNumber()), 100f));</span>
+        }
+
+
+<span class="nc" id="L536">        int exonCounter = 1;</span>
+        // This is not a do-while since we cannot call solveJunction  until
+<span class="nc bnc" id="L538" title="All 4 branches missed.">        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {</span>
+<span class="nc" id="L539">            int prevSpliceSite = exon.getEnd() + 1;</span>
+<span class="nc" id="L540">            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded</span>
+<span class="nc" id="L541">            exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L542">            transcriptSequence = transcriptSequence + exon.getSequence();</span>
+            // Set firsCdsPhase only when the first coding exon is reached
+<span class="nc bnc" id="L544" title="All 4 branches missed.">            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L545">                firstCdsPhase = exon.getPhase();</span>
+            }
+<span class="nc" id="L547">            solveJunction(prevSpliceSite, exon.getStart() - 1, VariantAnnotationUtils.SPLICE_DONOR_VARIANT,</span>
+                    VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT, junctionSolution);
+<span class="nc bnc" id="L549" title="All 4 branches missed.">            splicing = (splicing || junctionSolution[0]);</span>
+
+<span class="nc bnc" id="L551" title="All 2 branches missed.">            if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc" id="L552">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc bnc" id="L553" title="All 2 branches missed.">                if (variantStart &lt;= exon.getEnd()) {  // Variant start within the exon</span>
+<span class="nc" id="L554">                    cdnaVariantStart = cdnaExonEnd - (exon.getEnd() - variantStart);</span>
+<span class="nc" id="L555">                    consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                    variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L557" title="All 2 branches missed.">                    if (variantEnd &lt;= exon.getEnd()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L558">                        cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L559">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L560">                                (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                    } else {
+<span class="nc" id="L562">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L563">                                (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+                    }
+                }
+<span class="nc bnc" id="L566" title="All 2 branches missed.">            } else if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">                if (variantEnd &gt;= exon.getStart()) {  // Only variant end within the exon  ----||||||||||E||||----</span>
+<span class="nc" id="L568">                    cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L569">                    cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L570">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L571">                            (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+//                    variantEndExonNumber = exon.getExonNumber();
+                } else {  // Variant does not include this exon, variant is located before this exon
+<span class="nc" id="L574">                    variantAhead = false;</span>
+                }
+            } else {  // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+<span class="nc" id="L577">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L578">                exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+            }
+<span class="nc" id="L580">            exonCounter++;</span>
+<span class="nc" id="L581">        }</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">        if (exonOverlap.size() &gt; 0) {</span>
+<span class="nc" id="L583">            consequenceType.setExonOverlap(exonOverlap);</span>
+        }
+//        consequenceType.setExonNumber(variantStartExonNumber != null ? variantStartExonNumber : variantEndExonNumber);
+        // Is not intron variant (both ends fall within the same intron)
+<span class="nc bnc" id="L587" title="All 2 branches missed.">        if (!junctionSolution[1]) {</span>
+<span class="nc" id="L588">            solveExonVariantInPositiveTranscript(splicing, transcriptSequence, cdnaVariantStart, cdnaVariantEnd,</span>
+                    firstCdsPhase);
+        }
+
+<span class="nc" id="L592">    }</span>
+
+    protected void solveExonVariantInPositiveTranscript(boolean splicing, String transcriptSequence,
+                                                      int cdnaVariantStart, int cdnaVariantEnd, int firstCdsPhase) {
+<span class="nc bnc" id="L596" title="All 2 branches missed.">        if (variantStart &lt; transcript.getGenomicCodingStart()) {</span>
+            // Check transcript has 3 UTR
+<span class="nc bnc" id="L598" title="All 4 branches missed.">            if (transcript.getStart() &lt; transcript.getGenomicCodingStart() || transcript.unconfirmedStart()) {</span>
+<span class="nc" id="L599">                SoNames.add(VariantAnnotationUtils.FIVE_PRIME_UTR_VARIANT);</span>
+            }
+<span class="nc bnc" id="L601" title="All 2 branches missed.">            if (variantEnd &gt;= transcript.getGenomicCodingStart()) {</span>
+<span class="nc" id="L602">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+                // cdnaCodingStart&lt;1 if cds_start_NF and phase!=0
+<span class="nc bnc" id="L604" title="All 4 branches missed.">                if (transcript.getCdnaCodingStart() &gt; 0 || !transcript.unconfirmedStart()) {</span>
+<span class="nc" id="L605">                    SoNames.add(VariantAnnotationUtils.INITIATOR_CODON_VARIANT);</span>
+                }
+<span class="nc bnc" id="L607" title="All 2 branches missed.">                if (variantEnd &gt; (transcript.getGenomicCodingEnd() - 3)) {</span>
+<span class="nc" id="L608">                    SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">                    if (variantEnd &gt; transcript.getGenomicCodingEnd()) {</span>
+                        // Check transcript has 3 UTR)
+<span class="nc bnc" id="L611" title="All 4 branches missed.">                        if (transcript.getEnd() &gt; transcript.getGenomicCodingEnd() || transcript.unconfirmedStart()) {</span>
+<span class="nc" id="L612">                            SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+                        }
+                    }
+                }
+            }
+<span class="nc bnc" id="L617" title="All 2 branches missed.">        } else if (variantStart &lt;= transcript.getGenomicCodingEnd()) {  // Variant start within coding region</span>
+            // Need to define a local cdnaCodingStart because may modified in two lines below
+<span class="nc" id="L619">            int cdnaCodingStart = transcript.getCdnaCodingStart();</span>
+<span class="nc" id="L620">            cdnaCodingStart = setCdsAndProteinPosition(cdnaVariantStart, firstCdsPhase, cdnaCodingStart);</span>
+<span class="nc bnc" id="L621" title="All 2 branches missed.">            if (variantEnd &lt;= transcript.getGenomicCodingEnd()) {  // Variant end also within coding region</span>
+<span class="nc" id="L622">                solveCodingExonVariantInPositiveTranscript(splicing, transcriptSequence, cdnaCodingStart,</span>
+                        cdnaVariantStart, cdnaVariantEnd);
+            } else {
+                // Check transcript has 3 UTR)
+<span class="nc bnc" id="L626" title="All 4 branches missed.">                if (transcript.getEnd() &gt; transcript.getGenomicCodingEnd() || transcript.unconfirmedEnd()) {</span>
+<span class="nc" id="L627">                    SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+                }
+<span class="nc" id="L629">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+<span class="nc" id="L630">                SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+            }
+            // Check transcript has 3 UTR)
+<span class="nc bnc" id="L633" title="All 4 branches missed.">        } else if (transcript.getEnd() &gt; transcript.getGenomicCodingEnd() || transcript.unconfirmedEnd()) {</span>
+<span class="nc" id="L634">            SoNames.add(VariantAnnotationUtils.THREE_PRIME_UTR_VARIANT);</span>
+        }
+<span class="nc" id="L636">    }</span>
+
+    protected void solveCodingExonVariantInPositiveTranscript(boolean splicing, String transcriptSequence, int cdnaCodingStart,
+                                                            int cdnaVariantStart, int cdnaVariantEnd) {
+        // This will indicate wether it is needed to add the &quot;coding_sequence_variant&quot; annotation or not
+<span class="nc" id="L641">        boolean codingAnnotationAdded = false;</span>
+
+        // cdnaVariantStart=null if variant is intronic. cdnaCodingStart&lt;1 if cds_start_NF and phase!=0
+<span class="nc bnc" id="L644" title="All 8 branches missed.">        if (cdnaVariantStart != -1 &amp;&amp; cdnaVariantStart &lt; (cdnaCodingStart + 3) &amp;&amp; (cdnaCodingStart &gt; 0 || !transcript.unconfirmedStart())) {</span>
+<span class="nc" id="L645">            SoNames.add(VariantAnnotationUtils.INITIATOR_CODON_VARIANT);</span>
+<span class="nc" id="L646">            codingAnnotationAdded = true;</span>
+        }
+<span class="nc bnc" id="L648" title="All 2 branches missed.">        if (cdnaVariantEnd != -1) {</span>
+<span class="nc" id="L649">            int finalNtPhase = (transcript.getCdnaCodingEnd() - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L650">            Boolean stopToSolve = true;</span>
+            // just checks cdnaVariantStart!=null because no splicing means cdnaVariantEnd is also != null
+<span class="nc bnc" id="L652" title="All 4 branches missed.">            if (!splicing &amp;&amp; cdnaVariantStart != -1) {</span>
+<span class="nc" id="L653">                codingAnnotationAdded = true;</span>
+//                if (variant.getReference().length() % 3 == 0) {
+//                    SoNames.add(VariantAnnotationUtils.INFRAME_DELETION);
+//                } else {
+//                    SoNames.add(VariantAnnotationUtils.FRAMESHIFT_VARIANT);
+//                }
+<span class="nc" id="L659">                stopToSolve = false;  // Stop codon annotation will be solved in the line below.</span>
+<span class="nc" id="L660">                solveStopCodonPositiveVariant(transcriptSequence, cdnaCodingStart, cdnaVariantStart, cdnaVariantEnd);</span>
+            }
+<span class="nc bnc" id="L662" title="All 2 branches missed.">            if (cdnaVariantEnd &gt;= (transcript.getCdnaCodingEnd() - finalNtPhase)) {</span>
+<span class="nc bnc" id="L663" title="All 2 branches missed.">                if (finalNtPhase != 2) {</span>
+//                if (transcript.unconfirmedEnd() &amp;&amp; (finalNtPhase != 2)) {
+<span class="nc" id="L665">                    SoNames.add(VariantAnnotationUtils.INCOMPLETE_TERMINAL_CODON_VARIANT);</span>
+<span class="nc bnc" id="L666" title="All 2 branches missed.">                } else if (stopToSolve) {  // Only if stop codon annotation was not already solved in the if block above</span>
+<span class="nc" id="L667">                    SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+                }
+            }
+        }
+<span class="nc bnc" id="L671" title="All 2 branches missed.">        if (!codingAnnotationAdded) {</span>
+<span class="nc" id="L672">            SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+        }
+<span class="nc" id="L674">    }</span>
+
+    protected void solveStopCodonPositiveVariant(String transcriptSequence, int cdnaCodingStart, int cdnaVariantStart,
+                                                 int cdnaVariantEnd) {
+<span class="nc" id="L678">        Integer variantPhaseShift1 = (cdnaVariantStart - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L679">        Integer variantPhaseShift2 = (cdnaVariantEnd - cdnaCodingStart) % 3;</span>
+<span class="nc" id="L680">        int modifiedCodon1Start = cdnaVariantStart - variantPhaseShift1;</span>
+<span class="nc" id="L681">        int modifiedCodon2Start = cdnaVariantEnd - variantPhaseShift2;</span>
+<span class="nc bnc" id="L682" title="All 4 branches missed.">        if (modifiedCodon1Start &gt; 0 &amp;&amp; (modifiedCodon2Start + 2) &lt;= transcriptSequence.length()) {</span>
+            // -1 and +2 because of base 0 String indexing
+<span class="nc" id="L684">            String referenceCodon1 = transcriptSequence.substring(modifiedCodon1Start - 1, modifiedCodon1Start + 2);</span>
+<span class="nc" id="L685">            String referenceCodon2 = transcriptSequence.substring(modifiedCodon2Start - 1, modifiedCodon2Start + 2);</span>
+<span class="nc" id="L686">            boolean useMitochondrialCode = variant.getChromosome().equals(&quot;MT&quot;);</span>
+<span class="nc bnc" id="L687" title="All 2 branches missed.">            if (VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon1)</span>
+<span class="nc bnc" id="L688" title="All 2 branches missed.">                    || VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon2)) {</span>
+<span class="nc" id="L689">                SoNames.add(VariantAnnotationUtils.TERMINATOR_CODON_VARIANT);</span>
+            } else {
+<span class="nc" id="L691">                SoNames.add(VariantAnnotationUtils.CODING_SEQUENCE_VARIANT);</span>
+            }
+        }
+<span class="nc" id="L694">    }</span>
+
+    protected void solveNonCodingPositiveTranscript() {
+<span class="nc" id="L697">        Exon exon = transcript.getExons().get(0);</span>
+<span class="nc" id="L698">        int exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+<span class="nc" id="L699">        String exonStringSuffix = &quot;/&quot; + transcript.getExons().size();</span>
+<span class="nc" id="L700">        boolean variantAhead = true; // we need a first iteration within the while to ensure junction is solved in case needed</span>
+<span class="nc" id="L701">        int cdnaExonEnd = (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L702">        int cdnaVariantStart = -1;</span>
+<span class="nc" id="L703">        int cdnaVariantEnd = -1;</span>
+<span class="nc" id="L704">        int firstCdsPhase = -1;</span>
+<span class="nc" id="L705">        boolean[] junctionSolution = {false, false};</span>
+<span class="nc" id="L706">        boolean splicing = false;</span>
+//        Integer variantStartExonNumber = null;
+//        Integer variantEndExonNumber = null;
+<span class="nc" id="L709">        List&lt;ExonOverlap&gt; exonOverlap = new ArrayList&lt;&gt;(transcript.getExons().size());</span>
+
+<span class="nc bnc" id="L711" title="All 2 branches missed.">        if (transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L712">            firstCdsPhase = exon.getPhase();</span>
+        }
+<span class="nc bnc" id="L714" title="All 2 branches missed.">        if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc bnc" id="L715" title="All 2 branches missed.">            if (variantStart &lt;= exon.getEnd()) {  // Variant start within the exon</span>
+<span class="nc" id="L716">                cdnaVariantStart = cdnaExonEnd - (exon.getEnd() - variantStart);</span>
+<span class="nc" id="L717">                consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L719" title="All 2 branches missed.">                if (variantEnd &lt;= exon.getEnd()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L720">                    cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L721">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L722">                            (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                } else {
+<span class="nc" id="L724">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L725">                            (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+                }
+
+            }
+<span class="nc bnc" id="L729" title="All 2 branches missed.">        } else if (variantEnd &lt;= exon.getEnd()) {</span>
+            // We do not contemplate that variant end can be located before this exon since this is the first exon
+<span class="nc" id="L731">            cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L732">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L733">                    (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+//            variantEndExonNumber = exon.getExonNumber();
+            // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+        } else {
+<span class="nc" id="L737">            exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+        }
+
+<span class="nc" id="L740">        int exonCounter = 1;</span>
+        // This is not a do-while since we cannot call solveJunction until
+<span class="nc bnc" id="L742" title="All 4 branches missed.">        while (exonCounter &lt; transcript.getExons().size() &amp;&amp; variantAhead) {</span>
+<span class="nc" id="L743">            int prevSpliceSite = exon.getEnd() + 1;</span>
+<span class="nc" id="L744">            exon = transcript.getExons().get(exonCounter);          // next exon has been loaded</span>
+<span class="nc" id="L745">            exonSize = exon.getEnd() - exon.getStart() + 1;</span>
+            // Set firsCdsPhase only when the first coding exon is reached
+<span class="nc bnc" id="L747" title="All 4 branches missed.">            if (firstCdsPhase == -1 &amp;&amp; transcript.getGenomicCodingStart() &lt;= exon.getEnd()) {</span>
+<span class="nc" id="L748">                firstCdsPhase = exon.getPhase();</span>
+            }
+<span class="nc" id="L750">            solveJunction(prevSpliceSite, exon.getStart() - 1, VariantAnnotationUtils.SPLICE_DONOR_VARIANT,</span>
+                    VariantAnnotationUtils.SPLICE_ACCEPTOR_VARIANT, junctionSolution);
+<span class="nc bnc" id="L752" title="All 4 branches missed.">            splicing = (splicing || junctionSolution[0]);</span>
+
+<span class="nc bnc" id="L754" title="All 2 branches missed.">            if (variantStart &gt;= exon.getStart()) {</span>
+<span class="nc" id="L755">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc bnc" id="L756" title="All 2 branches missed.">                if (variantStart &lt;= exon.getEnd()) {  // Variant start within the exon</span>
+<span class="nc" id="L757">                    cdnaVariantStart = cdnaExonEnd - (exon.getEnd() - variantStart);</span>
+<span class="nc" id="L758">                    consequenceType.setCdnaPosition(cdnaVariantStart);</span>
+//                    variantStartExonNumber = exon.getExonNumber();
+<span class="nc bnc" id="L760" title="All 2 branches missed.">                    if (variantEnd &lt;= exon.getEnd()) {  // Both variant start and variant end within the exon  ----||||S|||||E||||----</span>
+<span class="nc" id="L761">                        cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L762">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L763">                                (variantEnd - variantStart + 1) * 100f / exonSize));</span>
+                    } else {
+<span class="nc" id="L765">                        exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L766">                                (exon.getEnd() - variantStart + 1) * 100f / exonSize));</span>
+                    }
+                }
+<span class="nc bnc" id="L769" title="All 2 branches missed.">            } else if (variantEnd &lt;= exon.getEnd()) {</span>
+<span class="nc bnc" id="L770" title="All 2 branches missed.">                if (variantEnd &gt;= exon.getStart()) {  // Only variant end within the exon  ----||||||||||E||||----</span>
+<span class="nc" id="L771">                    cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L772">                    cdnaVariantEnd = cdnaExonEnd - (exon.getEnd() - variantEnd);</span>
+<span class="nc" id="L773">                    exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix,</span>
+<span class="nc" id="L774">                            (variantEnd - exon.getStart() + 1) * 100f / exonSize));</span>
+//                    variantEndExonNumber = exon.getExonNumber();
+                } else {  // Variant does not include this exon, variant is located before this exon
+<span class="nc" id="L777">                    variantAhead = false;</span>
+                }
+            } else {  // Variant includes the whole exon. Variant start is located before the exon, variant end is located after the exon
+<span class="nc" id="L780">                cdnaExonEnd += (exon.getEnd() - exon.getStart() + 1);</span>
+<span class="nc" id="L781">                exonOverlap.add(new ExonOverlap(exon.getExonNumber() + exonStringSuffix, 100f));</span>
+            }
+<span class="nc" id="L783">            exonCounter++;</span>
+<span class="nc" id="L784">        }</span>
+<span class="nc bnc" id="L785" title="All 2 branches missed.">        if (exonOverlap.size() &gt; 0) {</span>
+<span class="nc" id="L786">            consequenceType.setExonOverlap(exonOverlap);</span>
+        }
+//        consequenceType.setExonNumber(variantStartExonNumber != null ? variantStartExonNumber : variantEndExonNumber);
+<span class="nc" id="L789">        solveMiRNA(cdnaVariantStart, cdnaVariantEnd, junctionSolution[1]);</span>
+<span class="nc" id="L790">    }</span>
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

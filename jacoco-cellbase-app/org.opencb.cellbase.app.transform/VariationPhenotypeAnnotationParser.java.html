@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationPhenotypeAnnotationParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">VariationPhenotypeAnnotationParser.java</span></div><h1>VariationPhenotypeAnnotationParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.base.Splitter;
+import org.opencb.biodata.models.variation.VariationPhenotypeAnnotation;
+import org.opencb.cellbase.app.transform.utils.VariationUtils;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.*;
+import java.util.*;
+
+/**
+ * Created by imedina on 12/01/14.
+ */
+public class VariationPhenotypeAnnotationParser extends CellBaseParser {
+
+
+    private static final int CHUNK_SIZE = 1000;
+<span class="nc" id="L46">    private int LIMIT_ROWS = 100000;</span>
+
+    private RandomAccessFile raf;
+<span class="nc" id="L49">    private Connection sqlConn = null;</span>
+    private PreparedStatement prepStmVariationFeature;
+
+    private ObjectMapper jsonObjectMapper;
+    private ObjectWriter jsonObjectWriter;
+
+    private Path ensemblVariationDir;
+
+    public VariationPhenotypeAnnotationParser(Path ensemblVariationDir, CellBaseSerializer serializer) {
+<span class="nc" id="L58">        super(serializer);</span>
+<span class="nc" id="L59">        jsonObjectMapper = new ObjectMapper();</span>
+<span class="nc" id="L60">        jsonObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</span>
+<span class="nc" id="L61">        jsonObjectWriter = jsonObjectMapper.writer();</span>
+
+<span class="nc" id="L63">        this.ensemblVariationDir = ensemblVariationDir;</span>
+<span class="nc" id="L64">    }</span>
+
+
+    // Ensembl: phenotype_feature_id 0| phenotype_id 1| source_id 2| study_id 3| type 4| object_id 5      | is_significant 6|
+    // seq_region_id 7| seq_region_start 8| seq_region_end 9| seq_region_strand 10
+    @Override
+    public void parse() throws IOException, InterruptedException, SQLException, ClassNotFoundException {
+<span class="nc" id="L71">        Map&lt;String, String&gt; seqRegionMap = VariationUtils.parseSeqRegionToMap(ensemblVariationDir);</span>
+<span class="nc" id="L72">        Map&lt;String, String&gt; phenotypeMap = VariationUtils.parsePhenotypeToMap(ensemblVariationDir);</span>
+<span class="nc" id="L73">        Map&lt;String, String&gt; sourceMap = VariationUtils.parseSourceToMap(ensemblVariationDir);</span>
+<span class="nc" id="L74">        Map&lt;String, String&gt; studyMap = VariationUtils.parseStudyToMap(ensemblVariationDir);</span>
+<span class="nc" id="L75">        Map&lt;String, String&gt; attribTypeMap = VariationUtils.parseAttribTypeToMap(ensemblVariationDir);</span>
+
+<span class="nc" id="L77">        Map&lt;String, Set&lt;String&gt;&gt; phenotypeToGeneList = new HashMap&lt;&gt;(20000);</span>
+
+<span class="nc" id="L79">        prepare(ensemblVariationDir);</span>
+<span class="nc" id="L80">        createPhenFeatAttribTable(ensemblVariationDir);</span>
+<span class="nc" id="L81">        raf = new RandomAccessFile(ensemblVariationDir.resolve(&quot;phenotype_feature_attrib.txt&quot;).toFile(), &quot;r&quot;);</span>
+
+        VariationPhenotypeAnnotation mutation;
+<span class="nc" id="L84">        String seqRegion = null;</span>
+<span class="nc" id="L85">        String phenotype = null;</span>
+<span class="nc" id="L86">        String source = null;</span>
+<span class="nc" id="L87">        String study = null;</span>
+<span class="nc" id="L88">        String externalId = null;</span>
+
+<span class="nc" id="L90">        String clinSignificance = null;</span>
+<span class="nc" id="L91">        List&lt;String&gt; associatedGenes = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L92">        String riskAllele = null;</span>
+<span class="nc" id="L93">        float pValue = 0.0f;</span>
+<span class="nc" id="L94">        float oddsRatio = 0.0f;</span>
+
+<span class="nc" id="L96">        String chunkIdSuffix = CHUNK_SIZE / 1000 + &quot;k&quot;;</span>
+
+<span class="nc" id="L98">        BufferedReader br = FileUtils.newBufferedReader(ensemblVariationDir.resolve(&quot;phenotype_feature.txt.gz&quot;), Charset.defaultCharset());</span>
+<span class="nc" id="L99">        String[] fields = null;</span>
+<span class="nc" id="L100">        String[] rafFields = null;</span>
+<span class="nc" id="L101">        String line = null;</span>
+<span class="nc" id="L102">        int count = 0;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        while ((line = br.readLine()) != null) {</span>
+<span class="nc" id="L104">            fields = line.split(&quot;\t&quot;);</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (fields[4].equals(&quot;Variation&quot;)) {</span>
+<span class="nc" id="L107">                seqRegion = seqRegionMap.get(fields[7]);</span>
+<span class="nc" id="L108">                phenotype = phenotypeMap.get(fields[1]);</span>
+<span class="nc" id="L109">                source = sourceMap.get(fields[2]).split(&quot;,&quot;)[0];</span>
+<span class="nc" id="L110">                study = studyMap.get(fields[3]);</span>
+// anyadir type: variation, SV, ...
+
+<span class="nc" id="L113">                clinSignificance = &quot;&quot;;</span>
+<span class="nc" id="L114">                externalId = &quot;&quot;;</span>
+<span class="nc" id="L115">                associatedGenes = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L116">                riskAllele = &quot;&quot;;</span>
+<span class="nc" id="L117">                pValue = -1f;</span>
+<span class="nc" id="L118">                oddsRatio = -1f;</span>
+<span class="nc" id="L119">                List&lt;String&gt; resultPhenAnnot = queryByVariationId(Integer.parseInt(fields[0]), ensemblVariationDir);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (++count % 10000 == 0) {</span>
+<span class="nc" id="L121">                    System.out.println(resultPhenAnnot);</span>
+//                    if(count &gt; 200000) break;
+                }
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                for (String result : resultPhenAnnot) {</span>
+<span class="nc" id="L125">                    rafFields = result.split(&quot;\t&quot;, -1);</span>
+<span class="nc bnc" id="L126" title="All 26 branches missed.">                    switch (rafFields[1]) {</span>
+                        case &quot;10&quot;:
+<span class="nc" id="L128">                            clinSignificance = rafFields[2];</span>
+<span class="nc" id="L129">                            break;</span>
+                        case &quot;13&quot;:
+<span class="nc" id="L131">                            associatedGenes = Splitter.on(&quot;,&quot;).trimResults().splitToList(rafFields[2]);</span>
+<span class="nc" id="L132">                            break;</span>
+                        case &quot;14&quot;:  // riskAllele
+<span class="nc" id="L134">                            riskAllele = rafFields[2];</span>
+<span class="nc" id="L135">                            break;</span>
+                        case &quot;15&quot;:  // pValue
+<span class="nc bnc" id="L137" title="All 4 branches missed.">                            pValue = (rafFields[2] != null &amp;&amp; !rafFields[2].equalsIgnoreCase(&quot;null&quot;))</span>
+<span class="nc" id="L138">                                    ? Float.parseFloat(rafFields[2])</span>
+                                    : -1f;
+<span class="nc" id="L140">                            break;</span>
+                        case &quot;22&quot;:  // pValue
+<span class="nc" id="L142">                            externalId = rafFields[2];</span>
+<span class="nc" id="L143">                            break;</span>
+                        case &quot;23&quot;:  // pValue
+<span class="nc" id="L145">                            oddsRatio = Float.parseFloat(rafFields[2]);</span>
+<span class="nc" id="L146">                            break;</span>
+                        default:
+                            break;
+                    }
+
+<span class="nc" id="L151">                }</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                if (!phenotypeToGeneList.containsKey(phenotype)) {</span>
+<span class="nc" id="L154">                    phenotypeToGeneList.put(phenotype, new HashSet&lt;String&gt;());</span>
+                }
+<span class="nc" id="L156">                phenotypeToGeneList.get(phenotype).addAll(associatedGenes);</span>
+
+<span class="nc" id="L158">                mutation = new VariationPhenotypeAnnotation(fields[5], seqRegion, Integer.parseInt(fields[8]),</span>
+<span class="nc" id="L159">                        Integer.parseInt(fields[9]), fields[10], phenotype, source, study, clinSignificance, associatedGenes,</span>
+                        riskAllele, pValue, oddsRatio, &quot;&quot;, externalId);
+<span class="nc" id="L161">                int chunkStart = (mutation.getStart()) / CHUNK_SIZE;</span>
+<span class="nc" id="L162">                int chunkEnd = (mutation.getEnd()) / CHUNK_SIZE;</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if (mutation.getChunkIds() == null) {</span>
+<span class="nc" id="L165">                    mutation.setChunkIds(new ArrayList&lt;String&gt;());</span>
+                }
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                for (int i = chunkStart; i &lt;= chunkEnd; i++) {</span>
+<span class="nc" id="L168">                    mutation.getChunkIds().add(mutation.getChromosome() + &quot;_&quot; + i + &quot;_&quot; + chunkIdSuffix);</span>
+                }
+<span class="nc" id="L170">                serializer.serialize(mutation);</span>
+<span class="nc" id="L171">            }</span>
+        }
+<span class="nc" id="L173">        raf.close();</span>
+<span class="nc" id="L174">        br.close();</span>
+
+<span class="nc" id="L176">        BufferedWriter bw = Files.newBufferedWriter(Paths.get(&quot;/tmp/phenotype.json&quot;), Charset.defaultCharset());</span>
+//        Iterator&lt;String&gt; iter = phenotypeToGeneList.keySet().iterator();
+//        for (Object o : iter) {
+//            jsonObjectWriter.writeValueAsString(phenotypeToGeneList);
+//        }
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; elem : phenotypeToGeneList.entrySet()) {</span>
+<span class="nc" id="L182">            bw.write(jsonObjectWriter.writeValueAsString(elem)</span>
+<span class="nc" id="L183">                    .replace(&quot;\&quot;key\&quot;&quot;, &quot;\&quot;phenotype\&quot;&quot;)</span>
+<span class="nc" id="L184">                    .replace(&quot;\&quot;value\&quot;&quot;, &quot;\&quot;associatedGenes\&quot;&quot;));</span>
+<span class="nc" id="L185">            bw.newLine();</span>
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">        bw.close();</span>
+
+<span class="nc" id="L189">        clean(ensemblVariationDir);</span>
+<span class="nc" id="L190">    }</span>
+
+    public List&lt;String&gt; queryByVariationId(int variationId, Path variationFilePath) throws IOException, SQLException {
+        // First query SQLite to get offset position
+<span class="nc" id="L194">        List&lt;Long&gt; offsets = new ArrayList&lt;&gt;();</span>
+        // PreparedStatement pst = sqlConn.statement(sql)
+        // ResultSet rs = pst.executeQuery(&quot;select offset from &quot;+tableName+&quot; where variation_id = &quot; + variationId + &quot;&quot;);
+<span class="nc" id="L197">        ResultSet rs = null;</span>
+
+<span class="nc" id="L199">        prepStmVariationFeature.setInt(1, variationId);</span>
+<span class="nc" id="L200">        rs = prepStmVariationFeature.executeQuery();</span>
+
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        while (rs.next()) {</span>
+<span class="nc" id="L203">            offsets.add(rs.getLong(1));</span>
+        }
+<span class="nc" id="L205">        Collections.sort(offsets);</span>
+        // Second go to file
+<span class="nc" id="L207">        String line = null;</span>
+<span class="nc" id="L208">        List&lt;String&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (offsets.size() &gt; 0) {</span>
+//            RandomAccessFile raf = new RandomAccessFile(variationFilePath.resolve(&quot;phenotype_feature_attrib.txt&quot;).toFile(), &quot;r&quot;);
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            for (Long offset : offsets) {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (offset &gt;= 0) {</span>
+<span class="nc" id="L213">                    raf.seek(offset);</span>
+<span class="nc" id="L214">                    line = raf.readLine();</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                    if (line != null) {</span>
+<span class="nc" id="L216">                        results.add(line);</span>
+                    }
+                }
+<span class="nc" id="L219">            }</span>
+//            raf.close();
+        }
+//        System.out.println(results.toString());
+<span class="nc" id="L223">        return results;</span>
+    }
+
+
+    private void createPhenFeatAttribTable(Path variationDirectoryPath) throws SQLException, IOException, ClassNotFoundException {
+<span class="nc" id="L228">        String tableName = &quot;phen_feat_attrib&quot;;</span>
+<span class="nc" id="L229">        Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="nc" id="L230">        sqlConn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + variationDirectoryPath.resolve(&quot;variation_phenotype.db&quot;).toString());</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if (!Files.exists(variationDirectoryPath.resolve(&quot;variation_phenotype.db&quot;))</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                || Files.size(variationDirectoryPath.resolve(&quot;variation_phenotype.db&quot;)) == 0) {</span>
+<span class="nc" id="L233">            sqlConn.setAutoCommit(false);</span>
+
+<span class="nc" id="L235">            Statement createTables = sqlConn.createStatement();</span>
+
+            // A table containing offset for files
+<span class="nc" id="L238">            createTables.executeUpdate(&quot;CREATE TABLE if not exists &quot; + tableName + &quot;(&quot; + &quot;variation_id INT , offset BIGINT)&quot;);</span>
+<span class="nc" id="L239">            PreparedStatement ps = sqlConn.prepareStatement(&quot;INSERT INTO &quot; + tableName + &quot;(variation_id, offset) values (?, ?)&quot;);</span>
+
+<span class="nc" id="L241">            long offset = 0;</span>
+<span class="nc" id="L242">            int count = 0;</span>
+            String[] fields;
+            String line;
+<span class="nc" id="L245">            BufferedReader br = FileUtils.newBufferedReader(variationDirectoryPath.resolve(&quot;phenotype_feature_attrib.txt&quot;));</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            while ((line = br.readLine()) != null) {</span>
+<span class="nc" id="L247">                fields = line.split(&quot;\t&quot;);</span>
+
+<span class="nc" id="L249">                ps.setInt(1, Integer.parseInt(fields[0])); // motif_feature_id</span>
+<span class="nc" id="L250">                ps.setLong(2, offset); // seq_region_id</span>
+<span class="nc" id="L251">                ps.addBatch();</span>
+<span class="nc" id="L252">                count++;</span>
+
+<span class="nc bnc" id="L254" title="All 4 branches missed.">                if (count % LIMIT_ROWS == 0 &amp;&amp; count != 0) {</span>
+<span class="nc" id="L255">                    ps.executeBatch();</span>
+<span class="nc" id="L256">                    sqlConn.commit();</span>
+                }
+<span class="nc" id="L258">                offset += line.length() + 1;</span>
+            }
+<span class="nc" id="L260">            br.close();</span>
+
+<span class="nc" id="L262">            ps.executeBatch();</span>
+<span class="nc" id="L263">            sqlConn.commit();</span>
+
+<span class="nc" id="L265">            Statement stm = sqlConn.createStatement();</span>
+<span class="nc" id="L266">            stm.executeUpdate(&quot;CREATE INDEX &quot; + tableName + &quot;_idx on &quot; + tableName + &quot;(variation_id)&quot;);</span>
+<span class="nc" id="L267">            sqlConn.commit();</span>
+        }
+<span class="nc" id="L269">        prepStmVariationFeature = sqlConn</span>
+<span class="nc" id="L270">                .prepareStatement(&quot;select offset from &quot; + tableName + &quot; where variation_id = ? order by offset ASC &quot;);</span>
+<span class="nc" id="L271">    }</span>
+
+    private void prepare(Path variationDirectoryPath) throws IOException, InterruptedException {
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        if (Files.exists(variationDirectoryPath.resolve(&quot;phenotype_feature_attrib.txt.gz&quot;))) {</span>
+<span class="nc" id="L275">            Process process = Runtime.getRuntime().exec(&quot;gunzip &quot;</span>
+<span class="nc" id="L276">                    + variationDirectoryPath.resolve(&quot;phenotype_feature_attrib.txt.gz&quot;).toAbsolutePath());</span>
+<span class="nc" id="L277">            process.waitFor();</span>
+        }
+<span class="nc" id="L279">    }</span>
+
+    private void clean(Path variationDirectoryPath) throws IOException, InterruptedException {
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        if (Files.exists(variationDirectoryPath.resolve(&quot;phenotype_feature_attrib.txt&quot;))) {</span>
+<span class="nc" id="L283">            Process process = Runtime.getRuntime().exec(&quot;gzip &quot;</span>
+<span class="nc" id="L284">                    + variationDirectoryPath.resolve(&quot;phenotype_feature_attrib.txt&quot;).toAbsolutePath());</span>
+<span class="nc" id="L285">            process.waitFor();</span>
+        }
+<span class="nc" id="L287">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

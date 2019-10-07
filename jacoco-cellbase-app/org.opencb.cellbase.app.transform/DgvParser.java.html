@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DgvParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">DgvParser.java</span></div><h1>DgvParser.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.AdditionalAttribute;
+import org.opencb.biodata.models.variant.avro.StructuralVariantType;
+import org.opencb.biodata.models.variant.avro.StructuralVariation;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.app.cli.EtlCommons;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.ProgressLogger;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.BufferedReader;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Created by fjlopez on 08/05/17.
+ */
+public class DgvParser extends CellBaseParser {
+
+    private static final int VARIANT_SUBTYPE_COLUMN = 5;
+    private static final int CHR_COLUMN = 1;
+    private static final int START_COLUMN = 2;
+    private static final int END_COLUMN = 3;
+    private static final int ACCESSION_COLUMN = 0;
+    private static final int SUPPORTING_VARIANTS_COLUMN = 11;
+    private static final String UNKNOWN_NT = &quot;N&quot;;
+    private static final String CNV_STR = &quot;&lt;CNV&gt;&quot;;
+    private static final String DELETION = &quot;deletion&quot;;
+    private static final String INSERTION = &quot;insertion&quot;;
+    private static final String MOBILE_ELEMENT_INSERTION = &quot;mobile element insertion&quot;;
+    private static final String NOVEL_SEQUENCE_INSERTION = &quot;novel sequence insertion&quot;;
+    private static final String INVERSION = &quot;inversion&quot;;
+    private static final String DUPLICATION = &quot;duplication&quot;;
+    private static final String TANDEM_DUPLICATION = &quot;tandem duplication&quot;;
+    private static final String GAIN = &quot;gain&quot;;
+    private static final String LOSS = &quot;loss&quot;;
+    private static final String DELETION_ALTERNATE_STR = &quot;&lt;DEL&gt;&quot;;
+    private static final String DUPLICATION_ALTERNATE_STR = &quot;&lt;DUP&gt;&quot;;
+    private static final String INSERTION_ALTERNATE_STR = &quot;&lt;INS&gt;&quot;;
+    private static final String INVERSION_ALTERNATE_STR = &quot;&lt;INV&gt;&quot;;
+    private static final String PUBMEDID = &quot;pubmedid&quot;;
+    private static final String DGV_SPECIFIC_ATTRIBUTES = &quot;dgvSpecificAttributes&quot;;
+    private static final int PUBMEDID_COLUMN = 7;
+    private static final String METHOD = &quot;method&quot;;
+    private static final int METHOD_COLUMN = 8;
+    private static final String SAMPLESIZE = &quot;samplesize&quot;;
+    private static final int SAMPLESIZE_COLUMN = 14;
+    private static final String OBSERVEDGAINS = &quot;observedgains&quot;;
+    private static final int OBSERVEDGAINS_COLUMN = 15;
+    private static final String OBSERVEDLOSS = &quot;observedloss&quot;;
+    private static final int OBSERVEDLOSS_COLUMN = 16;
+    private static final String PUBMEDID_PREFIX = &quot;PMID:&quot;;
+    private final Path file;
+<span class="fc" id="L57">    private static final Map&lt;String, StructuralVariantType&gt; DGV_SUBTYPE_TO_SV_SUBTYPE = new HashMap&lt;&gt;(4);</span>
+
+    static {
+<span class="fc" id="L60">        DGV_SUBTYPE_TO_SV_SUBTYPE.put(&quot;loss&quot;, StructuralVariantType.COPY_NUMBER_LOSS);</span>
+<span class="fc" id="L61">        DGV_SUBTYPE_TO_SV_SUBTYPE.put(&quot;deletion&quot;, StructuralVariantType.COPY_NUMBER_LOSS);</span>
+<span class="fc" id="L62">        DGV_SUBTYPE_TO_SV_SUBTYPE.put(&quot;duplication&quot;, StructuralVariantType.COPY_NUMBER_GAIN);</span>
+<span class="fc" id="L63">        DGV_SUBTYPE_TO_SV_SUBTYPE.put(&quot;gain&quot;, StructuralVariantType.COPY_NUMBER_GAIN);</span>
+<span class="fc" id="L64">        DGV_SUBTYPE_TO_SV_SUBTYPE.put(&quot;insertion&quot;, StructuralVariantType.COPY_NUMBER_GAIN);</span>
+<span class="fc" id="L65">    }</span>
+
+    private Map&lt;String, Integer&gt; unexpectedVariantSubtype;
+
+    public DgvParser(Path file, CellBaseSerializer serializer) {
+<span class="fc" id="L70">        super(serializer);</span>
+<span class="fc" id="L71">        this.file = file;</span>
+<span class="fc" id="L72">    }</span>
+
+    @Override
+    public void parse() throws Exception {
+<span class="pc" id="L76">        try (BufferedReader bufferedReader = FileUtils.newBufferedReader(file)) {</span>
+            // Skip header
+<span class="fc" id="L78">            bufferedReader.readLine();</span>
+
+<span class="fc" id="L80">            unexpectedVariantSubtype = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L81">            ProgressLogger progressLogger = new ProgressLogger(&quot;Parsed DGV lines:&quot;,</span>
+<span class="fc" id="L82">                    () -&gt; EtlCommons.countFileLines(file), 200).setBatchSize(10000);</span>
+<span class="fc" id="L83">            String line = bufferedReader.readLine();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">            while (line != null) {</span>
+<span class="fc" id="L85">                List&lt;Variant&gt; variantList = parseVariants(line);</span>
+<span class="fc" id="L86">                line = bufferedReader.readLine();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">                for (Variant variant : variantList) {</span>
+<span class="fc" id="L88">                    serializer.serialize(variant.getImpl());</span>
+<span class="fc" id="L89">                }</span>
+<span class="fc" id="L90">                progressLogger.increment(1);</span>
+<span class="fc" id="L91">            }</span>
+<span class="pc bpc" id="L92" title="6 of 8 branches missed.">        }</span>
+<span class="fc" id="L93">        printSummary();</span>
+<span class="fc" id="L94">        logger.info(&quot;Done.&quot;);</span>
+
+<span class="fc" id="L96">    }</span>
+
+    private void printSummary() {
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        for (String subtype : unexpectedVariantSubtype.keySet()) {</span>
+<span class="nc" id="L100">            logger.info(&quot;{} variants skipped because of unexpected subtype '{}'&quot;, unexpectedVariantSubtype.get(subtype),</span>
+                    subtype);
+<span class="nc" id="L102">        }</span>
+<span class="fc" id="L103">    }</span>
+
+    private List&lt;Variant&gt; parseVariants(String line) {
+<span class="fc" id="L106">        String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="fc" id="L107">        String[] variantSubtypes = fields[VARIANT_SUBTYPE_COLUMN].split(&quot;\\+&quot;);</span>
+<span class="fc" id="L108">        List&lt;Variant&gt; variantList = new ArrayList&lt;&gt;(variantSubtypes.length);</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        for (String subtype : variantSubtypes) {</span>
+            Variant variant;
+<span class="fc" id="L112">            StructuralVariation structuralVariation = new StructuralVariation();</span>
+            VariantAnnotation annotation;
+<span class="pc bpc" id="L114" title="24 of 36 branches missed.">            switch (subtype) {</span>
+                case DELETION:
+<span class="fc" id="L116">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="fc" id="L117">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, DELETION_ALTERNATE_STR);</span>
+<span class="fc" id="L118">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="fc" id="L119">                    break;</span>
+                case MOBILE_ELEMENT_INSERTION:
+                case NOVEL_SEQUENCE_INSERTION:
+                case INSERTION:
+<span class="nc" id="L123">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="nc" id="L124">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, INSERTION_ALTERNATE_STR);</span>
+<span class="nc" id="L125">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="nc" id="L126">                    break;</span>
+
+                case INVERSION:
+<span class="nc" id="L129">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="nc" id="L130">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, INVERSION_ALTERNATE_STR);</span>
+<span class="nc" id="L131">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="nc" id="L132">                    break;</span>
+                case DUPLICATION:
+<span class="fc" id="L134">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="fc" id="L135">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, DUPLICATION_ALTERNATE_STR);</span>
+<span class="fc" id="L136">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="fc" id="L137">                    break;</span>
+                case TANDEM_DUPLICATION:
+<span class="nc" id="L139">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="nc" id="L140">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, DUPLICATION_ALTERNATE_STR);</span>
+<span class="nc" id="L141">                    structuralVariation.setType(StructuralVariantType.TANDEM_DUPLICATION);</span>
+<span class="nc" id="L142">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="nc" id="L143">                    break;</span>
+                case GAIN:
+<span class="fc" id="L145">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="fc" id="L146">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, CNV_STR);</span>
+<span class="fc" id="L147">                    structuralVariation.setType(StructuralVariantType.COPY_NUMBER_GAIN);</span>
+<span class="fc" id="L148">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="fc" id="L149">                    break;</span>
+                case LOSS:
+<span class="fc" id="L151">                    variant = new Variant(fields[CHR_COLUMN], Integer.valueOf(fields[START_COLUMN]),</span>
+<span class="fc" id="L152">                            Integer.valueOf(fields[END_COLUMN]), UNKNOWN_NT, CNV_STR);</span>
+<span class="fc" id="L153">                    structuralVariation.setType(StructuralVariantType.COPY_NUMBER_LOSS);</span>
+<span class="fc" id="L154">                    annotation = parseAnnotation(fields, variant);</span>
+<span class="fc" id="L155">                    break;</span>
+                default:
+<span class="nc" id="L157">                    logger.debug(&quot;Unexpected VariantSubtype found '{}'&quot;, subtype);</span>
+<span class="nc" id="L158">                    logger.debug(&quot;Complete line {}&quot;, line);</span>
+<span class="nc" id="L159">                    logger.debug(&quot;Skipping variant subtype parsing&quot;);</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                    if (unexpectedVariantSubtype.containsKey(subtype)) {</span>
+<span class="nc" id="L161">                        unexpectedVariantSubtype.put(subtype, unexpectedVariantSubtype.get(subtype) + 1);</span>
+                    } else {
+<span class="nc" id="L163">                        unexpectedVariantSubtype.put(subtype, 1);</span>
+                    }
+<span class="nc" id="L165">                    continue;</span>
+            }
+
+            // Imprecise fields are set to the same exact values variant.start variant.end in order for imprecise
+            // queries to work properly
+<span class="fc" id="L170">            structuralVariation.setCiStartLeft(variant.getStart());</span>
+<span class="fc" id="L171">            structuralVariation.setCiStartRight(variant.getStart());</span>
+<span class="fc" id="L172">            structuralVariation.setCiEndLeft(variant.getEnd());</span>
+<span class="fc" id="L173">            structuralVariation.setCiEndRight(variant.getEnd());</span>
+
+<span class="fc" id="L175">            variant.setAnnotation(annotation);</span>
+<span class="fc" id="L176">            variant.setSv(structuralVariation);</span>
+<span class="fc" id="L177">            variant.setId(fields[ACCESSION_COLUMN]);</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[SUPPORTING_VARIANTS_COLUMN])) {</span>
+<span class="fc" id="L179">                variant.setNames(Arrays.asList(fields[SUPPORTING_VARIANTS_COLUMN].split(&quot;,&quot;)));</span>
+            }
+<span class="fc" id="L181">            variantList.add(variant);</span>
+        }
+
+<span class="fc" id="L184">        return variantList;</span>
+    }
+
+    private VariantAnnotation parseAnnotation(String[] fields, Variant variant) {
+<span class="fc" id="L188">        Map&lt;String, AdditionalAttribute&gt; additionalAttributes = new HashMap&lt;&gt;(1);</span>
+<span class="fc" id="L189">        Map&lt;String, String&gt; map = new HashMap&lt;&gt;(5);</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[PUBMEDID_COLUMN])) {</span>
+<span class="fc" id="L191">           map.put(PUBMEDID, String.join(&quot;,&quot;, Arrays.asList(fields[PUBMEDID_COLUMN].split(&quot;,&quot;)).stream()</span>
+<span class="fc" id="L192">                   .map((aaa) -&gt; (PUBMEDID_PREFIX + aaa)).collect(Collectors.toList())));</span>
+        }
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[METHOD_COLUMN])) {</span>
+<span class="fc" id="L195">           map.put(METHOD, fields[METHOD_COLUMN]);</span>
+        }
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[PUBMEDID_COLUMN])) {</span>
+<span class="fc" id="L198">           map.put(SAMPLESIZE, fields[SAMPLESIZE_COLUMN]);</span>
+        }
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[PUBMEDID_COLUMN])) {</span>
+<span class="fc" id="L201">           map.put(OBSERVEDGAINS, fields[OBSERVEDGAINS_COLUMN]);</span>
+        }
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (org.apache.commons.lang3.StringUtils.isNotBlank(fields[PUBMEDID_COLUMN])) {</span>
+<span class="fc" id="L204">           map.put(OBSERVEDLOSS, fields[OBSERVEDLOSS_COLUMN]);</span>
+        }
+<span class="fc" id="L206">        AdditionalAttribute dgvSpecificAttributes = new AdditionalAttribute(map);</span>
+<span class="fc" id="L207">        additionalAttributes.put(DGV_SPECIFIC_ATTRIBUTES, dgvSpecificAttributes);</span>
+<span class="fc" id="L208">        VariantAnnotation annotation = new VariantAnnotation(variant.getChromosome(), variant.getStart(),</span>
+<span class="fc" id="L209">                variant.getEnd(), variant.getReference(), variant.getAlternate(), null, null,</span>
+                null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null, additionalAttributes);
+
+<span class="fc" id="L216">        return annotation;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

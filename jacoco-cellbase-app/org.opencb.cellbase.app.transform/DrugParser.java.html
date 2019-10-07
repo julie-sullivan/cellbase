@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DrugParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">DrugParser.java</span></div><h1>DrugParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
+
+//import org.opencb.commons.bioformats.drug.drugbank.DrugbankParser;
+//import org.opencb.commons.bioformats.drug.drugbank.v201312jaxb.*;
+
+//import drugbank.drugbank.*;
+//import drugbank.drugbank.DrugPartnerInteraction;
+//import drugbank.xjc20131209.*;
+
+/**
+ * Created with IntelliJ IDEA.
+ * User: mbleda
+ * Date: 12/9/13
+ * Time: 4:43 PM
+ * To change this template use File | Settings | File Templates.
+ */
+@Deprecated
+public class DrugParser {
+
+    private final Path drugbankPath;
+
+<span class="nc" id="L44">    protected Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+
+<span class="nc" id="L46">    public DrugParser(Path drugbankPath, CellBaseSerializer serializer) {</span>
+//        super(serializer);
+<span class="nc" id="L48">        this.drugbankPath = drugbankPath;</span>
+<span class="nc" id="L49">    }</span>
+
+//    public void parse() throws JAXBException, IOException {
+//
+////        System.out.println(&quot;Number of drugs: &quot;+ drugs.getDrug().size());
+////        System.out.println(&quot;Number of partners: &quot;+ drugs.getPartners().getPartner().size());
+//
+//        DrugbankParser dxp = new DrugbankParser();
+//        Drugs drugs = (Drugs) dxp.loadXMLInfo(drugbankPath.toString());
+//
+//        /**
+//         * Store all Partner Uniprot ID into a Map to speed up searching
+//         * Partner ID --&gt; Uniprot ID
+//         */
+//        Map&lt;BigInteger, PartnerType&gt; partnersMap = new HashMap&lt;&gt;(20000);
+//        for (PartnerType partner: drugs.getPartners().getPartner()){
+//            partnersMap.put(partner.getId(), partner);
+//        }
+//
+////        BufferedWriter bw = Files.newBufferedWriter(drugbankPath, Charset.defaultCharset());
+//
+//        // Setting drug paramenters
+//        //=================================================
+//        for (DrugType dt : drugs.getDrug()){
+//            Drug drug = new Drug();
+//            List&lt;XRef&gt; xRefList = new ArrayList&lt;&gt;();
+//
+//            // ID
+//            drug.setId(dt.getDrugbankId());
+//
+//            // Name
+//            drug.setName(dt.getName());
+//
+//            // Type
+//            drug.setType(dt.getType());
+//
+//            // ATC codes
+//            drug.setAtcCode(dt.getAtcCodes().getAtcCode());
+//            for (String atc : dt.getAtcCodes().getAtcCode()){
+//                xRefList.add(new XRef(atc, &quot;ATC&quot;));
+//            }
+//
+//            // Indication
+//            drug.setIndication(dt.getIndication());
+//
+//            // Pharmacology
+//            drug.setPharmacology(dt.getPharmacology());
+//
+//            // Mechanism of action
+//            drug.setMechanismOfAction(dt.getMechanismOfAction());
+//
+//            // Toxicity
+//            drug.setToxicity(dt.getToxicity());
+//
+//            // Route of elimination
+//            drug.setRouteOfElimination(dt.getRouteOfElimination());
+//
+//            // Volume of distribution
+//            drug.setVolumeOfDistribution(dt.getVolumeOfDistribution());
+//
+//            // Half life
+//            drug.setHalfLife(dt.getHalfLife());
+//
+//            // Clearance
+//            drug.setClearance(dt.getClearance());
+//
+//            // Category
+//            drug.setCategory(dt.getCategories().getCategory());
+//
+//            // Groups
+//            drug.setGroup(dt.getGroups().getGroup());
+//
+//            // Description
+//            drug.setDescription(dt.getDescription());
+//
+//            // Absorption
+//            drug.setAbsorption(dt.getAbsorption());
+//
+//            // Food interactions
+//            List&lt;Interactor&gt; foodInteractionList = new ArrayList&lt;&gt;();
+//            for (String food : dt.getFoodInteractions().getFoodInteraction()){
+//                Interactor interactor = new Interactor(food);
+//                foodInteractionList.add(interactor);
+//            }
+//            drug.setFoodInteractor(foodInteractionList);
+//
+//            // Drug interactions
+//            List&lt;Interactor&gt; drugInteractorList = new ArrayList&lt;&gt;();
+//            for (DrugInteraction drugInt : dt.getDrugInteractions().getDrugInteraction()){
+//                Interactor drugInterator = new Interactor(drugInt.getName(), drugInt.getDrug(), drugInt.getDescription());
+//                drugInteractorList.add(drugInterator);
+//            }
+//            drug.setDrugInteractor(drugInteractorList);
+//
+//            // Xrefs
+//            xRefList.add(new XRef(dt.getDrugbankId(), &quot;Drugbank&quot;));
+//
+//            xRefList.add(new XRef(dt.getName(), &quot;name&quot;));
+//
+//            for ( String sa : dt.getSecondaryAccessionNumbers().getSecondaryAccessionNumber()){
+//                xRefList.add(new XRef(sa, &quot;Drugbank Secondary Accession&quot;));
+//            }
+//
+//            for ( String synonym : dt.getSynonyms().getSynonym()){
+//                xRefList.add(new XRef(synonym, &quot;Synonym&quot;));
+//            }
+//
+//            for (IdentifiersType.ExternalIdentifier xr : dt.getExternalIdentifiers().getExternalIdentifier()){
+//                xRefList.add(new XRef(xr.getIdentifier(), xr.getResource()));
+//            }
+//
+//            for (String xr : dt.getAhfsCodes().getAhfsCode()){
+//                xRefList.add(new XRef(xr, &quot;AHFS&quot;));
+//            }
+//
+//            xRefList.add(new XRef(dt.getCasNumber(), &quot;CAS number&quot;));
+//
+//            for (String brand : dt.getBrands().getBrand()){
+//                xRefList.add(new XRef(brand, &quot;Brand&quot;));
+//            }
+//
+//            for (Manufacturer manufacturer : dt.getManufacturers().getManufacturer()){
+//                xRefList.add(new XRef(manufacturer.getValue(), &quot;Manufacturer&quot;));
+//            }
+//            drug.setXrefs(xRefList);
+//
+//
+//            // Setting protein targets
+//            //=================================================
+//            for (TargetBondType target : dt.getTargets().getTarget()){
+//                Partner targetPartner = new Partner();
+//                PartnerType partner = partnersMap.get(target.getPartner());
+//                List&lt;XRef&gt; targetXref = new ArrayList&lt;&gt;();
+//
+//                targetPartner.setName(partner.getName());
+//                targetXref.add(new XRef(partner.getName(), &quot;Name&quot;));
+//
+//                targetPartner.setGeneralFunction(partner.getGeneralFunction());
+//                targetPartner.setSpecificFunction(partner.getSpecificFunction());
+//                targetPartner.setCellularLocation(partner.getCellularLocation());
+//                targetPartner.setEssentiality(partner.getEssentiality());
+//                targetPartner.setReferences(partner.getReferences());
+//                if (partner.getProteinSequence() != null){
+//                    targetPartner.setSequence(partner.getProteinSequence().getChain());
+//                }
+//
+//                targetXref.add(new XRef(partner.getGeneName(), &quot;Gene name&quot;));
+//                for (IdentifiersType.ExternalIdentifier txr : partner.getExternalIdentifiers().getExternalIdentifier()){
+//                    targetXref.add(new XRef(txr.getIdentifier(), txr.getResource()));
+//                    if (txr.getResource().equals(&quot;UniProtKB&quot;)){
+//                        targetPartner.setId(txr.getIdentifier());
+//                    }
+//                }
+//                for (String txr : partner.getSynonyms().getSynonym()){
+//                    targetXref.add(new XRef(txr, &quot;Synonym&quot;));
+//                }
+//                for (Pfam pfam : partner.getPfams().getPfam()){
+//                    targetXref.add(new XRef(pfam.getIdentifier(), &quot;Pfam&quot;, pfam.getName()));
+//                }
+//                for (GoClassifier go : partner.getGoClassifiers().getGoClassifier()){
+//                    targetXref.add(new XRef(go.getDescription(), &quot;GO&quot;, go.getDescription()));
+//                }
+//                targetPartner.setXrefs(targetXref);
+//
+//
+//                // Create drug-target protein interaction
+//                //=================================================
+//                DrugPartnerInteraction di = new DrugPartnerInteraction();
+//                di.setDrug(drug);
+//                di.setPartner(targetPartner);
+//                di.setKnownAction(target.getKnownAction());
+//                di.setAction(target.getActions().getAction());
+//                di.setType(&quot;target&quot;);
+//
+//                // Add interaction
+//                //==================================================
+//                serializer.serialize(di);
+////                bw.write(jsonMapper.writeValueAsString(di));
+////                bw.write(&quot;\n&quot;);
+////              drugInteractions.add(di);
+//            }
+//
+//            // Setting protein enzymes
+//            //=================================================
+//            for (BondType enzyme : dt.getEnzymes().getEnzyme()){
+//                Partner enzymePartner = new Partner();
+//                PartnerType partner = partnersMap.get(enzyme.getPartner());
+//                List&lt;XRef&gt; enzymeXref = new ArrayList&lt;&gt;();
+//
+//                enzymePartner.setName(partner.getName());
+//                enzymeXref.add(new XRef(partner.getName(), &quot;Name&quot;));
+//
+//                enzymePartner.setGeneralFunction(partner.getGeneralFunction());
+//                enzymePartner.setSpecificFunction(partner.getSpecificFunction());
+//                enzymePartner.setCellularLocation(partner.getCellularLocation());
+//                enzymePartner.setEssentiality(partner.getEssentiality());
+//                if (partner.getProteinSequence() != null){
+//                    enzymePartner.setSequence(partner.getProteinSequence().getChain());
+//                }
+//                enzymePartner.setReferences(partner.getReferences());
+//
+//                enzymeXref.add(new XRef(partner.getGeneName(), &quot;Gene name&quot;));
+//                for (IdentifiersType.ExternalIdentifier txr : partner.getExternalIdentifiers().getExternalIdentifier()){
+//                    enzymeXref.add(new XRef(txr.getIdentifier(), txr.getResource()));
+//                    if (txr.getResource().equals(&quot;UniProtKB&quot;)){
+//                        enzymePartner.setId(txr.getIdentifier());
+//                    }
+//                }
+//                for (String txr : partner.getSynonyms().getSynonym()){
+//                    enzymeXref.add(new XRef(txr, &quot;Synonym&quot;));
+//                }
+//                for (Pfam pfam : partner.getPfams().getPfam()){
+//                    enzymeXref.add(new XRef(pfam.getIdentifier(), &quot;Pfam&quot;, pfam.getName()));
+//                }
+//                for (GoClassifier go : partner.getGoClassifiers().getGoClassifier()){
+//                    enzymeXref.add(new XRef(go.getDescription(), &quot;GO&quot;, go.getDescription()));
+//                }
+//                enzymePartner.setXrefs(enzymeXref);
+//
+//
+//                // Create drug-target protein interaction
+//                //=================================================
+//                DrugPartnerInteraction di = new DrugPartnerInteraction();
+//                di.setDrug(drug);
+//                di.setPartner(enzymePartner);
+//                di.setAction(enzyme.getActions().getAction());
+//                di.setType(&quot;enzyme&quot;);
+//
+//                // Add interaction
+//                //==================================================
+//                serializer.serialize(di);
+////                bw.write(jsonMapper.writeValueAsString(di));
+////                bw.write(&quot;\n&quot;);
+////                drugInteractions.add(di);
+//            }
+//
+//            // Setting protein transporter
+//            //=================================================
+//            for (BondType transporter : dt.getTransporters().getTransporter()){
+//                Partner transporterPartner = new Partner();
+//                PartnerType partner = partnersMap.get(transporter.getPartner());
+//                List&lt;XRef&gt; transporterXref = new ArrayList&lt;&gt;();
+//
+//                transporterPartner.setName(partner.getName());
+//                transporterXref.add(new XRef(partner.getName(), &quot;Name&quot;));
+//
+//                transporterPartner.setGeneralFunction(partner.getGeneralFunction());
+//                transporterPartner.setSpecificFunction(partner.getSpecificFunction());
+//                transporterPartner.setCellularLocation(partner.getCellularLocation());
+//                transporterPartner.setEssentiality(partner.getEssentiality());
+//                if (partner.getProteinSequence() != null){
+//                    transporterPartner.setSequence(partner.getProteinSequence().getChain());
+//                }
+//                if (partner.getReferences() != null){
+//                    transporterPartner.setReferences(partner.getReferences());
+//                }
+//
+//                transporterXref.add(new XRef(partner.getGeneName(), &quot;Gene name&quot;));
+//                for (IdentifiersType.ExternalIdentifier txr : partner.getExternalIdentifiers().getExternalIdentifier()){
+//                    transporterXref.add(new XRef(txr.getIdentifier(), txr.getResource()));
+//                    if (txr.getResource().equals(&quot;UniProtKB&quot;)){
+//                        transporterPartner.setId(txr.getIdentifier());
+//                    }
+//                }
+//                for (String txr : partner.getSynonyms().getSynonym()){
+//                    transporterXref.add(new XRef(txr, &quot;Synonym&quot;));
+//                }
+//                for (Pfam pfam : partner.getPfams().getPfam()){
+//                    transporterXref.add(new XRef(pfam.getIdentifier(), &quot;Pfam&quot;, pfam.getName()));
+//                }
+//                for (GoClassifier go : partner.getGoClassifiers().getGoClassifier()){
+//                    transporterXref.add(new XRef(go.getDescription(), &quot;GO&quot;, go.getDescription()));
+//                }
+//                transporterPartner.setXrefs(transporterXref);
+//
+//
+//                // Create drug-target protein interaction
+//                //=================================================
+//                DrugPartnerInteraction di = new DrugPartnerInteraction();
+//                di.setDrug(drug);
+//                di.setPartner(transporterPartner);
+//                di.setAction(transporter.getActions().getAction());
+//                di.setType(&quot;transporter&quot;);
+//
+//                // Add interaction
+//                //==================================================
+//                serializer.serialize(di);
+////                bw.write(jsonMapper.writeValueAsString(di));
+////                bw.write(&quot;\n&quot;);
+////                drugInteractions.add(di);
+//            }
+//
+//            // Setting protein targets
+//            //=================================================
+//            for (BondType carrier : dt.getCarriers().getCarrier()){
+//                Partner carrierPartner = new Partner();
+//                PartnerType partner = partnersMap.get(carrier.getPartner());
+//                List&lt;XRef&gt; carrierXref = new ArrayList&lt;&gt;();
+//
+//                carrierPartner.setName(partner.getName());
+//                carrierXref.add(new XRef(partner.getName(), &quot;Name&quot;));
+//
+//                carrierPartner.setGeneralFunction(partner.getGeneralFunction());
+//                carrierPartner.setSpecificFunction(partner.getSpecificFunction());
+//                carrierPartner.setCellularLocation(partner.getCellularLocation());
+//                carrierPartner.setEssentiality(partner.getEssentiality());
+//                carrierPartner.setSequence(partner.getProteinSequence().getChain());
+//                carrierPartner.setReferences(partner.getReferences());
+//
+//                carrierXref.add(new XRef(partner.getGeneName(), &quot;Gene name&quot;));
+//                for (IdentifiersType.ExternalIdentifier txr : partner.getExternalIdentifiers().getExternalIdentifier()){
+//                    carrierXref.add(new XRef(txr.getIdentifier(), txr.getResource()));
+//                    if (txr.getResource().equals(&quot;UniProtKB&quot;)){
+//                        carrierPartner.setId(txr.getIdentifier());
+//                    }
+//                }
+//                for (String txr : partner.getSynonyms().getSynonym()){
+//                    carrierXref.add(new XRef(txr, &quot;Synonym&quot;));
+//                }
+//                for (Pfam pfam : partner.getPfams().getPfam()){
+//                    carrierXref.add(new XRef(pfam.getIdentifier(), &quot;Pfam&quot;, pfam.getName()));
+//                }
+//                for (GoClassifier go : partner.getGoClassifiers().getGoClassifier()){
+//                    carrierXref.add(new XRef(go.getDescription(), &quot;GO&quot;, go.getDescription()));
+//                }
+//                carrierPartner.setXrefs(carrierXref);
+//
+//
+//                // Create drug-target protein interaction
+//                //=================================================
+//                DrugPartnerInteraction di = new DrugPartnerInteraction();
+//                di.setDrug(drug);
+//                di.setPartner(carrierPartner);
+//                di.setAction(carrier.getActions().getAction());
+//                di.setType(&quot;target&quot;);
+//
+//                // Add interaction
+//                //==================================================
+//                serializer.serialize(di);
+////                bw.write(jsonMapper.writeValueAsString(di));
+////                bw.write(&quot;\n&quot;);
+////                drugInteractions.add(di);
+//            }
+//        }
+////        bw.close();
+//
+//    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

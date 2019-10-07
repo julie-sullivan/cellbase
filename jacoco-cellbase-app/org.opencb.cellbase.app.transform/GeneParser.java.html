@@ -1,0 +1,957 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeneParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">GeneParser.java</span></div><h1>GeneParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.apache.commons.collections.map.HashedMap;
+import org.opencb.biodata.formats.feature.gff.Gff2;
+import org.opencb.biodata.formats.feature.gtf.Gtf;
+import org.opencb.biodata.formats.feature.gtf.io.GtfReader;
+import org.opencb.biodata.formats.io.FileFormatException;
+import org.opencb.biodata.formats.sequence.fasta.Fasta;
+import org.opencb.biodata.formats.sequence.fasta.io.FastaReader;
+import org.opencb.biodata.models.core.*;
+import org.opencb.biodata.models.variant.avro.Expression;
+import org.opencb.biodata.models.variant.avro.GeneDrugInteraction;
+import org.opencb.biodata.models.variant.avro.GeneTraitAssociation;
+import org.opencb.biodata.tools.sequence.FastaIndexManager;
+import org.opencb.cellbase.core.config.Species;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+import org.rocksdb.RocksDBException;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.*;
+import java.util.*;
+
+public class GeneParser extends CellBaseParser {
+
+    private static final String ENSEMBL_GTF_DBNAME = &quot;ensembl_gtf&quot;;
+    private static final java.lang.String ENSEMBL_GTF_DISPLAY = &quot;Ensembl GTF&quot;;
+    private Map&lt;String, Integer&gt; transcriptDict;
+    private Map&lt;String, Exon&gt; exonDict;
+
+
+    private Path gtfFile;
+    private Path proteinFastaFile;
+    private Path cDnaFastaFile;
+    private Path geneDescriptionFile;
+    private Path xrefsFile;
+    private Path uniprotIdMappingFile;
+    private Path tfbsFile;
+    private Path mirnaFile;
+    private Path geneExpressionFile;
+    private Path geneDrugFile;
+    private Path hpoFile;
+    private Path disgenetFile;
+    private Path genomeSequenceFilePath;
+    private boolean flexibleGTFParsing;
+
+    private Species species;
+
+    private Connection sqlConn;
+    private PreparedStatement sqlQuery;
+
+<span class="fc" id="L73">    private int CHUNK_SIZE = 2000;</span>
+<span class="fc" id="L74">    private String chunkIdSuffix = CHUNK_SIZE / 1000 + &quot;k&quot;;</span>
+    private Set&lt;String&gt; indexedSequences;
+
+<span class="fc" id="L77">    private int featureCounter = -1; // initialize to -1 so that first +1 sets it to 0</span>
+<span class="fc" id="L78">    private String[] featureTypes = {&quot;exon&quot;, &quot;cds&quot;, &quot;start_codon&quot;, &quot;stop_codon&quot;};</span>
+<span class="fc" id="L79">    private String currentFeature = &quot;&quot;;</span>
+    private Map&lt;String, Object&gt; currentTranscriptMap;
+
+    private int geneCounter;
+    private ArrayList&lt;String&gt; geneList;
+    private String geneName;
+    private int transcriptCounter;
+    private ArrayList&lt;String&gt; transcriptList;
+    private String transcriptName;
+    private int exonCounter;
+    private String feature;
+    private Gtf nextGtfToReturn;
+
+
+    public GeneParser(Path geneDirectoryPath, Path genomeSequenceFastaFile,
+                      Species species,
+                      CellBaseSerializer serializer) {
+<span class="fc" id="L96">        this(geneDirectoryPath, genomeSequenceFastaFile, species, false, serializer);</span>
+<span class="fc" id="L97">    }</span>
+
+    public GeneParser(Path geneDirectoryPath, Path genomeSequenceFastaFile,
+                      Species species, boolean flexibleGTFParsing,
+                      CellBaseSerializer serializer) {
+<span class="fc" id="L102">        this(null, geneDirectoryPath.resolve(&quot;description.txt&quot;), geneDirectoryPath.resolve(&quot;xrefs.txt&quot;),</span>
+<span class="fc" id="L103">                geneDirectoryPath.resolve(&quot;idmapping_selected.tab.gz&quot;), geneDirectoryPath.resolve(&quot;MotifFeatures.gff.gz&quot;),</span>
+<span class="fc" id="L104">                geneDirectoryPath.resolve(&quot;mirna.txt&quot;),</span>
+<span class="fc" id="L105">                geneDirectoryPath.getParent().getParent().resolve(&quot;common/expression/allgenes_updown_in_organism_part.tab.gz&quot;),</span>
+<span class="fc" id="L106">                geneDirectoryPath.resolve(&quot;geneDrug/dgidb.tsv&quot;),</span>
+<span class="fc" id="L107">                geneDirectoryPath.resolve(&quot;ALL_SOURCES_ALL_FREQUENCIES_diseases_to_genes_to_phenotypes.txt&quot;),</span>
+<span class="fc" id="L108">                geneDirectoryPath.resolve(&quot;all_gene_disease_associations.txt.gz&quot;),</span>
+                genomeSequenceFastaFile, species, flexibleGTFParsing, serializer);
+<span class="fc" id="L110">        getGtfFileFromGeneDirectoryPath(geneDirectoryPath);</span>
+<span class="fc" id="L111">        getProteinFastaFileFromGeneDirectoryPath(geneDirectoryPath);</span>
+<span class="fc" id="L112">        getCDnaFastaFileFromGeneDirectoryPath(geneDirectoryPath);</span>
+<span class="fc" id="L113">    }</span>
+
+    public GeneParser(Path gtfFile, Path geneDescriptionFile, Path xrefsFile, Path uniprotIdMappingFile, Path tfbsFile, Path mirnaFile,
+                      Path geneExpressionFile, Path geneDrugFile, Path hpoFile, Path disgenetFile, Path genomeSequenceFilePath,
+                      Species species, boolean flexibleGTFParsing,
+                      CellBaseSerializer serializer) {
+<span class="fc" id="L119">        super(serializer);</span>
+<span class="fc" id="L120">        this.gtfFile = gtfFile;</span>
+<span class="fc" id="L121">        this.geneDescriptionFile = geneDescriptionFile;</span>
+<span class="fc" id="L122">        this.xrefsFile = xrefsFile;</span>
+<span class="fc" id="L123">        this.uniprotIdMappingFile = uniprotIdMappingFile;</span>
+<span class="fc" id="L124">        this.tfbsFile = tfbsFile;</span>
+<span class="fc" id="L125">        this.mirnaFile = mirnaFile;</span>
+<span class="fc" id="L126">        this.geneExpressionFile = geneExpressionFile;</span>
+<span class="fc" id="L127">        this.geneDrugFile = geneDrugFile;</span>
+<span class="fc" id="L128">        this.hpoFile = hpoFile;</span>
+<span class="fc" id="L129">        this.disgenetFile = disgenetFile;</span>
+<span class="fc" id="L130">        this.genomeSequenceFilePath = genomeSequenceFilePath;</span>
+<span class="fc" id="L131">        this.species = species;</span>
+<span class="fc" id="L132">        this.flexibleGTFParsing = flexibleGTFParsing;</span>
+
+<span class="fc" id="L134">        transcriptDict = new HashMap&lt;&gt;(250000);</span>
+<span class="fc" id="L135">        exonDict = new HashMap&lt;&gt;(8000000);</span>
+<span class="fc" id="L136">    }</span>
+
+    public void parse() throws Exception {
+<span class="fc" id="L139">        Gene gene = null;</span>
+        Transcript transcript;
+<span class="fc" id="L141">        Exon exon = null;</span>
+<span class="fc" id="L142">        int cdna = 1;</span>
+<span class="fc" id="L143">        int cds = 1;</span>
+<span class="fc" id="L144">        Map&lt;String, String&gt; geneDescriptionMap = getGeneDescriptionMap();</span>
+<span class="fc" id="L145">        Map&lt;String, ArrayList&lt;Xref&gt;&gt; xrefMap = GeneParserUtils.getXrefMap(xrefsFile, uniprotIdMappingFile);</span>
+<span class="fc" id="L146">        Map&lt;String, Fasta&gt; proteinSequencesMap = getProteinSequencesMap();</span>
+<span class="fc" id="L147">        Map&lt;String, Fasta&gt; cDnaSequencesMap = getCDnaSequencesMap();</span>
+<span class="fc" id="L148">        Map&lt;String, SortedSet&lt;Gff2&gt;&gt; tfbsMap = GeneParserUtils.getTfbsMap(tfbsFile);</span>
+<span class="fc" id="L149">        Map&lt;String, MiRNAGene&gt; mirnaGeneMap = GeneParserUtils.getmiRNAGeneMap(mirnaFile);</span>
+
+        // Gene annotation data
+<span class="fc" id="L152">        Map&lt;String, List&lt;Expression&gt;&gt; geneExpressionMap = GeneParserUtils</span>
+<span class="fc" id="L153">                .getGeneExpressionMap(species.getScientificName(), geneExpressionFile);</span>
+<span class="fc" id="L154">        Map&lt;String, List&lt;GeneDrugInteraction&gt;&gt; geneDrugMap = GeneParserUtils.getGeneDrugMap(geneDrugFile);</span>
+<span class="fc" id="L155">        Map&lt;String, List&lt;GeneTraitAssociation&gt;&gt; diseaseAssociationMap = GeneParserUtils.getGeneDiseaseAssociationMap(hpoFile, disgenetFile);</span>
+
+        // Preparing the fasta file for fast accessing
+<span class="fc" id="L158">        FastaIndexManager fastaIndexManager = getFastaIndexManager();</span>
+
+        // Empty transcript and exon dictionaries
+<span class="fc" id="L161">        transcriptDict.clear();</span>
+<span class="fc" id="L162">        exonDict.clear();</span>
+<span class="fc" id="L163">        logger.info(&quot;Parsing gtf...&quot;);</span>
+<span class="fc" id="L164">        GtfReader gtfReader = new GtfReader(gtfFile);</span>
+
+        // Gene-&gt;Transcript-&gt;Feature-&gt;GTF line
+<span class="fc" id="L167">        Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap = null;</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (flexibleGTFParsing) {</span>
+<span class="fc" id="L169">            gtfMap = loadGTFMap(gtfReader);</span>
+<span class="fc" id="L170">            initializePointers(gtfMap);</span>
+        }
+
+        Gtf gtf;
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        while ((gtf = getGTFEntry(gtfReader, gtfMap)) != null) {</span>
+
+<span class="fc bfc" id="L176" title="All 4 branches covered.">            if (gtf.getFeature().equals(&quot;gene&quot;) || gtf.getFeature().equals(&quot;transcript&quot;)</span>
+<span class="pc bpc" id="L177" title="2 of 4 branches missed.">                    || gtf.getFeature().equals(&quot;UTR&quot;) || gtf.getFeature().equals(&quot;Selenocysteine&quot;)) {</span>
+<span class="nc" id="L178">                continue;</span>
+            }
+
+<span class="fc" id="L181">            String geneId = gtf.getAttributes().get(&quot;gene_id&quot;);</span>
+<span class="fc" id="L182">            String transcriptId = gtf.getAttributes().get(&quot;transcript_id&quot;);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">            if (newGene(gene, geneId)) {</span>
+                // If new geneId is different from the current then we must serialize before data new gene
+<span class="fc bfc" id="L185" title="All 2 branches covered.">                if (gene != null) {</span>
+<span class="fc" id="L186">                    serializer.serialize(gene);</span>
+                }
+
+<span class="fc" id="L189">                GeneAnnotation geneAnnotation = new GeneAnnotation(geneExpressionMap.get(geneId),</span>
+<span class="fc" id="L190">                        diseaseAssociationMap.get(gtf.getAttributes().get(&quot;gene_name&quot;)),</span>
+<span class="fc" id="L191">                        geneDrugMap.get(gtf.getAttributes().get(&quot;gene_name&quot;)));</span>
+
+<span class="fc" id="L193">                gene = new Gene(geneId, gtf.getAttributes().get(&quot;gene_name&quot;), gtf.getAttributes().get(&quot;gene_biotype&quot;),</span>
+<span class="fc" id="L194">                        &quot;KNOWN&quot;, gtf.getSequenceName().replaceFirst(&quot;chr&quot;, &quot;&quot;), gtf.getStart(), gtf.getEnd(),</span>
+<span class="fc" id="L195">                        gtf.getStrand(), &quot;Ensembl&quot;, geneDescriptionMap.get(geneId), new ArrayList&lt;&gt;(),</span>
+<span class="fc" id="L196">                        mirnaGeneMap.get(geneId), geneAnnotation);</span>
+                // Do not change order!! size()-1 is the index of the gene ID
+            }
+
+            // Check if Transcript exist in the Gene Set of transcripts
+<span class="fc bfc" id="L201" title="All 2 branches covered.">            if (!transcriptDict.containsKey(transcriptId)) {</span>
+                // TODO: transcript tfbs should be a list and not an array list
+<span class="fc" id="L203">                String transcriptChrosome = gtf.getSequenceName().replaceFirst(&quot;chr&quot;, &quot;&quot;);</span>
+<span class="fc" id="L204">                ArrayList&lt;TranscriptTfbs&gt; transcriptTfbses = getTranscriptTfbses(gtf, transcriptChrosome, tfbsMap);</span>
+<span class="fc" id="L205">                Map&lt;String, String&gt; gtfAttributes = gtf.getAttributes();</span>
+<span class="fc" id="L206">                transcript = new Transcript(transcriptId, gtfAttributes.get(&quot;transcript_name&quot;),</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">                        (gtfAttributes.get(&quot;transcript_biotype&quot;) != null) ? gtfAttributes.get(&quot;transcript_biotype&quot;) : gtf.getSource(),</span>
+<span class="fc" id="L208">                        &quot;KNOWN&quot;, transcriptChrosome, gtf.getStart(), gtf.getEnd(),</span>
+<span class="fc" id="L209">                        gtf.getStrand(), 0, 0, 0, 0,</span>
+<span class="fc" id="L210">                        0, &quot;&quot;, &quot;&quot;, xrefMap.get(transcriptId), new ArrayList&lt;Exon&gt;(),</span>
+                        transcriptTfbses);
+
+                // Adding Ids appearing in the GTF to the xrefs is required, since for some unknown reason the ENSEMBL
+                // Perl API often doesn't return all genes resulting in an incomplete xrefs.txt file. We must ensure
+                // that the xrefs array contains all ids present in the GTF file
+<span class="fc" id="L216">                addGtfXrefs(transcript, gene);</span>
+
+<span class="fc" id="L218">                String tags = gtf.getAttributes().get(&quot;tag&quot;);</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">                if (tags != null) {</span>
+<span class="nc" id="L220">                    transcript.setAnnotationFlags(new HashSet&lt;String&gt;(Arrays.asList(tags.split(&quot;,&quot;))));</span>
+                }
+
+<span class="fc" id="L223">                Fasta proteinFasta = proteinSequencesMap.get(transcriptId);</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">                if (proteinFasta != null) {</span>
+<span class="nc" id="L225">                    transcript.setProteinSequence(proteinFasta.getSeq());</span>
+                }
+
+<span class="fc" id="L228">                Fasta cDnaFasta = cDnaSequencesMap.get(transcriptId);</span>
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">                if (cDnaFasta != null) {</span>
+<span class="nc" id="L230">                    transcript.setcDnaSequence(cDnaFasta.getSeq());</span>
+                }
+<span class="fc" id="L232">                gene.getTranscripts().add(transcript);</span>
+                // TODO: could use a transcriptId -&gt; transcript map?
+                // Do not change order!! size()-1 is the index of the transcript ID
+<span class="fc" id="L235">                transcriptDict.put(transcriptId, gene.getTranscripts().size() - 1);</span>
+<span class="fc" id="L236">            } else {</span>
+<span class="fc" id="L237">                transcript = gene.getTranscripts().get(transcriptDict.get(transcriptId));</span>
+            }
+
+            // At this point gene and transcript objects are set up
+            // Update gene and transcript genomic coordinates, start must be the
+            // lower, and end the higher
+<span class="fc" id="L243">            updateTranscriptAndGeneCoords(transcript, gene, gtf);</span>
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">            if (gtf.getFeature().equalsIgnoreCase(&quot;exon&quot;)) {</span>
+                // Obtaining the exon sequence
+                //String exonSequence = getExonSequence(gtf.getSequenceName(), gtf.getStart(), gtf.getEnd());
+<span class="fc" id="L248">                String exonSequence = null;</span>
+                try {
+<span class="fc" id="L250">                    exonSequence = fastaIndexManager.query(gtf.getSequenceName(), gtf.getStart(), gtf.getEnd());</span>
+<span class="nc" id="L251">                } catch (RocksDBException e) {</span>
+<span class="nc" id="L252">                    e.printStackTrace();</span>
+<span class="fc" id="L253">                }</span>
+
+<span class="fc" id="L255">                exon = new Exon(gtf.getAttributes().get(&quot;exon_id&quot;), gtf.getSequenceName().replaceFirst(&quot;chr&quot;, &quot;&quot;),</span>
+<span class="fc" id="L256">                        gtf.getStart(), gtf.getEnd(), gtf.getStrand(), 0, 0, 0, 0, 0, 0, -1, Integer.parseInt(gtf</span>
+<span class="fc" id="L257">                        .getAttributes().get(&quot;exon_number&quot;)), exonSequence);</span>
+<span class="fc" id="L258">                transcript.getExons().add(exon);</span>
+<span class="fc" id="L259">                exonDict.put(transcript.getId() + &quot;_&quot; + exon.getExonNumber(), exon);</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">                if (gtf.getAttributes().get(&quot;exon_number&quot;).equals(&quot;1&quot;)) {</span>
+<span class="fc" id="L261">                    cdna = 1;</span>
+<span class="fc" id="L262">                    cds = 1;</span>
+                } else {
+                    // with every exon we update cDNA length with the previous exon length
+<span class="fc" id="L265">                    cdna += exonDict.get(transcript.getId() + &quot;_&quot; + (exon.getExonNumber() - 1)).getEnd()</span>
+<span class="fc" id="L266">                            - exonDict.get(transcript.getId() + &quot;_&quot; + (exon.getExonNumber() - 1)).getStart() + 1;</span>
+                }
+<span class="fc" id="L268">            } else {</span>
+<span class="fc" id="L269">                exon = exonDict.get(transcript.getId() + &quot;_&quot; + exon.getExonNumber());</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">                if (gtf.getFeature().equalsIgnoreCase(&quot;CDS&quot;)) {</span>
+<span class="pc bpc" id="L271" title="3 of 4 branches missed.">                    if (gtf.getStrand().equals(&quot;+&quot;) || gtf.getStrand().equals(&quot;1&quot;)) {</span>
+                        // CDS states the beginning of coding start
+<span class="fc" id="L273">                        exon.setGenomicCodingStart(gtf.getStart());</span>
+<span class="fc" id="L274">                        exon.setGenomicCodingEnd(gtf.getEnd());</span>
+
+                        // cDNA coordinates
+<span class="fc" id="L277">                        exon.setCdnaCodingStart(gtf.getStart() - exon.getStart() + cdna);</span>
+<span class="fc" id="L278">                        exon.setCdnaCodingEnd(gtf.getEnd() - exon.getStart() + cdna);</span>
+                        // Set cdnaCodingEnd to prevent those cases without stop_codon
+
+<span class="fc" id="L281">                        transcript.setCdnaCodingEnd(gtf.getEnd() - exon.getStart() + cdna);</span>
+<span class="fc" id="L282">                        exon.setCdsStart(cds);</span>
+<span class="fc" id="L283">                        exon.setCdsEnd(gtf.getEnd() - gtf.getStart() + cds);</span>
+
+                        // increment in the coding length
+<span class="fc" id="L286">                        cds += gtf.getEnd() - gtf.getStart() + 1;</span>
+<span class="fc" id="L287">                        transcript.setCdsLength(cds - 1);  // Set cdnaCodingEnd to prevent those cases without stop_codon</span>
+
+<span class="fc" id="L289">                        exon.setPhase(Integer.valueOf(gtf.getFrame()));</span>
+
+<span class="pc bpc" id="L291" title="1 of 4 branches missed.">                        if (transcript.getGenomicCodingStart() == 0 || transcript.getGenomicCodingStart() &gt; gtf.getStart()) {</span>
+<span class="fc" id="L292">                            transcript.setGenomicCodingStart(gtf.getStart());</span>
+                        }
+<span class="pc bpc" id="L294" title="1 of 4 branches missed.">                        if (transcript.getGenomicCodingEnd() == 0 || transcript.getGenomicCodingEnd() &lt; gtf.getEnd()) {</span>
+<span class="fc" id="L295">                            transcript.setGenomicCodingEnd(gtf.getEnd());</span>
+                        }
+                        // only first time
+<span class="fc bfc" id="L298" title="All 2 branches covered.">                        if (transcript.getCdnaCodingStart() == 0) {</span>
+<span class="fc" id="L299">                            transcript.setCdnaCodingStart(gtf.getStart() - exon.getStart() + cdna);</span>
+                        }
+                        // strand -
+                    } else {
+                        // CDS states the beginning of coding start
+<span class="nc" id="L304">                        exon.setGenomicCodingStart(gtf.getStart());</span>
+<span class="nc" id="L305">                        exon.setGenomicCodingEnd(gtf.getEnd());</span>
+                        // cDNA coordinates
+                        // cdnaCodingStart points to the same base position than genomicCodingEnd
+<span class="nc" id="L308">                        exon.setCdnaCodingStart(exon.getEnd() - gtf.getEnd() + cdna);</span>
+                        // cdnaCodingEnd points to the same base position than genomicCodingStart
+<span class="nc" id="L310">                        exon.setCdnaCodingEnd(exon.getEnd() - gtf.getStart() + cdna);</span>
+                        // Set cdnaCodingEnd to prevent those cases without stop_codon
+<span class="nc" id="L312">                        transcript.setCdnaCodingEnd(exon.getEnd() - gtf.getStart() + cdna);</span>
+<span class="nc" id="L313">                        exon.setCdsStart(cds);</span>
+<span class="nc" id="L314">                        exon.setCdsEnd(gtf.getEnd() - gtf.getStart() + cds);</span>
+
+                        // increment in the coding length
+<span class="nc" id="L317">                        cds += gtf.getEnd() - gtf.getStart() + 1;</span>
+<span class="nc" id="L318">                        transcript.setCdsLength(cds - 1);  // Set cdnaCodingEnd to prevent those cases without stop_codon</span>
+<span class="nc" id="L319">                        exon.setPhase(Integer.valueOf(gtf.getFrame()));</span>
+
+<span class="nc bnc" id="L321" title="All 4 branches missed.">                        if (transcript.getGenomicCodingStart() == 0 || transcript.getGenomicCodingStart() &gt; gtf.getStart()) {</span>
+<span class="nc" id="L322">                            transcript.setGenomicCodingStart(gtf.getStart());</span>
+                        }
+<span class="nc bnc" id="L324" title="All 4 branches missed.">                        if (transcript.getGenomicCodingEnd() == 0 || transcript.getGenomicCodingEnd() &lt; gtf.getEnd()) {</span>
+<span class="nc" id="L325">                            transcript.setGenomicCodingEnd(gtf.getEnd());</span>
+                        }
+                        // only first time
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                        if (transcript.getCdnaCodingStart() == 0) {</span>
+                            // cdnaCodingStart points to the same base position than genomicCodingEnd
+<span class="nc" id="L330">                            transcript.setCdnaCodingStart(exon.getEnd() - gtf.getEnd() + cdna);</span>
+                        }
+                    }
+                    // no strand dependent
+<span class="fc" id="L334">                    transcript.setProteinID(gtf.getAttributes().get(&quot;protein_id&quot;));</span>
+                }
+<span class="fc bfc" id="L336" title="All 2 branches covered.">                if (gtf.getFeature().equalsIgnoreCase(&quot;start_codon&quot;)) {</span>
+                    // nothing to do
+<span class="fc" id="L338">                    System.out.println(&quot;Empty block, this should be redesigned&quot;);</span>
+                }
+<span class="fc bfc" id="L340" title="All 2 branches covered.">                if (gtf.getFeature().equalsIgnoreCase(&quot;stop_codon&quot;)) {</span>
+                    //                      setCdnaCodingEnd = false; // stop_codon found, cdnaCodingEnd will be set here,
+                    //                      no need to set it at the beginning of next feature
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">                    if (exon.getStrand().equals(&quot;+&quot;)) {</span>
+                        // we need to increment 3 nts, the stop_codon length.
+<span class="fc" id="L345">                        exon.setGenomicCodingEnd(gtf.getEnd());</span>
+<span class="fc" id="L346">                        exon.setCdnaCodingEnd(gtf.getEnd() - exon.getStart() + cdna);</span>
+<span class="fc" id="L347">                        exon.setCdsEnd(gtf.getEnd() - gtf.getStart() + cds);</span>
+<span class="fc" id="L348">                        cds += gtf.getEnd() - gtf.getStart();</span>
+
+                        // If stop_codon appears, overwrite values
+<span class="fc" id="L351">                        transcript.setGenomicCodingEnd(gtf.getEnd());</span>
+<span class="fc" id="L352">                        transcript.setCdnaCodingEnd(gtf.getEnd() - exon.getStart() + cdna);</span>
+<span class="fc" id="L353">                        transcript.setCdsLength(cds - 1);</span>
+                    } else {
+                        // we need to increment 3 nts, the stop_codon length.
+<span class="nc" id="L356">                        exon.setGenomicCodingStart(gtf.getStart());</span>
+                        // cdnaCodingEnd points to the same base position than genomicCodingStart
+<span class="nc" id="L358">                        exon.setCdnaCodingEnd(exon.getEnd() - gtf.getStart() + cdna);</span>
+<span class="nc" id="L359">                        exon.setCdsEnd(gtf.getEnd() - gtf.getStart() + cds);</span>
+<span class="nc" id="L360">                        cds += gtf.getEnd() - gtf.getStart();</span>
+
+                        // If stop_codon appears, overwrite values
+<span class="nc" id="L363">                        transcript.setGenomicCodingStart(gtf.getStart());</span>
+                        // cdnaCodingEnd points to the same base position than genomicCodingStart
+<span class="nc" id="L365">                        transcript.setCdnaCodingEnd(exon.getEnd() - gtf.getStart() + cdna);</span>
+<span class="nc" id="L366">                        transcript.setCdsLength(cds - 1);</span>
+                    }
+                }
+            }
+<span class="fc" id="L370">        }</span>
+
+        // last gene must be serialized
+<span class="fc" id="L373">        serializer.serialize(gene);</span>
+
+        // cleaning
+<span class="fc" id="L376">        gtfReader.close();</span>
+<span class="fc" id="L377">        serializer.close();</span>
+<span class="fc" id="L378">        fastaIndexManager.close();</span>
+<span class="fc" id="L379">    }</span>
+
+    private FastaIndexManager getFastaIndexManager() throws Exception {
+        FastaIndexManager fastaIndexManager;
+<span class="fc" id="L383">        fastaIndexManager = new FastaIndexManager(genomeSequenceFilePath, true);</span>
+<span class="pc bpc" id="L384" title="1 of 2 branches missed.">        if (!fastaIndexManager.isConnected()) {</span>
+<span class="nc" id="L385">            fastaIndexManager.index();</span>
+        }
+
+<span class="fc" id="L388">        return fastaIndexManager;</span>
+    }
+
+    private void addGtfXrefs(Transcript transcript, Gene gene) {
+<span class="fc" id="L392">        List&lt;Xref&gt; xrefList = transcript.getXrefs();</span>
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">        if (xrefList == null) {</span>
+<span class="fc" id="L394">            xrefList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L395">            transcript.setXrefs(xrefList);</span>
+        }
+<span class="fc" id="L397">        xrefList.add(new Xref(gene.getId(), ENSEMBL_GTF_DBNAME, ENSEMBL_GTF_DISPLAY));</span>
+<span class="fc" id="L398">        xrefList.add(new Xref(gene.getName(), ENSEMBL_GTF_DBNAME, ENSEMBL_GTF_DISPLAY));</span>
+<span class="fc" id="L399">        xrefList.add(new Xref(transcript.getId(), ENSEMBL_GTF_DBNAME, ENSEMBL_GTF_DISPLAY));</span>
+<span class="fc" id="L400">        xrefList.add(new Xref(transcript.getName(), ENSEMBL_GTF_DBNAME, ENSEMBL_GTF_DISPLAY));</span>
+<span class="fc" id="L401">    }</span>
+
+    private void initializePointers(Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap) {
+<span class="fc" id="L404">        geneCounter = 0;</span>
+<span class="fc" id="L405">        geneList = new ArrayList&lt;&gt;(gtfMap.keySet());</span>
+<span class="fc" id="L406">        geneName = geneList.get(geneCounter);</span>
+<span class="fc" id="L407">        transcriptCounter = 0;</span>
+<span class="fc" id="L408">        transcriptList = new ArrayList&lt;&gt;(gtfMap.get(geneName).keySet());</span>
+<span class="fc" id="L409">        transcriptName = transcriptList.get(transcriptCounter);</span>
+<span class="fc" id="L410">        exonCounter = 0;</span>
+<span class="fc" id="L411">        feature = &quot;exon&quot;;</span>
+<span class="fc" id="L412">        nextGtfToReturn = (Gtf) ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).get(exonCounter);</span>
+<span class="fc" id="L413">    }</span>
+
+    private Gtf getGTFEntry(GtfReader gtfReader, Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap) throws FileFormatException {
+        // Flexible parsing is deactivated, return next line
+<span class="fc bfc" id="L417" title="All 2 branches covered.">        if (gtfMap == null) {</span>
+<span class="fc" id="L418">            return gtfReader.read();</span>
+        // Flexible parsing activated, carefully select next line to return
+        } else {
+            // No more genes/features to return
+<span class="fc bfc" id="L422" title="All 2 branches covered.">            if (nextGtfToReturn == null) {</span>
+<span class="fc" id="L423">                return null;</span>
+            }
+<span class="fc" id="L425">            Gtf gtfToReturn = nextGtfToReturn;</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">            if (feature.equals(&quot;exon&quot;)) {</span>
+//                gtfToReturn = (Gtf) ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).get(exonCounter);
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">                if (gtfMap.get(geneName).get(transcriptName).containsKey(&quot;cds&quot;)) {</span>
+<span class="fc" id="L429">                    nextGtfToReturn = getExonCDSLine(((Gtf) ((List) gtfMap.get(geneName)</span>
+<span class="fc" id="L430">                                    .get(transcriptName).get(&quot;exon&quot;)).get(exonCounter)).getStart(),</span>
+<span class="fc" id="L431">                            ((Gtf) ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).get(exonCounter)).getEnd(),</span>
+<span class="fc" id="L432">                            (List) gtfMap.get(geneName).get(transcriptName).get(&quot;cds&quot;));</span>
+<span class="pc bpc" id="L433" title="1 of 2 branches missed.">                    if (nextGtfToReturn != null) {</span>
+<span class="fc" id="L434">                        feature = &quot;cds&quot;;</span>
+<span class="fc" id="L435">                        return gtfToReturn;</span>
+                    }
+                }
+                // if no cds was found for this exon, get next exon
+<span class="nc" id="L439">                getFeatureFollowsExon(gtfMap);</span>
+<span class="nc" id="L440">                return gtfToReturn;</span>
+            }
+<span class="fc bfc" id="L442" title="All 4 branches covered.">            if (feature.equals(&quot;cds&quot;) || feature.equals(&quot;stop_codon&quot;)) {</span>
+<span class="fc" id="L443">                getFeatureFollowsExon(gtfMap);</span>
+<span class="fc" id="L444">                return gtfToReturn;</span>
+            }
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">            if (feature.equals(&quot;start_codon&quot;)) {</span>
+<span class="fc" id="L447">                feature = &quot;stop_codon&quot;;</span>
+<span class="fc" id="L448">                nextGtfToReturn = (Gtf) gtfMap.get(geneName).get(transcriptName).get(&quot;stop_codon&quot;);</span>
+<span class="fc" id="L449">                return gtfToReturn;</span>
+            }
+            // The only accepted features that should appear in the gtfMap are exon, cds, start_codon and stop_codon
+<span class="nc" id="L452">            throw new FileFormatException(&quot;Execution cannot reach this point&quot;);</span>
+        }
+    }
+
+    private Gtf getExonCDSLine(Integer exonStart, Integer exonEnd, List cdsList) {
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">        for (Object cdsObject : cdsList) {</span>
+<span class="fc" id="L458">            Integer cdsStart = ((Gtf) cdsObject).getStart();</span>
+<span class="fc" id="L459">            Integer cdsEnd = ((Gtf) cdsObject).getEnd();</span>
+<span class="pc bpc" id="L460" title="1 of 4 branches missed.">            if (cdsStart &lt;= exonEnd &amp;&amp; cdsEnd &gt;= exonStart) {</span>
+<span class="fc" id="L461">                return (Gtf) cdsObject;</span>
+            }
+<span class="fc" id="L463">        }</span>
+<span class="nc" id="L464">        return null;</span>
+    }
+
+    private void getFeatureFollowsExon(Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap) {
+<span class="fc" id="L468">        exonCounter++;</span>
+<span class="fc bfc" id="L469" title="All 2 branches covered.">        if (exonCounter == ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).size()</span>
+<span class="fc bfc" id="L470" title="All 2 branches covered.">                || feature.equals(&quot;stop_codon&quot;)) {</span>
+            // If last returned feature was a stop_codon or no start_codon is provided for this transcript,
+            // next transcript must be selected
+<span class="pc bpc" id="L473" title="1 of 4 branches missed.">            if (!feature.equals(&quot;stop_codon&quot;) &amp;&amp; gtfMap.get(geneName).get(transcriptName).containsKey(&quot;start_codon&quot;)) {</span>
+<span class="fc" id="L474">                feature = &quot;start_codon&quot;;</span>
+<span class="fc" id="L475">                nextGtfToReturn = (Gtf) gtfMap.get(geneName).get(transcriptName).get(&quot;start_codon&quot;);</span>
+            } else {
+<span class="fc" id="L477">                transcriptCounter++;</span>
+                // No more transcripts in this gene, check if there are more genes
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">                if (transcriptCounter == gtfMap.get(geneName).size()) {</span>
+<span class="fc" id="L480">                    geneCounter++;</span>
+                    // No more genes available, end parsing
+<span class="fc bfc" id="L482" title="All 2 branches covered.">                    if (geneCounter == gtfMap.size()) {</span>
+<span class="fc" id="L483">                        nextGtfToReturn = null;</span>
+<span class="fc" id="L484">                        feature = null;</span>
+                    // Still more genes to parse, select next one
+                    } else {
+<span class="fc" id="L487">                        geneName = geneList.get(geneCounter);</span>
+<span class="fc" id="L488">                        transcriptCounter = 0;</span>
+<span class="fc" id="L489">                        transcriptList = new ArrayList&lt;&gt;(gtfMap.get(geneName).keySet());</span>
+                    }
+                }
+                // Check if a new gene was selected - null would indicate there're no more genes
+<span class="fc bfc" id="L493" title="All 2 branches covered.">                if (nextGtfToReturn != null) {</span>
+<span class="fc" id="L494">                    transcriptName = transcriptList.get(transcriptCounter);</span>
+<span class="fc" id="L495">                    exonCounter = 0;</span>
+<span class="fc" id="L496">                    feature = &quot;exon&quot;;</span>
+<span class="fc" id="L497">                    nextGtfToReturn = (Gtf) ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).get(exonCounter);</span>
+                }
+            }
+        } else {
+<span class="fc" id="L501">            feature = &quot;exon&quot;;</span>
+<span class="fc" id="L502">            nextGtfToReturn = (Gtf) ((List) gtfMap.get(geneName).get(transcriptName).get(&quot;exon&quot;)).get(exonCounter);</span>
+        }
+<span class="fc" id="L504">    }</span>
+
+    private Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; loadGTFMap(GtfReader gtfReader) throws FileFormatException {
+<span class="fc" id="L507">        Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap = new HashedMap();</span>
+        Gtf gtf;
+<span class="fc bfc" id="L509" title="All 2 branches covered.">        while ((gtf = gtfReader.read()) != null) {</span>
+<span class="pc bpc" id="L510" title="2 of 4 branches missed.">            if (gtf.getFeature().equals(&quot;gene&quot;) || gtf.getFeature().equals(&quot;transcript&quot;)</span>
+<span class="pc bpc" id="L511" title="2 of 4 branches missed.">                    || gtf.getFeature().equals(&quot;UTR&quot;) || gtf.getFeature().equals(&quot;Selenocysteine&quot;)) {</span>
+<span class="nc" id="L512">                continue;</span>
+            }
+
+            // Get GTF lines associated with this gene - create a new Map of GTF entries if it's a new gene
+<span class="fc" id="L516">            String geneId = gtf.getAttributes().get(&quot;gene_id&quot;);</span>
+            // Transcript -&gt; feature -&gt; GTF line
+            Map&lt;String, Map&lt;String, Object&gt;&gt; gtfMapGeneEntry;
+<span class="fc bfc" id="L519" title="All 2 branches covered.">            if (gtfMap.containsKey(geneId)) {</span>
+<span class="fc" id="L520">                gtfMapGeneEntry =  gtfMap.get(geneId);</span>
+            } else {
+<span class="fc" id="L522">                gtfMapGeneEntry = new HashedMap();</span>
+<span class="fc" id="L523">                gtfMap.put(geneId, gtfMapGeneEntry);</span>
+            }
+
+            // Get GTF lines associated with this transcript - create a new Map of GTF entries if it's a new gene
+<span class="fc" id="L527">            String transcriptId = gtf.getAttributes().get(&quot;transcript_id&quot;);</span>
+            Map&lt;String, Object&gt; gtfMapTranscriptEntry;
+<span class="fc bfc" id="L529" title="All 2 branches covered.">            if (gtfMapGeneEntry.containsKey(transcriptId)) {</span>
+<span class="fc" id="L530">                gtfMapTranscriptEntry =  gtfMapGeneEntry.get(transcriptId);</span>
+            } else {
+<span class="fc" id="L532">                gtfMapTranscriptEntry = new HashedMap();</span>
+<span class="fc" id="L533">                gtfMapGeneEntry.put(transcriptId, gtfMapTranscriptEntry);</span>
+            }
+
+<span class="fc" id="L536">            addGTFLineToGTFMap(gtfMapTranscriptEntry, gtf);</span>
+
+<span class="fc" id="L538">        }</span>
+
+        // Exon number is mandatory for the parser to be able to properly generate the gene data model
+<span class="pc bpc" id="L541" title="1 of 2 branches missed.">        if (!exonNumberPresent(gtfMap)) {</span>
+<span class="fc" id="L542">            setExonNumber(gtfMap);</span>
+        }
+
+<span class="fc" id="L545">        return gtfMap;</span>
+    }
+
+    private boolean exonNumberPresent(Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap) {
+<span class="fc" id="L549">        Map&lt;String, Map&lt;String, Object&gt;&gt; geneGtfMap = gtfMap.get(gtfMap.keySet().iterator().next());</span>
+<span class="fc" id="L550">        return ((Gtf) ((List) geneGtfMap.get(geneGtfMap.keySet().iterator().next()).get(&quot;exon&quot;)).get(0))</span>
+<span class="fc" id="L551">                .getAttributes().containsKey(&quot;exon_number&quot;);</span>
+    }
+
+    private void setExonNumber(Map&lt;String, Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; gtfMap) {
+<span class="fc bfc" id="L555" title="All 2 branches covered.">        for (String gene : gtfMap.keySet()) {</span>
+<span class="fc bfc" id="L556" title="All 2 branches covered.">            for (String transcript : gtfMap.get(gene).keySet()) {</span>
+<span class="fc" id="L557">                List&lt;Gtf&gt; exonList = (List&lt;Gtf&gt;) gtfMap.get(gene).get(transcript).get(&quot;exon&quot;);</span>
+<span class="fc" id="L558">                Collections.sort(exonList, (e1, e2) -&gt; Integer.valueOf(e1.getStart()).compareTo(e2.getStart()));</span>
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">                if (exonList.get(0).getStrand().equals(&quot;+&quot;)) {</span>
+<span class="fc" id="L560">                    int exonNumber = 1;</span>
+<span class="fc bfc" id="L561" title="All 2 branches covered.">                    for (Gtf gtf : exonList) {</span>
+<span class="fc" id="L562">                        gtf.getAttributes().put(&quot;exon_number&quot;, String.valueOf(exonNumber));</span>
+<span class="fc" id="L563">                        exonNumber++;</span>
+<span class="fc" id="L564">                    }</span>
+<span class="fc" id="L565">                } else {</span>
+<span class="nc" id="L566">                    int exonNumber = exonList.size();</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">                    for (Gtf gtf : exonList) {</span>
+<span class="nc" id="L568">                        gtf.getAttributes().put(&quot;exon_number&quot;, String.valueOf(exonNumber));</span>
+<span class="nc" id="L569">                        exonNumber--;</span>
+<span class="nc" id="L570">                    }</span>
+                }
+<span class="fc" id="L572">            }</span>
+<span class="fc" id="L573">        }</span>
+<span class="fc" id="L574">    }</span>
+
+    private void addGTFLineToGTFMap(Map&lt;String, Object&gt; gtfMapTranscriptEntry, Gtf gtf) {
+
+<span class="fc" id="L578">        String featureType = gtf.getFeature().toLowerCase();</span>
+
+        // Add exon/cds GTF line to the corresponding gene entry in the map
+<span class="fc bfc" id="L581" title="All 4 branches covered.">        if (featureType.equals(&quot;exon&quot;) || featureType.equals(&quot;cds&quot;)) {</span>
+<span class="fc" id="L582">            List gtfList = null;</span>
+            // Check if there were exons already stored
+<span class="fc bfc" id="L584" title="All 2 branches covered.">            if (gtfMapTranscriptEntry.containsKey(featureType)) {</span>
+<span class="fc" id="L585">                gtfList =  (List) gtfMapTranscriptEntry.get(featureType);</span>
+            } else {
+<span class="fc" id="L587">                gtfList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L588">                gtfMapTranscriptEntry.put(featureType, gtfList);</span>
+            }
+<span class="fc" id="L590">            gtfList.add(gtf);</span>
+        // Only one start/stop codon can be stored per transcript - no need to check if the &quot;start_codon&quot;/&quot;stop_codon&quot;
+        // keys are already there
+<span class="pc bpc" id="L593" title="1 of 4 branches missed.">        } else if (featureType.equals(&quot;start_codon&quot;) || featureType.equals(&quot;stop_codon&quot;)) {</span>
+<span class="fc" id="L594">            gtfMapTranscriptEntry.put(featureType, gtf);</span>
+        }
+
+<span class="fc" id="L597">    }</span>
+
+    private ArrayList&lt;TranscriptTfbs&gt; getTranscriptTfbses(Gtf transcript, String chromosome, Map&lt;String, SortedSet&lt;Gff2&gt;&gt; tfbsMap) {
+<span class="fc" id="L600">        ArrayList&lt;TranscriptTfbs&gt; transcriptTfbses = null;</span>
+<span class="fc bfc" id="L601" title="All 2 branches covered.">        if (tfbsMap.containsKey(chromosome)) {</span>
+<span class="pc bpc" id="L602" title="1 of 2 branches missed.">            for (Gff2 tfbs : tfbsMap.get(chromosome)) {</span>
+<span class="fc bfc" id="L603" title="All 2 branches covered.">                if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+<span class="fc bfc" id="L604" title="All 2 branches covered.">                    if (tfbs.getStart() &gt; transcript.getStart() + 500) {</span>
+<span class="fc" id="L605">                        break;</span>
+<span class="fc bfc" id="L606" title="All 2 branches covered.">                    } else if (tfbs.getEnd() &gt; transcript.getStart() - 2500) {</span>
+<span class="fc" id="L607">                        transcriptTfbses = addTranscriptTfbstoList(tfbs, transcript, chromosome, transcriptTfbses);</span>
+                    }
+                } else {
+                    // transcript in negative strand
+<span class="fc bfc" id="L611" title="All 2 branches covered.">                    if (tfbs.getStart() &gt; transcript.getEnd() + 2500) {</span>
+<span class="fc" id="L612">                        break;</span>
+<span class="fc bfc" id="L613" title="All 2 branches covered.">                    } else if (tfbs.getStart() &gt; transcript.getEnd() - 500) {</span>
+<span class="fc" id="L614">                        transcriptTfbses = addTranscriptTfbstoList(tfbs, transcript, chromosome, transcriptTfbses);</span>
+                    }
+                }
+<span class="fc" id="L617">            }</span>
+        }
+<span class="fc" id="L619">        return transcriptTfbses;</span>
+    }
+
+    private ArrayList&lt;TranscriptTfbs&gt; addTranscriptTfbstoList(Gff2 tfbs, Gtf transcript, String chromosome,
+                                                              ArrayList&lt;TranscriptTfbs&gt; transcriptTfbses) {
+<span class="fc bfc" id="L624" title="All 2 branches covered.">        if (transcriptTfbses == null) {</span>
+<span class="fc" id="L625">            transcriptTfbses = new ArrayList&lt;&gt;();</span>
+        }
+<span class="fc" id="L627">        String[] tfbsNameFields = tfbs.getAttribute().split(&quot;=&quot;)[1].split(&quot;:&quot;);</span>
+<span class="fc" id="L628">        transcriptTfbses.add(new TranscriptTfbs(tfbsNameFields[0], tfbsNameFields[1], chromosome, tfbs.getStart(), tfbs.getEnd(),</span>
+<span class="fc" id="L629">                tfbs.getStrand(), getRelativeTranscriptTfbsStart(tfbs, transcript), getRelativeTranscriptTfbsEnd(tfbs, transcript),</span>
+<span class="fc" id="L630">                Float.parseFloat(tfbs.getScore())));</span>
+<span class="fc" id="L631">        return transcriptTfbses;</span>
+    }
+
+    private Integer getRelativeTranscriptTfbsStart(Gff2 tfbs, Gtf transcript) {
+        Integer relativeStart;
+<span class="fc bfc" id="L636" title="All 2 branches covered.">        if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+<span class="fc bfc" id="L637" title="All 2 branches covered.">            if (tfbs.getStart() &lt; transcript.getStart()) {</span>
+<span class="fc" id="L638">                relativeStart = tfbs.getStart() - transcript.getStart();</span>
+            } else {
+<span class="fc" id="L640">                relativeStart = tfbs.getStart() - transcript.getStart() + 1;</span>
+            }
+        } else {
+            // negative strand transcript
+<span class="fc bfc" id="L644" title="All 2 branches covered.">            if (tfbs.getEnd() &gt; transcript.getEnd()) {</span>
+<span class="fc" id="L645">                relativeStart = transcript.getEnd() - tfbs.getEnd();</span>
+            } else {
+<span class="fc" id="L647">                relativeStart = transcript.getEnd() - tfbs.getEnd() + 1;</span>
+            }
+        }
+<span class="fc" id="L650">        return relativeStart;</span>
+    }
+
+    private Integer getRelativeTranscriptTfbsEnd(Gff2 tfbs, Gtf transcript) {
+        Integer relativeEnd;
+<span class="fc bfc" id="L655" title="All 2 branches covered.">        if (transcript.getStrand().equals(&quot;+&quot;)) {</span>
+<span class="fc bfc" id="L656" title="All 2 branches covered.">            if (tfbs.getEnd() &lt; transcript.getStart()) {</span>
+<span class="fc" id="L657">                relativeEnd = tfbs.getEnd() - transcript.getStart();</span>
+            } else {
+<span class="fc" id="L659">                relativeEnd = tfbs.getEnd() - transcript.getStart() + 1;</span>
+            }
+        } else {
+<span class="fc bfc" id="L662" title="All 2 branches covered.">            if (tfbs.getStart() &gt; transcript.getEnd()) {</span>
+<span class="fc" id="L663">                relativeEnd = transcript.getEnd() - tfbs.getStart();</span>
+            } else {
+<span class="fc" id="L665">                relativeEnd = transcript.getEnd() - tfbs.getStart() + 1;</span>
+            }
+        }
+<span class="fc" id="L668">        return relativeEnd;</span>
+    }
+
+
+    private Map&lt;String, Fasta&gt; getCDnaSequencesMap() throws IOException, FileFormatException {
+<span class="fc" id="L673">        logger.info(&quot;Loading ENSEMBL's cDNA sequences...&quot;);</span>
+<span class="fc" id="L674">        Map&lt;String, Fasta&gt; cDnaSequencesMap = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L675" title="5 of 6 branches missed.">        if (cDnaFastaFile != null &amp;&amp; Files.exists(cDnaFastaFile) &amp;&amp; !Files.isDirectory(cDnaFastaFile)</span>
+<span class="nc bnc" id="L676" title="All 2 branches missed.">                &amp;&amp; Files.size(cDnaFastaFile) &gt; 0) {</span>
+<span class="nc" id="L677">            FastaReader fastaReader = new FastaReader(cDnaFastaFile);</span>
+<span class="nc" id="L678">            List&lt;Fasta&gt; fastaList = fastaReader.readAll();</span>
+<span class="nc" id="L679">            fastaReader.close();</span>
+<span class="nc bnc" id="L680" title="All 2 branches missed.">            for (Fasta fasta : fastaList) {</span>
+<span class="nc" id="L681">                cDnaSequencesMap.put(fasta.getId(), fasta);</span>
+<span class="nc" id="L682">            }</span>
+<span class="nc" id="L683">        } else {</span>
+<span class="fc" id="L684">            logger.warn(&quot;cDNA fasta file &quot; + cDnaFastaFile + &quot; not found&quot;);</span>
+<span class="fc" id="L685">            logger.warn(&quot;ENSEMBL's cDNA sequences not loaded&quot;);</span>
+        }
+<span class="fc" id="L687">        return cDnaSequencesMap;</span>
+    }
+
+    private Map&lt;String, Fasta&gt; getProteinSequencesMap() throws IOException, FileFormatException {
+<span class="fc" id="L691">        logger.info(&quot;Loading ENSEMBL's protein sequences...&quot;);</span>
+<span class="fc" id="L692">        Map&lt;String, Fasta&gt; proteinSequencesMap = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L693" title="5 of 6 branches missed.">        if (proteinFastaFile != null &amp;&amp; Files.exists(proteinFastaFile) &amp;&amp; !Files.isDirectory(proteinFastaFile)</span>
+<span class="nc bnc" id="L694" title="All 2 branches missed.">                &amp;&amp; Files.size(proteinFastaFile) &gt; 0) {</span>
+<span class="nc" id="L695">            FastaReader fastaReader = new FastaReader(proteinFastaFile);</span>
+<span class="nc" id="L696">            List&lt;Fasta&gt; fastaList = fastaReader.readAll();</span>
+<span class="nc" id="L697">            fastaReader.close();</span>
+<span class="nc bnc" id="L698" title="All 2 branches missed.">            for (Fasta fasta : fastaList) {</span>
+<span class="nc" id="L699">                proteinSequencesMap.put(fasta.getDescription().split(&quot;transcript:&quot;)[1].split(&quot;\\s&quot;)[0], fasta);</span>
+<span class="nc" id="L700">            }</span>
+<span class="nc" id="L701">        } else {</span>
+<span class="fc" id="L702">            logger.warn(&quot;Protein fasta file &quot; + proteinFastaFile + &quot; not found&quot;);</span>
+<span class="fc" id="L703">            logger.warn(&quot;ENSEMBL's protein sequences not loaded&quot;);</span>
+        }
+<span class="fc" id="L705">        return proteinSequencesMap;</span>
+    }
+
+
+    private Map&lt;String, String&gt; getGeneDescriptionMap() throws IOException {
+<span class="fc" id="L710">        logger.info(&quot;Loading gene description data...&quot;);</span>
+<span class="fc" id="L711">        Map&lt;String, String&gt; geneDescriptionMap = new HashMap&lt;&gt;();</span>
+        String[] fields;
+<span class="pc bpc" id="L713" title="4 of 6 branches missed.">        if (geneDescriptionFile != null &amp;&amp; Files.exists(geneDescriptionFile) &amp;&amp; Files.size(geneDescriptionFile) &gt; 0) {</span>
+<span class="nc" id="L714">            List&lt;String&gt; lines = Files.readAllLines(geneDescriptionFile, Charset.forName(&quot;ISO-8859-1&quot;));</span>
+//            List&lt;String&gt; lines = Files.readAllLines(geneDescriptionFile, Charset.defaultCharset());
+<span class="nc bnc" id="L716" title="All 2 branches missed.">            for (String line : lines) {</span>
+<span class="nc" id="L717">                fields = line.split(&quot;\t&quot;, -1);</span>
+<span class="nc" id="L718">                geneDescriptionMap.put(fields[0], fields[1]);</span>
+<span class="nc" id="L719">            }</span>
+<span class="nc" id="L720">        } else {</span>
+<span class="fc" id="L721">            logger.warn(&quot;Gene description file &quot; + geneDescriptionFile + &quot; not found&quot;);</span>
+<span class="fc" id="L722">            logger.warn(&quot;Gene description data not loaded&quot;);</span>
+        }
+<span class="fc" id="L724">        return geneDescriptionMap;</span>
+    }
+
+
+    private boolean newGene(Gene previousGene, String newGeneId) {
+<span class="fc bfc" id="L729" title="All 4 branches covered.">        return previousGene == null || !newGeneId.equals(previousGene.getId());</span>
+    }
+
+    @Deprecated
+    private void connect(Path genomeSequenceFilePath) throws ClassNotFoundException, SQLException, IOException {
+<span class="nc" id="L734">        logger.info(&quot;Connecting to reference genome sequence database ...&quot;);</span>
+<span class="nc" id="L735">        Class.forName(&quot;org.sqlite.JDBC&quot;);</span>
+<span class="nc" id="L736">        sqlConn = DriverManager.getConnection(&quot;jdbc:sqlite:&quot; + genomeSequenceFilePath.getParent().toString() + &quot;/reference_genome.db&quot;);</span>
+<span class="nc bnc" id="L737" title="All 2 branches missed.">        if (!Files.exists(Paths.get(genomeSequenceFilePath.getParent().toString(), &quot;reference_genome.db&quot;))</span>
+<span class="nc bnc" id="L738" title="All 2 branches missed.">                || Files.size(genomeSequenceFilePath.getParent().resolve(&quot;reference_genome.db&quot;)) == 0) {</span>
+<span class="nc" id="L739">            logger.info(&quot;Genome sequence database doesn't exists and will be created&quot;);</span>
+<span class="nc" id="L740">            Statement createTable = sqlConn.createStatement();</span>
+<span class="nc" id="L741">            createTable.executeUpdate(&quot;CREATE TABLE if not exists  &quot;</span>
+                    + &quot;genome_sequence (sequenceName VARCHAR(50), chunkId VARCHAR(30), start INT, end INT, sequence VARCHAR(2000))&quot;);
+<span class="nc" id="L743">            indexReferenceGenomeFasta(genomeSequenceFilePath);</span>
+        }
+<span class="nc" id="L745">        indexedSequences = getIndexedSequences();</span>
+<span class="nc" id="L746">        sqlQuery = sqlConn.prepareStatement(&quot;SELECT sequence from genome_sequence WHERE chunkId = ? &quot;); //AND start &lt;= ? AND end &gt;= ?</span>
+<span class="nc" id="L747">        logger.info(&quot;Genome sequence database connected&quot;);</span>
+<span class="nc" id="L748">    }</span>
+
+    @Deprecated
+    private Set&lt;String&gt; getIndexedSequences() throws SQLException {
+<span class="nc" id="L752">        Set&lt;String&gt; indexedSeq = new HashSet&lt;&gt;();</span>
+
+<span class="nc" id="L754">        PreparedStatement seqNameQuery = sqlConn.prepareStatement(&quot;SELECT DISTINCT sequenceName from genome_sequence&quot;);</span>
+<span class="nc" id="L755">        ResultSet rs = seqNameQuery.executeQuery();</span>
+<span class="nc bnc" id="L756" title="All 2 branches missed.">        while (rs.next()) {</span>
+<span class="nc" id="L757">            indexedSeq.add(rs.getString(1));</span>
+        }
+<span class="nc" id="L759">        rs.close();</span>
+
+<span class="nc" id="L761">        return indexedSeq;</span>
+    }
+
+    @Deprecated
+    private void disconnectSqlite() throws SQLException {
+<span class="nc" id="L766">        sqlConn.close();</span>
+<span class="nc" id="L767">    }</span>
+
+    @Deprecated
+    private void indexReferenceGenomeFasta(Path genomeSequenceFilePath) throws IOException, ClassNotFoundException, SQLException {
+<span class="nc" id="L771">        BufferedReader bufferedReader = FileUtils.newBufferedReader(genomeSequenceFilePath);</span>
+
+        // Some parameters initialization
+<span class="nc" id="L774">        String sequenceName = &quot;&quot;;</span>
+<span class="nc" id="L775">        boolean haplotypeSequenceType = false;</span>
+
+<span class="nc" id="L777">        PreparedStatement sqlInsert = sqlConn</span>
+<span class="nc" id="L778">                .prepareStatement(&quot;INSERT INTO genome_sequence (chunkID, start, end, sequence, sequenceName) values (?, ?, ?, ?, ?)&quot;);</span>
+<span class="nc" id="L779">        StringBuilder sequenceStringBuilder = new StringBuilder();</span>
+        String line;
+<span class="nc bnc" id="L781" title="All 2 branches missed.">        while ((line = bufferedReader.readLine()) != null) {</span>
+            // We accumulate the complete sequence in a StringBuilder
+<span class="nc bnc" id="L783" title="All 2 branches missed.">            if (!line.startsWith(&quot;&gt;&quot;)) {</span>
+<span class="nc" id="L784">                sequenceStringBuilder.append(line);</span>
+            } else {
+                // New sequence has been found and we must insert it into SQLite.
+                // Note that the first time there is no sequence. Only not HAP sequences are stored.
+<span class="nc bnc" id="L788" title="All 2 branches missed.">                if (sequenceStringBuilder.length() &gt; 0) {</span>
+<span class="nc" id="L789">                    insertGenomeSequence(sequenceName, haplotypeSequenceType, sqlInsert, sequenceStringBuilder);</span>
+                }
+
+                // initialize data structures
+<span class="nc" id="L793">                sequenceName = line.replace(&quot;&gt;&quot;, &quot;&quot;).split(&quot; &quot;)[0];</span>
+<span class="nc" id="L794">                haplotypeSequenceType = line.endsWith(&quot;HAP&quot;);</span>
+<span class="nc" id="L795">                sequenceStringBuilder.delete(0, sequenceStringBuilder.length());</span>
+            }
+        }
+<span class="nc" id="L798">        insertGenomeSequence(sequenceName, haplotypeSequenceType, sqlInsert, sequenceStringBuilder);</span>
+
+<span class="nc" id="L800">        bufferedReader.close();</span>
+
+<span class="nc" id="L802">        Statement stm = sqlConn.createStatement();</span>
+<span class="nc" id="L803">        stm.executeUpdate(&quot;CREATE INDEX chunkId_idx on genome_sequence(chunkId)&quot;);</span>
+<span class="nc" id="L804">    }</span>
+
+    @Deprecated
+    private void insertGenomeSequence(String sequenceName, boolean haplotypeSequenceType, PreparedStatement sqlInsert,
+                                      StringBuilder sequenceStringBuilder) throws SQLException {
+<span class="nc" id="L809">        int chunk = 0;</span>
+<span class="nc" id="L810">        int start = 1;</span>
+<span class="nc" id="L811">        int end = CHUNK_SIZE - 1;</span>
+        // if the sequence read is not HAP then we stored in sqlite
+<span class="nc bnc" id="L813" title="All 4 branches missed.">        if (!haplotypeSequenceType &amp;&amp; !sequenceName.contains(&quot;PATCH&quot;)) {</span>
+<span class="nc" id="L814">            logger.info(&quot;Indexing genome sequence {} ...&quot;, sequenceName);</span>
+<span class="nc" id="L815">            sqlInsert.setString(5, sequenceName);</span>
+            //chromosome sequence length could shorter than CHUNK_SIZE
+<span class="nc bnc" id="L817" title="All 2 branches missed.">            if (sequenceStringBuilder.length() &lt; CHUNK_SIZE) {</span>
+<span class="nc" id="L818">                sqlInsert.setString(1, sequenceName + &quot;_&quot; + chunk + &quot;_&quot; + chunkIdSuffix);</span>
+<span class="nc" id="L819">                sqlInsert.setInt(2, start);</span>
+<span class="nc" id="L820">                sqlInsert.setInt(3, sequenceStringBuilder.length() - 1);</span>
+<span class="nc" id="L821">                sqlInsert.setString(4, sequenceStringBuilder.toString());</span>
+
+                // Sequence to store is larger than CHUNK_SIZE
+            } else {
+<span class="nc" id="L825">                int sequenceLength = sequenceStringBuilder.length();</span>
+
+<span class="nc" id="L827">                sqlConn.setAutoCommit(false);</span>
+<span class="nc bnc" id="L828" title="All 2 branches missed.">                while (start &lt; sequenceLength) {</span>
+<span class="nc bnc" id="L829" title="All 4 branches missed.">                    if (chunk % 10000 == 0 &amp;&amp; chunk != 0) {</span>
+<span class="nc" id="L830">                        sqlInsert.executeBatch();</span>
+<span class="nc" id="L831">                        sqlConn.commit();</span>
+                    }
+
+                    // chunkId is common for all the options
+<span class="nc" id="L835">                    sqlInsert.setString(1, sequenceName + &quot;_&quot; + chunk + &quot;_&quot; + chunkIdSuffix);</span>
+<span class="nc bnc" id="L836" title="All 2 branches missed.">                    if (start == 1) {   // First chunk of the chromosome</span>
+                        // First chunk contains CHUNK_SIZE-1 nucleotides as index start at position 1 but must end at 1999
+//                                        chunkSequence = sequenceStringBuilder.substring(start - 1, CHUNK_SIZE - 1);
+//                                        genomeSequenceChunk = new GenomeSequenceChunk(chromosome, chromosome+&quot;_&quot;+chunk+&quot;_&quot;
+// +chunkIdSuffix, start, end, sequenceType, sequenceAssembly, chunkSequence);
+<span class="nc" id="L841">                        sqlInsert.setInt(2, start);</span>
+<span class="nc" id="L842">                        sqlInsert.setInt(3, end);</span>
+<span class="nc" id="L843">                        sqlInsert.setString(4, sequenceStringBuilder.substring(start - 1, CHUNK_SIZE - 1));</span>
+
+<span class="nc" id="L845">                        start += CHUNK_SIZE - 1;</span>
+                    } else {    // Regular chunk
+<span class="nc bnc" id="L847" title="All 2 branches missed.">                        if ((start + CHUNK_SIZE) &lt; sequenceLength) {</span>
+<span class="nc" id="L848">                            sqlInsert.setInt(2, start);</span>
+<span class="nc" id="L849">                            sqlInsert.setInt(3, end);</span>
+<span class="nc" id="L850">                            sqlInsert.setString(4, sequenceStringBuilder.substring(start - 1, start + CHUNK_SIZE - 1));</span>
+<span class="nc" id="L851">                            start += CHUNK_SIZE;</span>
+                        } else {    // Last chunk of the chromosome
+<span class="nc" id="L853">                            sqlInsert.setInt(2, start);</span>
+<span class="nc" id="L854">                            sqlInsert.setInt(3, sequenceLength);</span>
+<span class="nc" id="L855">                            sqlInsert.setString(4, sequenceStringBuilder.substring(start - 1, sequenceLength));</span>
+<span class="nc" id="L856">                            start = sequenceLength;</span>
+                        }
+                    }
+                    // we add the inserts in a batch
+<span class="nc" id="L860">                    sqlInsert.addBatch();</span>
+
+<span class="nc" id="L862">                    end = start + CHUNK_SIZE - 1;</span>
+<span class="nc" id="L863">                    chunk++;</span>
+                }
+
+<span class="nc" id="L866">                sqlInsert.executeBatch();</span>
+<span class="nc" id="L867">                sqlConn.commit();</span>
+
+<span class="nc" id="L869">                sqlConn.setAutoCommit(true);</span>
+            }
+        }
+<span class="nc" id="L872">    }</span>
+    @Deprecated
+    private String getExonSequence(String sequenceName, int start, int end) {
+<span class="nc" id="L875">        String subStr = &quot;&quot;;</span>
+<span class="nc bnc" id="L876" title="All 2 branches missed.">        if (indexedSequences.contains(sequenceName)) {</span>
+            try {
+<span class="nc" id="L878">                StringBuilder stringBuilder = new StringBuilder();</span>
+                ResultSet rs;
+<span class="nc" id="L880">                int regionChunkStart = getChunk(start);</span>
+<span class="nc" id="L881">                int regionChunkEnd = getChunk(end);</span>
+<span class="nc bnc" id="L882" title="All 2 branches missed.">                for (int chunkId = regionChunkStart; chunkId &lt;= regionChunkEnd; chunkId++) {</span>
+<span class="nc" id="L883">                    sqlQuery.setString(1, sequenceName + &quot;_&quot; + chunkId + &quot;_&quot; + chunkIdSuffix);</span>
+<span class="nc" id="L884">                    rs = sqlQuery.executeQuery();</span>
+<span class="nc" id="L885">                    stringBuilder.append(rs.getString(1));</span>
+                }
+
+<span class="nc" id="L888">                int startStr = getOffset(start);</span>
+<span class="nc" id="L889">                int endStr = getOffset(start) + (end - start) + 1;</span>
+<span class="nc bnc" id="L890" title="All 2 branches missed.">                if (regionChunkStart &gt; 0) {</span>
+<span class="nc bnc" id="L891" title="All 4 branches missed.">                    if (stringBuilder.toString().length() &gt; 0 &amp;&amp; stringBuilder.toString().length() &gt;= endStr) {</span>
+<span class="nc" id="L892">                        subStr = stringBuilder.toString().substring(startStr, endStr);</span>
+                    }
+                } else {
+<span class="nc bnc" id="L895" title="All 4 branches missed.">                    if (stringBuilder.toString().length() &gt; 0 &amp;&amp; stringBuilder.toString().length() + 1 &gt;= endStr) {</span>
+<span class="nc" id="L896">                        subStr = stringBuilder.toString().substring(startStr - 1, endStr - 1);</span>
+                    }
+                }
+<span class="nc" id="L899">            } catch (SQLException e) {</span>
+<span class="nc" id="L900">                logger.error(&quot;Error obtaining exon sequence ({}:{}-{})&quot;, sequenceName, start, end);</span>
+<span class="nc" id="L901">            }</span>
+        }
+<span class="nc" id="L903">        return subStr;</span>
+    }
+
+    private int getChunk(int position) {
+<span class="nc" id="L907">        return (position / CHUNK_SIZE);</span>
+    }
+
+    private int getOffset(int position) {
+<span class="nc" id="L911">        return (position % CHUNK_SIZE);</span>
+    }
+
+    private void updateTranscriptAndGeneCoords(Transcript transcript, Gene gene, Gtf gtf) {
+<span class="fc bfc" id="L915" title="All 2 branches covered.">        if (transcript.getStart() &gt; gtf.getStart()) {</span>
+<span class="fc" id="L916">            transcript.setStart(gtf.getStart());</span>
+        }
+<span class="fc bfc" id="L918" title="All 2 branches covered.">        if (transcript.getEnd() &lt; gtf.getEnd()) {</span>
+<span class="fc" id="L919">            transcript.setEnd(gtf.getEnd());</span>
+        }
+<span class="fc bfc" id="L921" title="All 2 branches covered.">        if (gene.getStart() &gt; gtf.getStart()) {</span>
+<span class="fc" id="L922">            gene.setStart(gtf.getStart());</span>
+        }
+<span class="fc bfc" id="L924" title="All 2 branches covered.">        if (gene.getEnd() &lt; gtf.getEnd()) {</span>
+<span class="fc" id="L925">            gene.setEnd(gtf.getEnd());</span>
+        }
+<span class="fc" id="L927">    }</span>
+
+
+    private void getGtfFileFromGeneDirectoryPath(Path geneDirectoryPath) {
+<span class="pc bpc" id="L931" title="1 of 2 branches missed.">        for (String fileName : geneDirectoryPath.toFile().list()) {</span>
+<span class="fc bfc" id="L932" title="All 4 branches covered.">            if (fileName.endsWith(&quot;.gtf&quot;) || fileName.endsWith(&quot;.gtf.gz&quot;)) {</span>
+<span class="fc" id="L933">                gtfFile = geneDirectoryPath.resolve(fileName);</span>
+<span class="fc" id="L934">                break;</span>
+            }
+        }
+<span class="fc" id="L937">    }</span>
+
+    private void getProteinFastaFileFromGeneDirectoryPath(Path geneDirectoryPath) {
+<span class="fc bfc" id="L940" title="All 2 branches covered.">        for (String fileName : geneDirectoryPath.toFile().list()) {</span>
+<span class="pc bpc" id="L941" title="2 of 4 branches missed.">            if (fileName.endsWith(&quot;.pep.all.fa&quot;) || fileName.endsWith(&quot;.pep.all.fa.gz&quot;)) {</span>
+<span class="nc" id="L942">                proteinFastaFile = geneDirectoryPath.resolve(fileName);</span>
+<span class="nc" id="L943">                break;</span>
+            }
+        }
+<span class="fc" id="L946">    }</span>
+
+    private void getCDnaFastaFileFromGeneDirectoryPath(Path geneDirectoryPath) {
+<span class="fc bfc" id="L949" title="All 2 branches covered.">        for (String fileName : geneDirectoryPath.toFile().list()) {</span>
+<span class="pc bpc" id="L950" title="2 of 4 branches missed.">            if (fileName.endsWith(&quot;.cdna.all.fa&quot;) || fileName.endsWith(&quot;.cdna.all.fa.gz&quot;)) {</span>
+<span class="nc" id="L951">                cDnaFastaFile = geneDirectoryPath.resolve(fileName);</span>
+<span class="nc" id="L952">                break;</span>
+            }
+        }
+<span class="fc" id="L955">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,1984 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantAnnotationCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation</a> &gt; <span class="el_source">VariantAnnotationCalculator.java</span></div><h1>VariantAnnotationCalculator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.variant.annotation;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.core.Gene;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.core.RegulatoryFeature;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.VariantBuilder;
+import org.opencb.biodata.models.variant.annotation.ConsequenceTypeMappings;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+import org.opencb.biodata.tools.variant.exceptions.VariantNormalizerException;
+import org.opencb.cellbase.core.api.*;
+import org.opencb.cellbase.core.variant.annotation.hgvs.HgvsCalculator;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static org.opencb.cellbase.core.variant.PhasedQueryManager.*;
+
+//import org.opencb.cellbase.core.db.api.core.ConservedRegionDBAdaptor;
+//import org.opencb.cellbase.core.db.api.core.GeneDBAdaptor;
+//import org.opencb.cellbase.core.db.api.core.GenomeDBAdaptor;
+//import org.opencb.cellbase.core.db.api.core.ProteinDBAdaptor;
+//import org.opencb.cellbase.core.db.api.regulatory.RegulatoryRegionDBAdaptor;
+//import org.opencb.cellbase.core.db.api.variation.ClinicalDBAdaptor;
+//import org.opencb.cellbase.core.db.api.variation.VariantFunctionalScoreDBAdaptor;
+//import org.opencb.cellbase.core.db.api.variation.VariationDBAdaptor;
+
+/**
+ * Created by imedina on 06/02/16.
+ */
+/**
+ * Created by imedina on 11/07/14.
+ *
+ * @author Javier Lopez fjlopez@ebi.ac.uk;
+ */
+public class VariantAnnotationCalculator {
+    private static final String EMPTY_STRING = &quot;&quot;;
+    private static final String ALTERNATE = &quot;1&quot;;
+    private GenomeDBAdaptor genomeDBAdaptor;
+    private GeneDBAdaptor geneDBAdaptor;
+    private RegulationDBAdaptor regulationDBAdaptor;
+    private VariantDBAdaptor variantDBAdaptor;
+    private ClinicalDBAdaptor clinicalDBAdaptor;
+    private RepeatsDBAdaptor repeatsDBAdaptor;
+    private ProteinDBAdaptor proteinDBAdaptor;
+    private ConservationDBAdaptor conservationDBAdaptor;
+    private Set&lt;String&gt; annotatorSet;
+    private String includeGeneFields;
+
+    private final VariantNormalizer normalizer;
+<span class="nc" id="L77">    private boolean normalize = false;</span>
+<span class="nc" id="L78">    private boolean decompose = true;</span>
+<span class="nc" id="L79">    private boolean phased = true;</span>
+<span class="nc" id="L80">    private Boolean imprecise = true;</span>
+<span class="nc" id="L81">    private Integer svExtraPadding = 0;</span>
+<span class="nc" id="L82">    private Integer cnvExtraPadding = 0;</span>
+
+<span class="nc" id="L84">    private static Logger logger = LoggerFactory.getLogger(VariantAnnotationCalculator.class);</span>
+    private static HgvsCalculator hgvsCalculator;
+
+    private static final String REGULATORY_REGION_FEATURE_TYPE_ATTRIBUTE = &quot;featureType&quot;;
+<span class="nc" id="L88">    private static final String TF_BINDING_SITE = RegulationDBAdaptor.FeatureType.TF_binding_site.name() + &quot;,&quot;</span>
+            + RegulationDBAdaptor.FeatureType.TF_binding_site_motif;
+    private static final String REGION = &quot;region&quot;;
+    private static final String MERGE = &quot;merge&quot;;
+
+<span class="nc" id="L93">    public VariantAnnotationCalculator(String species, String assembly, DBAdaptorFactory dbAdaptorFactory) {</span>
+<span class="nc" id="L94">        this.genomeDBAdaptor = dbAdaptorFactory.getGenomeDBAdaptor(species, assembly);</span>
+<span class="nc" id="L95">        this.variantDBAdaptor = dbAdaptorFactory.getVariationDBAdaptor(species, assembly);</span>
+<span class="nc" id="L96">        this.geneDBAdaptor = dbAdaptorFactory.getGeneDBAdaptor(species, assembly);</span>
+<span class="nc" id="L97">        this.regulationDBAdaptor = dbAdaptorFactory.getRegulationDBAdaptor(species, assembly);</span>
+<span class="nc" id="L98">        this.proteinDBAdaptor = dbAdaptorFactory.getProteinDBAdaptor(species, assembly);</span>
+<span class="nc" id="L99">        this.conservationDBAdaptor = dbAdaptorFactory.getConservationDBAdaptor(species, assembly);</span>
+<span class="nc" id="L100">        this.clinicalDBAdaptor = dbAdaptorFactory.getClinicalDBAdaptor(species, assembly);</span>
+<span class="nc" id="L101">        this.repeatsDBAdaptor = dbAdaptorFactory.getRepeatsDBAdaptor(species, assembly);</span>
+
+        // Initialises normaliser configuration with default values. HEADS UP: configuration might be updated
+        // at parseQueryParam
+<span class="nc" id="L105">        this.normalizer = new VariantNormalizer(getNormalizerConfig());</span>
+
+<span class="nc" id="L107">         hgvsCalculator = new HgvsCalculator(genomeDBAdaptor);</span>
+
+<span class="nc" id="L109">        logger.debug(&quot;VariantAnnotationMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="nc" id="L110">    }</span>
+
+    private VariantNormalizer.VariantNormalizerConfig getNormalizerConfig() {
+<span class="nc" id="L113">        return (new VariantNormalizer.VariantNormalizerConfig())</span>
+<span class="nc" id="L114">                .setReuseVariants(false)</span>
+<span class="nc" id="L115">                .setNormalizeAlleles(false)</span>
+<span class="nc" id="L116">                .setDecomposeMNVs(decompose)</span>
+<span class="nc" id="L117">                .enableLeftAlign(new CellBaseNormalizerSequenceAdaptor(genomeDBAdaptor));</span>
+    }
+
+    @Deprecated
+    public QueryResult getAllConsequenceTypesByVariant(Variant variant, QueryOptions queryOptions) {
+<span class="nc" id="L122">        long dbTimeStart = System.currentTimeMillis();</span>
+
+        // We process include and exclude query options to know which annotators to use.
+        // Include parameter has preference over exclude.
+//        Set&lt;String&gt; annotatorSet = getAnnotatorSet(queryOptions);
+//
+//        // This field contains all the fields to be returned by overlapping genes
+//        String includeGeneFields = getIncludedGeneFields(annotatorSet);
+
+<span class="nc" id="L131">        parseQueryParam(queryOptions);</span>
+<span class="nc" id="L132">        List&lt;Gene&gt; batchGeneList = getBatchGeneList(Collections.singletonList(variant));</span>
+<span class="nc" id="L133">        List&lt;Gene&gt; geneList = getAffectedGenes(batchGeneList, variant);</span>
+
+        // TODO the last 'true' parameter needs to be changed by annotatorSet.contains(&quot;regulatory&quot;) once is ready
+<span class="nc" id="L136">        List&lt;ConsequenceType&gt; consequenceTypeList = getConsequenceTypeList(variant, geneList, true,</span>
+                queryOptions);
+
+<span class="nc" id="L139">        QueryResult queryResult = new QueryResult();</span>
+<span class="nc" id="L140">        queryResult.setId(variant.toString());</span>
+<span class="nc" id="L141">        queryResult.setDbTime(Long.valueOf(System.currentTimeMillis() - dbTimeStart).intValue());</span>
+<span class="nc" id="L142">        queryResult.setNumResults(consequenceTypeList.size());</span>
+<span class="nc" id="L143">        queryResult.setNumTotalResults(consequenceTypeList.size());</span>
+<span class="nc" id="L144">        queryResult.setResult(consequenceTypeList);</span>
+
+<span class="nc" id="L146">        return queryResult;</span>
+
+    }
+
+    public QueryResult getAnnotationByVariant(Variant variant, QueryOptions queryOptions)
+            throws InterruptedException, ExecutionException {
+<span class="nc" id="L152">        return getAnnotationByVariantList(Collections.singletonList(variant), queryOptions).get(0);</span>
+    }
+
+    public List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; getAnnotationByVariantList(List&lt;Variant&gt; variantList,
+                                                                           QueryOptions queryOptions)
+            throws InterruptedException, ExecutionException {
+
+<span class="nc" id="L159">        logger.debug(&quot;Annotating  batch&quot;);</span>
+<span class="nc" id="L160">        parseQueryParam(queryOptions);</span>
+
+<span class="nc bnc" id="L162" title="All 4 branches missed.">        if (variantList == null || variantList.isEmpty()) {</span>
+<span class="nc" id="L163">            return new ArrayList&lt;&gt;();</span>
+        }
+        List&lt;Variant&gt; normalizedVariantList;
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        if (normalize) {</span>
+<span class="nc" id="L167">            normalizedVariantList = normalizer.apply(variantList);</span>
+        } else {
+<span class="nc" id="L169">            normalizedVariantList = variantList;</span>
+        }
+
+
+//        if (useCache) {
+//            variantAnnotationResultList = getCachedPreferredAnnotation(normalizedVariantList);
+//        } else {
+
+<span class="nc" id="L177">        long startTime = System.currentTimeMillis();</span>
+        // Normalized variants already contain updated VariantAnnotation objects since runAnnotationProcess will
+        // write on them if available (if not will create and set them) - i.e. no need to use variantAnnotationList
+        // really
+<span class="nc" id="L181">        List&lt;VariantAnnotation&gt; variantAnnotationList = runAnnotationProcess(normalizedVariantList);</span>
+
+<span class="nc" id="L183">        return generateQueryResultList(variantList, normalizedVariantList, startTime);</span>
+    }
+
+    private List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; generateQueryResultList(List&lt;Variant&gt; variantList,
+                                                                         List&lt;Variant&gt; normalizedVariantList,
+                                                                         long startTime) {
+
+<span class="nc" id="L190">        List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; annotationResultList = new ArrayList&lt;&gt;(variantList.size());</span>
+
+        // Return only one result per QueryResult if either
+        //   - size original variant list and normalised one is the same
+        //   - MNV decomposition is switched OFF, i.e. queryOptions.skipDecompose = true and therefore
+        //   this.decompose = false
+<span class="nc bnc" id="L196" title="All 4 branches missed.">        if (!decompose || variantList.size() == normalizedVariantList.size()) {</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            for (int i = 0; i &lt; variantList.size(); i++) {</span>
+<span class="nc" id="L198">                QueryResult&lt;VariantAnnotation&gt; queryResult = new QueryResult&lt;&gt;(variantList.get(i).toString(),</span>
+<span class="nc" id="L199">                        (int) (System.currentTimeMillis() - startTime),</span>
+                        1,
+                        1,
+                        null,
+                        null,
+<span class="nc" id="L204">                        Collections.singletonList(normalizedVariantList.get(i).getAnnotation()));</span>
+<span class="nc" id="L205">                annotationResultList.add(queryResult);</span>
+            }
+        } else {
+<span class="nc" id="L208">            int originalVariantListCounter = 0;</span>
+<span class="nc" id="L209">            String previousCall = EMPTY_STRING;</span>
+<span class="nc" id="L210">            QueryResult&lt;VariantAnnotation&gt; queryResult = null;</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            for (Variant normalizedVariant : normalizedVariantList) {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (isSameMnv(previousCall, normalizedVariant)) {</span>
+<span class="nc" id="L213">                    queryResult.getResult().add(normalizedVariant.getAnnotation());</span>
+<span class="nc" id="L214">                    queryResult.setNumResults(queryResult.getNumResults() + 1);</span>
+<span class="nc" id="L215">                    queryResult.setNumTotalResults(queryResult.getNumTotalResults() + 1);</span>
+                } else {
+<span class="nc" id="L217">                    List&lt;VariantAnnotation&gt; variantAnnotationList = new ArrayList&lt;&gt;(1);</span>
+<span class="nc" id="L218">                    variantAnnotationList.add(normalizedVariant.getAnnotation());</span>
+<span class="nc" id="L219">                    queryResult = new QueryResult&lt;&gt;(variantList.get(originalVariantListCounter).toString(),</span>
+<span class="nc" id="L220">                            (int) (System.currentTimeMillis() - startTime),</span>
+                            1,
+                            1,
+                            null,
+                            null,
+                            variantAnnotationList);
+<span class="nc" id="L226">                    annotationResultList.add(queryResult);</span>
+<span class="nc" id="L227">                    previousCall = getCall(normalizedVariant);</span>
+<span class="nc" id="L228">                    originalVariantListCounter++;</span>
+                }
+<span class="nc" id="L230">            }</span>
+        }
+
+<span class="nc" id="L233">        return annotationResultList;</span>
+    }
+
+    private boolean isSameMnv(String previousCall, Variant variant) {
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        if (!StringUtils.isBlank(previousCall)) {</span>
+<span class="nc" id="L238">            String call = getCall(variant);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (StringUtils.isNotBlank(call)) {</span>
+<span class="nc" id="L240">                return previousCall.equals(variant.getStudies().get(0).getFiles().get(0).getCall());</span>
+            }
+        }
+
+<span class="nc" id="L244">        return false;</span>
+    }
+
+    private String getCall(Variant variant) {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (variant.getStudies() != null</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                &amp;&amp; !variant.getStudies().isEmpty()</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                &amp;&amp; variant.getStudies().get(0).getFiles() != null</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">                &amp;&amp; !variant.getStudies().get(0).getFiles().isEmpty()) {</span>
+<span class="nc" id="L252">            return variant.getStudies().get(0).getFiles().get(0).getCall();</span>
+        }
+
+<span class="nc" id="L255">        return null;</span>
+    }
+
+//    @Deprecated
+//    private List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; getCachedPreferredAnnotation(List&lt;Variant&gt; variantList)
+//            throws InterruptedException, ExecutionException {
+//
+//        // Expected to be very few within a batch, no capacity initialized for the array
+//        List&lt;Integer&gt; mustRunAnnotationPositions = new ArrayList&lt;&gt;();
+//        List&lt;Variant&gt; mustRunAnnotation = new ArrayList&lt;&gt;();
+//
+//        // Expected to be most of them, array capacity set to variantList size
+//        List&lt;Integer&gt; mustSearchVariationPositions = new ArrayList&lt;&gt;(variantList.size());
+//        List&lt;Variant&gt; mustSearchVariation = new ArrayList&lt;&gt;();
+//
+//        // Phased variants cannot be annotated using the variation collection
+//        if (phased) {
+//            for (int i = 0; i &lt; variantList.size(); i++) {
+//                if (isPhased(variantList.get(i))) {
+//                    mustRunAnnotationPositions.add(i);
+//                    mustRunAnnotation.add(variantList.get(i));
+//                } else {
+//                    mustSearchVariationPositions.add(i);
+//                    mustSearchVariation.add(variantList.get(i));
+//                }
+//            }
+//        } else {
+//            for (int i = 0; i &lt; variantList.size(); i++) {
+//                mustSearchVariationPositions.add(i);
+//                mustSearchVariation.add(variantList.get(i));
+//            }
+//        }
+//
+//        // Search unphased variants within variation collection
+//        QueryOptions queryOptions = new QueryOptions(&quot;include&quot;, getCachedVariationIncludeFields());
+//        List&lt;QueryResult&lt;Variant&gt;&gt; variationQueryResultList = variantDBAdaptor.getByVariant(mustSearchVariation,
+//                queryOptions);
+//
+//        // Object to be returned
+//        List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; variantAnnotationResultList =
+//                Arrays.asList(new QueryResult[variantList.size()]);
+//
+//        // Gene annotation is always generated on-the-fly. Get genes overlapping with the batch of variants
+//        List&lt;Gene&gt; batchGeneList = getBatchGeneList(variantList);
+//
+//        // mustSearchVariation and variationQueryResultList do have same size, same order
+//        for (int i = 0; i &lt; mustSearchVariation.size(); i++) {
+//            // WARNING: variation collection may contain multiple documents for the same variant. ENSEMBL variation
+//            // often provides multiple entries for the same variant (&lt;1% variants). This line below will select just
+//            // one of them.
+//            Variant cacheVariant = getPreferredVariant(variationQueryResultList.get(i));
+//
+//            // Variant not found in variation collection or the variant was found but not annotated with CellBase - I can
+//            // distinguish CellBase from ENSEMBL annotation because when CellBase annotates, it includes chromosome, start,
+//            // reference and alternate fields - TODO: change this.
+//            // Must be annotated by running the whole process
+//            if (cacheVariant == null) {
+//                mustRunAnnotationPositions.add(mustSearchVariationPositions.get(i));
+//                mustRunAnnotation.add(mustSearchVariation.get(i));
+//            } else if (cacheVariant.getAnnotation() != null &amp;&amp; cacheVariant.getAnnotation().getChromosome() == null) {
+//                mustSearchVariation.get(i).setId(cacheVariant.getId());
+//                if (mustSearchVariation.get(i).getAnnotation() == null) {
+//                    mustSearchVariation.get(i).setAnnotation(new VariantAnnotation());
+//                }
+//                mustSearchVariation.get(i).getAnnotation()
+//                        .setPopulationFrequencies(cacheVariant.getAnnotation().getPopulationFrequencies());
+//                mustRunAnnotationPositions.add(mustSearchVariationPositions.get(i));
+//                mustRunAnnotation.add(mustSearchVariation.get(i));
+//            } else {
+//                // variantList is the passed by reference argument and reference to objects within variantList are
+//                // copied within mustSearchVariation. Modifying reference objects within mustSearchVariation will
+//                // modify user-provided Variant objects. If there's no annotation - just set it; if there's an annotation
+//                // object already created, let's only overwrite those fields created by the annotator
+//                VariantAnnotation variantAnnotation;
+//                if (mustSearchVariation.get(i).getAnnotation() == null) {
+//                    variantAnnotation =  cacheVariant.getAnnotation();
+//                    mustSearchVariation.get(i).setAnnotation(variantAnnotation);
+//                } else {
+//                    variantAnnotation = mustSearchVariation.get(i).getAnnotation();
+//                    mergeAnnotation(variantAnnotation, cacheVariant.getAnnotation());
+//                }
+//                setGeneAnnotation(batchGeneList, mustSearchVariation.get(i));
+//                variantAnnotationResultList.set(mustSearchVariationPositions.get(i),
+//                        new QueryResult&lt;&gt;(mustSearchVariation.get(i).toString(),
+//                        variationQueryResultList.get(i).getDbTime(), 1, 1, null, null,
+//                        Collections.singletonList(variantAnnotation)));
+//            }
+//        }
+//
+//        if (mustRunAnnotation.size() &gt; 0) {
+//            List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; uncachedAnnotations = runAnnotationProcess(mustRunAnnotation);
+//            for (int i = 0; i &lt; mustRunAnnotation.size(); i++) {
+//                variantAnnotationResultList.set(mustRunAnnotationPositions.get(i), uncachedAnnotations.get(i));
+//            }
+//        }
+//
+//        logger.debug(&quot;{}/{} ({}%) variants required running the annotation process&quot;, mustRunAnnotation.size(),
+//                variantList.size(), (mustRunAnnotation.size() * (100.0 / variantList.size())));
+//        return variantAnnotationResultList;
+//
+//    }
+
+    private Variant getPreferredVariant(QueryResult&lt;Variant&gt; variantQueryResult) {
+<span class="nc bnc" id="L358" title="All 2 branches missed.">        if (variantQueryResult.getNumResults() &gt; 1</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">                &amp;&amp; variantQueryResult.first().getAnnotation().getPopulationFrequencies() == null) {</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">            for (int i = 1; i &lt; variantQueryResult.getResult().size(); i++) {</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">                if (variantQueryResult.getResult().get(i).getAnnotation().getPopulationFrequencies() != null) {</span>
+<span class="nc" id="L362">                    return variantQueryResult.getResult().get(i);</span>
+                }
+            }
+        }
+<span class="nc" id="L366">        return variantQueryResult.first();</span>
+    }
+
+    private List&lt;Gene&gt; setGeneAnnotation(List&lt;Gene&gt; batchGeneList, Variant variant) {
+        // Fetch overlapping genes for this variant
+<span class="nc" id="L371">        List&lt;Gene&gt; geneList = getAffectedGenes(batchGeneList, variant);</span>
+<span class="nc" id="L372">        VariantAnnotation variantAnnotation = variant.getAnnotation();</span>
+
+        /*
+         * Gene Annotation
+         */
+<span class="nc bnc" id="L377" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;expression&quot;)) {</span>
+<span class="nc" id="L378">            variantAnnotation.setGeneExpression(new ArrayList&lt;&gt;());</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            for (Gene gene : geneList) {</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">                if (gene.getAnnotation().getExpression() != null) {</span>
+<span class="nc" id="L381">                    variantAnnotation.getGeneExpression().addAll(gene.getAnnotation().getExpression());</span>
+                }
+<span class="nc" id="L383">            }</span>
+        }
+
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;geneDisease&quot;)) {</span>
+<span class="nc" id="L387">            variantAnnotation.setGeneTraitAssociation(new ArrayList&lt;&gt;());</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">            for (Gene gene : geneList) {</span>
+<span class="nc bnc" id="L389" title="All 2 branches missed.">                if (gene.getAnnotation().getDiseases() != null) {</span>
+<span class="nc" id="L390">                    variantAnnotation.getGeneTraitAssociation().addAll(gene.getAnnotation().getDiseases());</span>
+                }
+<span class="nc" id="L392">            }</span>
+        }
+
+<span class="nc bnc" id="L395" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;drugInteraction&quot;)) {</span>
+<span class="nc" id="L396">            variantAnnotation.setGeneDrugInteraction(new ArrayList&lt;&gt;());</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">            for (Gene gene : geneList) {</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">                if (gene.getAnnotation().getDrugs() != null) {</span>
+<span class="nc" id="L399">                    variantAnnotation.getGeneDrugInteraction().addAll(gene.getAnnotation().getDrugs());</span>
+                }
+<span class="nc" id="L401">            }</span>
+        }
+
+<span class="nc" id="L404">        return geneList;</span>
+
+    }
+
+    private boolean isPhased(Variant variant) {
+<span class="nc bnc" id="L409" title="All 4 branches missed.">        return (variant.getStudies() != null &amp;&amp; !variant.getStudies().isEmpty())</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">            &amp;&amp; variant.getStudies().get(0).getFormat().contains(&quot;PS&quot;);</span>
+    }
+
+    private String getCachedVariationIncludeFields() {
+<span class="nc" id="L414">        StringBuilder stringBuilder = new StringBuilder(&quot;annotation.chromosome,annotation.start,annotation.reference&quot;);</span>
+<span class="nc" id="L415">        stringBuilder.append(&quot;,annotation.alternate,annotation.id&quot;);</span>
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;variation&quot;)) {</span>
+<span class="nc" id="L418">            stringBuilder.append(&quot;,annotation.id,annotation.additionalAttributes.dgvSpecificAttributes&quot;);</span>
+        }
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;clinical&quot;)) {</span>
+<span class="nc" id="L421">            stringBuilder.append(&quot;,annotation.variantTraitAssociation&quot;);</span>
+        }
+<span class="nc bnc" id="L423" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;conservation&quot;)) {</span>
+<span class="nc" id="L424">            stringBuilder.append(&quot;,annotation.conservation&quot;);</span>
+        }
+<span class="nc bnc" id="L426" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;functionalScore&quot;)) {</span>
+<span class="nc" id="L427">            stringBuilder.append(&quot;,annotation.functionalScore&quot;);</span>
+        }
+<span class="nc bnc" id="L429" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;consequenceType&quot;)) {</span>
+<span class="nc" id="L430">            stringBuilder.append(&quot;,annotation.consequenceTypes,annotation.displayConsequenceType&quot;);</span>
+        }
+//        if (annotatorSet.contains(&quot;expression&quot;)) {
+//            stringBuilder.append(&quot;,annotation.geneExpression&quot;);
+//        }
+//        if (annotatorSet.contains(&quot;geneDisease&quot;)) {
+//            stringBuilder.append(&quot;,annotation.geneTraitAssociation&quot;);
+//        }
+//        if (annotatorSet.contains(&quot;drugInteraction&quot;)) {
+//            stringBuilder.append(&quot;,annotation.geneDrugInteraction&quot;);
+//        }
+<span class="nc bnc" id="L441" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;populationFrequencies&quot;)) {</span>
+<span class="nc" id="L442">            stringBuilder.append(&quot;,annotation.populationFrequencies&quot;);</span>
+        }
+
+<span class="nc" id="L445">        return stringBuilder.toString();</span>
+    }
+
+    private List&lt;VariantAnnotation&gt; runAnnotationProcess(List&lt;Variant&gt; normalizedVariantList)
+            throws InterruptedException, ExecutionException {
+<span class="nc" id="L450">        long globalStartTime = System.currentTimeMillis();</span>
+        long startTime;
+
+        // Object to be returned
+<span class="nc" id="L454">        List&lt;VariantAnnotation&gt; variantAnnotationList = new ArrayList&lt;&gt;(normalizedVariantList.size());</span>
+
+        /*
+         * Next three async blocks calculate annotations using Futures, this will be calculated in a different thread.
+         * Once the main loop has finished then they will be stored. This provides a ~30% of performance improvement.
+         */
+<span class="nc" id="L460">        ExecutorService fixedThreadPool = Executors.newFixedThreadPool(5);</span>
+<span class="nc" id="L461">        FutureVariationAnnotator futureVariationAnnotator = null;</span>
+<span class="nc" id="L462">        Future&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; variationFuture = null;</span>
+
+<span class="nc bnc" id="L464" title="All 4 branches missed.">        if (annotatorSet.contains(&quot;variation&quot;) || annotatorSet.contains(&quot;populationFrequencies&quot;)) {</span>
+<span class="nc" id="L465">            futureVariationAnnotator = new FutureVariationAnnotator(normalizedVariantList, new QueryOptions(&quot;include&quot;,</span>
+                    &quot;id,annotation.populationFrequencies,annotation.additionalAttributes.dgvSpecificAttributes&quot;)
+<span class="nc" id="L467">                    .append(&quot;imprecise&quot;, imprecise));</span>
+<span class="nc" id="L468">            variationFuture = fixedThreadPool.submit(futureVariationAnnotator);</span>
+        }
+
+<span class="nc" id="L471">        FutureConservationAnnotator futureConservationAnnotator = null;</span>
+<span class="nc" id="L472">        Future&lt;List&lt;QueryResult&gt;&gt; conservationFuture = null;</span>
+<span class="nc bnc" id="L473" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;conservation&quot;)) {</span>
+<span class="nc" id="L474">            futureConservationAnnotator = new FutureConservationAnnotator(normalizedVariantList, QueryOptions.empty());</span>
+<span class="nc" id="L475">            conservationFuture = fixedThreadPool.submit(futureConservationAnnotator);</span>
+        }
+
+<span class="nc" id="L478">        FutureVariantFunctionalScoreAnnotator futureVariantFunctionalScoreAnnotator = null;</span>
+<span class="nc" id="L479">        Future&lt;List&lt;QueryResult&lt;Score&gt;&gt;&gt; variantFunctionalScoreFuture = null;</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;functionalScore&quot;)) {</span>
+<span class="nc" id="L481">            futureVariantFunctionalScoreAnnotator = new FutureVariantFunctionalScoreAnnotator(normalizedVariantList, QueryOptions.empty());</span>
+<span class="nc" id="L482">            variantFunctionalScoreFuture = fixedThreadPool.submit(futureVariantFunctionalScoreAnnotator);</span>
+        }
+
+<span class="nc" id="L485">        FutureClinicalAnnotator futureClinicalAnnotator = null;</span>
+<span class="nc" id="L486">        Future&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; clinicalFuture = null;</span>
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;clinical&quot;)) {</span>
+<span class="nc" id="L488">            futureClinicalAnnotator = new FutureClinicalAnnotator(normalizedVariantList,</span>
+<span class="nc" id="L489">                    new QueryOptions(ClinicalDBAdaptor.QueryParams.PHASE.key(), phased));</span>
+<span class="nc" id="L490">            clinicalFuture = fixedThreadPool.submit(futureClinicalAnnotator);</span>
+        }
+
+<span class="nc" id="L493">        FutureRepeatsAnnotator futureRepeatsAnnotator = null;</span>
+<span class="nc" id="L494">        Future&lt;List&lt;QueryResult&lt;Repeat&gt;&gt;&gt; repeatsFuture = null;</span>
+<span class="nc bnc" id="L495" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;repeats&quot;)) {</span>
+<span class="nc" id="L496">            futureRepeatsAnnotator = new FutureRepeatsAnnotator(normalizedVariantList, QueryOptions.empty());</span>
+<span class="nc" id="L497">            repeatsFuture = fixedThreadPool.submit(futureRepeatsAnnotator);</span>
+        }
+
+<span class="nc" id="L500">        FutureCytobandAnnotator futureCytobandAnnotator = null;</span>
+<span class="nc" id="L501">        Future&lt;List&lt;QueryResult&lt;Cytoband&gt;&gt;&gt; cytobandFuture = null;</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;cytoband&quot;)) {</span>
+<span class="nc" id="L503">            futureCytobandAnnotator = new FutureCytobandAnnotator(normalizedVariantList, QueryOptions.empty());</span>
+<span class="nc" id="L504">            cytobandFuture = fixedThreadPool.submit(futureCytobandAnnotator);</span>
+        }
+
+        /*
+         * We iterate over all variants to get the rest of the annotations and to create the VariantAnnotation objects
+         */
+<span class="nc" id="L510">        List&lt;Gene&gt; batchGeneList = getBatchGeneList(normalizedVariantList);</span>
+<span class="nc" id="L511">        Queue&lt;Variant&gt; variantBuffer = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L512">        startTime = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">        for (int i = 0; i &lt; normalizedVariantList.size(); i++) {</span>
+            // normalizedVariantList is the passed by reference argument - modifying normalizedVariantList will
+            // modify user-provided Variant objects. If there's no annotation - just set it; if there's an annotation
+            // object already created, let's only overwrite those fields created by the annotator
+            VariantAnnotation variantAnnotation;
+<span class="nc bnc" id="L518" title="All 2 branches missed.">            if (normalizedVariantList.get(i).getAnnotation() == null) {</span>
+<span class="nc" id="L519">                variantAnnotation = new VariantAnnotation();</span>
+<span class="nc" id="L520">                normalizedVariantList.get(i).setAnnotation(variantAnnotation);</span>
+            } else {
+<span class="nc" id="L522">                variantAnnotation = normalizedVariantList.get(i).getAnnotation();</span>
+            }
+
+<span class="nc" id="L525">            variantAnnotation.setChromosome(normalizedVariantList.get(i).getChromosome());</span>
+<span class="nc" id="L526">            variantAnnotation.setStart(normalizedVariantList.get(i).getStart());</span>
+<span class="nc" id="L527">            variantAnnotation.setReference(normalizedVariantList.get(i).getReference());</span>
+<span class="nc" id="L528">            variantAnnotation.setAlternate(normalizedVariantList.get(i).getAlternate());</span>
+
+<span class="nc" id="L530">            List&lt;Gene&gt; variantGeneList = setGeneAnnotation(batchGeneList, normalizedVariantList.get(i));</span>
+
+            // Better not run hgvs calculation with a Future for the following reasons:
+            //   * geneList is needed in order to calculate the hgvs for ALL VARIANTS
+            //   * hgvsCalculator will raise an additional database query to get the genome sequence JUST FOR INDELS
+            //   * If a Future is used and a list of variants is provided to the hgvsCalculator, then the hgvsCalculator
+            //   will require to raise an additional query to the database (that would be performed asynchronously)
+            //   in order to get the geneList FOR ALL VARIANTS
+            //   * If no future is used, then the genome sequence query will be performed synchronously but JUST
+            //   FOR INDELS
+            // Given that the number of indels is expected to be negligible if compared to the number of SNVs, the
+            // decision is to run it synchronously
+<span class="nc bnc" id="L542" title="All 2 branches missed.">            if (annotatorSet.contains(&quot;hgvs&quot;)) {</span>
+                try {
+                    // Decided to always set normalize = false for a number of reasons:
+                    //   * was raising problems with the normalizer - it could potentially fail in weird multiallelic
+                    //     cases if the normalizer is called twice over the same variant,
+                    //     i.e. normalize(normalize(variant)). Calling the normalizer twice happens when annotating from
+                    //     a VCF, since normalization is carried out before sending variant to the VariantAnnotationCalculator.
+                    //     Therefore, normalize would be false within the VariantAnnotationCalculator, it kept as it was
+                    //     before, !normalize for hgvsCalculator, it'd run normalization twice.
+                    //     This incorrect behaviour of the normalizer must and will be fixed in the future, it was decided not to
+                    //     include it as a hotfix since touches the very core of the normalizer
+                    //   * if normalize = true, the variants in normalizedVariantList are already normalized for sure
+                    //     and should not be normalized again.
+                    //   * if normalize = false, then we could potentially find things like CT/C. In this case, the
+                    //     annotator will consider this as an MNV and the rest of annotation will not exactly be what
+                    //     a typical user would expect for the deletion of the T (which is what it is). Thus, we don't
+                    //     really care that much at this point if the hgvs is not perfectly normalized. Knowing that
+                    //     variants are not normalized the user should always select normalize=true.
+<span class="nc" id="L560">                    variantAnnotation.setHgvs(hgvsCalculator.run(normalizedVariantList.get(i), variantGeneList, false));</span>
+<span class="nc" id="L561">                } catch (VariantNormalizerException e) {</span>
+<span class="nc" id="L562">                    logger.error(&quot;Unable to normalize variant {}. Leaving empty HGVS.&quot;,</span>
+<span class="nc" id="L563">                            normalizedVariantList.get(i).toString());</span>
+<span class="nc" id="L564">                }</span>
+            }
+
+<span class="nc bnc" id="L567" title="All 2 branches missed.">            if (annotatorSet.contains(&quot;consequenceType&quot;)) {</span>
+                try {
+<span class="nc" id="L569">                    List&lt;ConsequenceType&gt; consequenceTypeList = getConsequenceTypeList(normalizedVariantList.get(i),</span>
+<span class="nc" id="L570">                        variantGeneList, true, QueryOptions.empty());</span>
+<span class="nc" id="L571">                    variantAnnotation.setConsequenceTypes(consequenceTypeList);</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                    if (phased) {</span>
+<span class="nc" id="L573">                        checkAndAdjustPhasedConsequenceTypes(normalizedVariantList.get(i), variantBuffer);</span>
+                    }
+<span class="nc" id="L575">                    variantAnnotation</span>
+<span class="nc" id="L576">                            .setDisplayConsequenceType(getMostSevereConsequenceType(normalizedVariantList.get(i)</span>
+<span class="nc" id="L577">                                    .getAnnotation().getConsequenceTypes()));</span>
+<span class="nc" id="L578">                } catch (UnsupportedURLVariantFormat e) {</span>
+<span class="nc" id="L579">                    logger.error(&quot;Consequence type was not calculated for variant {}. Unrecognised variant format.&quot;</span>
+<span class="nc" id="L580">                            + &quot; Leaving an empty consequence type list.&quot;, normalizedVariantList.get(i).toString());</span>
+<span class="nc" id="L581">                    variantAnnotation.setConsequenceTypes(Collections.emptyList());</span>
+<span class="nc" id="L582">                } catch (Exception e) {</span>
+<span class="nc" id="L583">                    logger.error(&quot;Unhandled error when calculating consequence type for variant {}. Leaving an empty&quot;</span>
+<span class="nc" id="L584">                            + &quot; consequence type list.&quot;, normalizedVariantList.get(i).toString());</span>
+<span class="nc" id="L585">                    e.printStackTrace();</span>
+<span class="nc" id="L586">                    variantAnnotation.setConsequenceTypes(Collections.emptyList());</span>
+<span class="nc" id="L587">                }</span>
+            }
+
+<span class="nc" id="L590">            variantAnnotationList.add(variantAnnotation);</span>
+
+        }
+
+        // Adjust phase of two last variants - if still anything remaining to adjust. This can happen if the two last
+        // variants in the batch are phased and the distance between them &lt; 3nts
+<span class="nc bnc" id="L596" title="All 4 branches missed.">        if (phased &amp;&amp; variantBuffer.size() &gt; 1) {</span>
+<span class="nc" id="L597">            adjustPhasedConsequenceTypes(variantBuffer.toArray());</span>
+        }
+
+<span class="nc" id="L600">        logger.debug(&quot;Main loop iteration annotation performance is {}ms for {} variants&quot;, System.currentTimeMillis()</span>
+<span class="nc" id="L601">                - startTime, normalizedVariantList.size());</span>
+
+        /*
+         * Now, hopefully the other annotations have finished and we can store the results.
+         * Method 'processResults' has been implemented in the same class for sanity.
+         */
+<span class="nc bnc" id="L607" title="All 2 branches missed.">        if (futureVariationAnnotator != null) {</span>
+<span class="nc" id="L608">            futureVariationAnnotator.processResults(variationFuture, variantAnnotationList, annotatorSet);</span>
+        }
+<span class="nc bnc" id="L610" title="All 2 branches missed.">        if (futureConservationAnnotator != null) {</span>
+<span class="nc" id="L611">            futureConservationAnnotator.processResults(conservationFuture, variantAnnotationList);</span>
+        }
+<span class="nc bnc" id="L613" title="All 2 branches missed.">        if (futureVariantFunctionalScoreAnnotator != null) {</span>
+<span class="nc" id="L614">            futureVariantFunctionalScoreAnnotator.processResults(variantFunctionalScoreFuture, variantAnnotationList);</span>
+        }
+<span class="nc bnc" id="L616" title="All 2 branches missed.">        if (futureClinicalAnnotator != null) {</span>
+<span class="nc" id="L617">            futureClinicalAnnotator.processResults(clinicalFuture, variantAnnotationList);</span>
+        }
+<span class="nc bnc" id="L619" title="All 2 branches missed.">        if (futureRepeatsAnnotator != null) {</span>
+<span class="nc" id="L620">            futureRepeatsAnnotator.processResults(repeatsFuture, variantAnnotationList);</span>
+        }
+<span class="nc bnc" id="L622" title="All 2 branches missed.">        if (futureCytobandAnnotator != null) {</span>
+<span class="nc" id="L623">            futureCytobandAnnotator.processResults(cytobandFuture, variantAnnotationList);</span>
+        }
+//        if (futureHgvsAnnotator != null) {
+//            futureHgvsAnnotator.processResults(hgvsFuture, variantAnnotationResultList);
+//        }
+<span class="nc" id="L628">        fixedThreadPool.shutdown();</span>
+
+
+<span class="nc" id="L631">        logger.debug(&quot;Total batch annotation performance is {}ms for {} variants&quot;, System.currentTimeMillis()</span>
+<span class="nc" id="L632">                - globalStartTime, normalizedVariantList.size());</span>
+<span class="nc" id="L633">        return variantAnnotationList;</span>
+    }
+
+    private List&lt;Gene&gt; getBatchGeneList(List&lt;Variant&gt; variantList) {
+<span class="nc" id="L637">        List&lt;Region&gt; regionList = variantListToRegionList(variantList);</span>
+        // Add +-5Kb for gene search
+<span class="nc bnc" id="L639" title="All 2 branches missed.">        for (Region region : regionList) {</span>
+<span class="nc" id="L640">            region.setStart(Math.max(1, region.getStart() - 5000));</span>
+<span class="nc" id="L641">            region.setEnd(region.getEnd() + 5000);</span>
+<span class="nc" id="L642">        }</span>
+
+        // Just return required fields
+        // MERGE = true essential so that just one query will be raised with all regions
+<span class="nc" id="L646">        QueryOptions queryOptions = new QueryOptions(QueryOptions.INCLUDE, includeGeneFields);</span>
+<span class="nc" id="L647">        queryOptions.put(MERGE, true);</span>
+
+<span class="nc" id="L649">        return ((QueryResult) geneDBAdaptor.getByRegion(regionList, queryOptions).get(0)).getResult();</span>
+    }
+
+    private void parseQueryParam(QueryOptions queryOptions) {
+        // We process include and exclude query options to know which annotators to use.
+        // Include parameter has preference over exclude.
+<span class="nc" id="L655">        annotatorSet = getAnnotatorSet(queryOptions);</span>
+<span class="nc" id="L656">        logger.debug(&quot;Annotators to use: {}&quot;, annotatorSet.toString());</span>
+
+        // This field contains all the fields to be returned by overlapping genes
+<span class="nc" id="L659">        includeGeneFields = getIncludedGeneFields(annotatorSet);</span>
+
+        // Default behaviour no normalization
+<span class="nc bnc" id="L662" title="All 4 branches missed.">        normalize = (queryOptions.get(&quot;normalize&quot;) != null &amp;&amp; (Boolean) queryOptions.get(&quot;normalize&quot;));</span>
+<span class="nc" id="L663">        logger.debug(&quot;normalize = {}&quot;, normalize);</span>
+
+        // Default behaviour decompose
+<span class="nc bnc" id="L666" title="All 4 branches missed.">        decompose = (queryOptions.get(&quot;skipDecompose&quot;) == null || !queryOptions.getBoolean(&quot;skipDecompose&quot;));</span>
+<span class="nc" id="L667">        logger.debug(&quot;decompose = {}&quot;, decompose);</span>
+        // Must update normaliser configuration since normaliser was created on constructor
+<span class="nc" id="L669">        normalizer.getConfig().setDecomposeMNVs(decompose);</span>
+
+        // New parameter &quot;ignorePhase&quot; present overrides presence of old &quot;phased&quot; parameter
+<span class="nc bnc" id="L672" title="All 2 branches missed.">        if (queryOptions.get(&quot;ignorePhase&quot;) != null) {</span>
+<span class="nc bnc" id="L673" title="All 2 branches missed.">            phased = !queryOptions.getBoolean(&quot;ignorePhase&quot;);</span>
+        // Old parameter &quot;phased&quot; present but new one (&quot;ignorePhase&quot;) absent - use old one. Probably someone who has not
+        // yet moved to using the new one.
+<span class="nc bnc" id="L676" title="All 2 branches missed.">        } else if (queryOptions.get(&quot;phased&quot;) != null) {</span>
+<span class="nc" id="L677">            phased = queryOptions.getBoolean(&quot;phased&quot;);</span>
+        // Default behaviour - calculate phased annotation
+        } else {
+<span class="nc" id="L680">            phased = true;</span>
+        }
+<span class="nc" id="L682">        logger.debug(&quot;phased = {}&quot;, phased);</span>
+
+        // Default behaviour - enable imprecise searches
+<span class="nc bnc" id="L685" title="All 4 branches missed.">        imprecise = (queryOptions.get(&quot;imprecise&quot;) == null || queryOptions.getBoolean(&quot;imprecise&quot;));</span>
+<span class="nc" id="L686">        logger.debug(&quot;imprecise = {}&quot;, imprecise);</span>
+
+        // Default behaviour - no extra padding for structural variants
+<span class="nc bnc" id="L689" title="All 2 branches missed.">        svExtraPadding = (queryOptions.get(&quot;svExtraPadding&quot;) != null ? (Integer) queryOptions.get(&quot;svExtraPadding&quot;) : 0);</span>
+<span class="nc" id="L690">        logger.debug(&quot;svExtraPadding = {}&quot;, svExtraPadding);</span>
+
+        // Default behaviour - no extra padding for CNV
+<span class="nc bnc" id="L693" title="All 2 branches missed.">        cnvExtraPadding = (queryOptions.get(&quot;cnvExtraPadding&quot;) != null ? (Integer) queryOptions.get(&quot;cnvExtraPadding&quot;) : 0);</span>
+<span class="nc" id="L694">        logger.debug(&quot;cnvExtraPadding = {}&quot;, cnvExtraPadding);</span>
+<span class="nc" id="L695">    }</span>
+
+    private void mergeAnnotation(VariantAnnotation destination, VariantAnnotation origin) {
+<span class="nc" id="L698">        destination.setChromosome(origin.getChromosome());</span>
+<span class="nc" id="L699">        destination.setStart(origin.getStart());</span>
+<span class="nc" id="L700">        destination.setReference(origin.getReference());</span>
+<span class="nc" id="L701">        destination.setAlternate(origin.getAlternate());</span>
+
+<span class="nc bnc" id="L703" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;variation&quot;)) {</span>
+<span class="nc" id="L704">            destination.setId(origin.getId());</span>
+        }
+<span class="nc bnc" id="L706" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;consequenceType&quot;)) {</span>
+<span class="nc" id="L707">            destination.setDisplayConsequenceType(origin.getDisplayConsequenceType());</span>
+<span class="nc" id="L708">            destination.setConsequenceTypes(origin.getConsequenceTypes());</span>
+        }
+<span class="nc bnc" id="L710" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;conservation&quot;)) {</span>
+<span class="nc" id="L711">            destination.setConservation(origin.getConservation());</span>
+        }
+//        destination.setGeneExpression(origin.getGeneExpression());
+//        destination.setGeneTraitAssociation(origin.getGeneTraitAssociation());
+<span class="nc bnc" id="L715" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;populationFrequencies&quot;)) {</span>
+<span class="nc" id="L716">            destination.setPopulationFrequencies(origin.getPopulationFrequencies());</span>
+        }
+//        destination.setGeneDrugInteraction(origin.getGeneDrugInteraction());
+<span class="nc bnc" id="L719" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;clinical&quot;)) {</span>
+<span class="nc" id="L720">            destination.setVariantTraitAssociation(origin.getVariantTraitAssociation());</span>
+        }
+<span class="nc bnc" id="L722" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;functionalScore&quot;)) {</span>
+<span class="nc" id="L723">            destination.setFunctionalScore(origin.getFunctionalScore());</span>
+        }
+<span class="nc" id="L725">    }</span>
+
+    private void checkAndAdjustPhasedConsequenceTypes(Variant variant, Queue&lt;Variant&gt; variantBuffer) {
+        // Only SNVs are currently considered for phase adjustment
+<span class="nc bnc" id="L729" title="All 2 branches missed.">        if (variant.getType().equals(VariantType.SNV)) {</span>
+            // Check and manage variantBuffer for dealing with phased variants
+<span class="nc bnc" id="L731" title="All 4 branches missed.">            switch (variantBuffer.size()) {</span>
+                case 0:
+<span class="nc" id="L733">                    variantBuffer.add(variant);</span>
+<span class="nc" id="L734">                    break;</span>
+                case 1:
+<span class="nc bnc" id="L736" title="All 2 branches missed.">                    if (potentialCodingSNVOverlap(variantBuffer.peek(), variant)) {</span>
+<span class="nc" id="L737">                        variantBuffer.add(variant);</span>
+                    } else {
+<span class="nc" id="L739">                        variantBuffer.poll();</span>
+<span class="nc" id="L740">                        variantBuffer.add(variant);</span>
+                    }
+<span class="nc" id="L742">                    break;</span>
+                case 2:
+<span class="nc bnc" id="L744" title="All 2 branches missed.">                    if (potentialCodingSNVOverlap(variantBuffer.peek(), variant)) {</span>
+<span class="nc" id="L745">                        variantBuffer.add(variant);</span>
+<span class="nc" id="L746">                        adjustPhasedConsequenceTypes(variantBuffer.toArray());</span>
+<span class="nc" id="L747">                        variantBuffer.poll();</span>
+                    } else {
+                        // Adjust consequence types for the two previous variants
+<span class="nc" id="L750">                        adjustPhasedConsequenceTypes(variantBuffer.toArray());</span>
+                        // Remove the two previous variants after adjustment
+<span class="nc" id="L752">                        variantBuffer.poll();</span>
+<span class="nc" id="L753">                        variantBuffer.poll();</span>
+<span class="nc" id="L754">                        variantBuffer.add(variant);</span>
+                    }
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L760">    }</span>
+
+    private void adjustPhasedConsequenceTypes(Object[] variantArray) {
+<span class="nc" id="L763">        Variant variant0 = (Variant) variantArray[0];</span>
+<span class="nc" id="L764">        Variant variant1 = null;</span>
+<span class="nc" id="L765">        Variant variant2 = null;</span>
+
+<span class="nc" id="L767">        boolean variant0DisplayCTNeedsUpdate = false;</span>
+<span class="nc" id="L768">        boolean variant1DisplayCTNeedsUpdate = false;</span>
+<span class="nc" id="L769">        boolean variant2DisplayCTNeedsUpdate = false;</span>
+
+<span class="nc bnc" id="L771" title="All 2 branches missed.">        for (ConsequenceType consequenceType1 : variant0.getAnnotation().getConsequenceTypes()) {</span>
+<span class="nc" id="L772">            ProteinVariantAnnotation newProteinVariantAnnotation = null;</span>
+            // Check if this is a coding consequence type. Also this consequence type may have been already
+            // updated if there are 3 consecutive phased SNVs affecting the same codon.
+<span class="nc bnc" id="L775" title="All 2 branches missed.">            if (isCoding(consequenceType1)</span>
+<span class="nc bnc" id="L776" title="All 2 branches missed.">                    &amp;&amp; !transcriptAnnotationUpdated(variant0, consequenceType1.getEnsemblTranscriptId())) {</span>
+<span class="nc" id="L777">                variant1 = (Variant) variantArray[1];</span>
+<span class="nc" id="L778">                ConsequenceType consequenceType2</span>
+<span class="nc" id="L779">                        = findCodingOverlappingConsequenceType(consequenceType1, variant1.getAnnotation().getConsequenceTypes());</span>
+                // The two first variants affect the same codon
+<span class="nc bnc" id="L781" title="All 2 branches missed.">                if (consequenceType2 != null) {</span>
+                    // WARNING: assumes variants are sorted according to their coordinates
+<span class="nc" id="L783">                    int cdnaPosition = consequenceType1.getCdnaPosition();</span>
+<span class="nc" id="L784">                    int cdsPosition = consequenceType1.getCdsPosition();</span>
+<span class="nc" id="L785">                    String codon = null;</span>
+<span class="nc" id="L786">                    String alternateAA = null;</span>
+<span class="nc" id="L787">                    List&lt;SequenceOntologyTerm&gt; soTerms = null;</span>
+<span class="nc" id="L788">                    ConsequenceType consequenceType3 = null;</span>
+<span class="nc" id="L789">                    variant2 = null;</span>
+                    // Check if the third variant also affects the same codon
+<span class="nc bnc" id="L791" title="All 2 branches missed.">                    if (variantArray.length &gt; 2) {</span>
+<span class="nc" id="L792">                        variant2 = (Variant) variantArray[2];</span>
+<span class="nc" id="L793">                        consequenceType3</span>
+<span class="nc" id="L794">                                = findCodingOverlappingConsequenceType(consequenceType2, variant2.getAnnotation().getConsequenceTypes());</span>
+                    }
+                    // The three SNVs affect the same codon
+<span class="nc bnc" id="L797" title="All 2 branches missed.">                    if (consequenceType3 != null) {</span>
+<span class="nc" id="L798">                        String referenceCodon = consequenceType1.getCodon().split(&quot;/&quot;)[0].toUpperCase();</span>
+                        // WARNING: assumes variants are sorted according to their coordinates
+<span class="nc" id="L800">                        String alternateCodon = variant0.getAlternate() + variant1.getAlternate()</span>
+<span class="nc" id="L801">                                + variant2.getAlternate();</span>
+<span class="nc" id="L802">                        codon = referenceCodon + &quot;/&quot; + alternateCodon;</span>
+<span class="nc" id="L803">                        alternateAA = VariantAnnotationUtils.CODON_TO_A.get(alternateCodon);</span>
+<span class="nc" id="L804">                        soTerms = updatePhasedSoTerms(consequenceType1.getSequenceOntologyTerms(),</span>
+<span class="nc" id="L805">                                String.valueOf(referenceCodon), String.valueOf(alternateCodon),</span>
+<span class="nc" id="L806">                                variant1.getChromosome().equals(&quot;MT&quot;));</span>
+
+                        // Update consequenceType3
+<span class="nc" id="L809">                        consequenceType3.setCdnaPosition(cdnaPosition);</span>
+<span class="nc" id="L810">                        consequenceType3.setCdsPosition(cdsPosition);</span>
+<span class="nc" id="L811">                        consequenceType3.setCodon(codon);</span>
+<span class="nc" id="L812">                        consequenceType3.getProteinVariantAnnotation().setAlternate(alternateAA);</span>
+<span class="nc" id="L813">                        newProteinVariantAnnotation = getProteinAnnotation(consequenceType3);</span>
+<span class="nc" id="L814">                        consequenceType3.setProteinVariantAnnotation(newProteinVariantAnnotation);</span>
+<span class="nc" id="L815">                        consequenceType3.setSequenceOntologyTerms(soTerms);</span>
+
+                        // Flag these transcripts as already updated for this variant
+<span class="nc" id="L818">                        flagTranscriptAnnotationUpdated(variant2, consequenceType1.getEnsemblTranscriptId());</span>
+
+<span class="nc" id="L820">                        variant2DisplayCTNeedsUpdate = true;</span>
+
+                        // Only the two first SNVs affect the same codon
+<span class="nc" id="L823">                    } else {</span>
+<span class="nc" id="L824">                        int codonIdx1 = getUpperCaseLetterPosition(consequenceType1.getCodon().split(&quot;/&quot;)[0]);</span>
+<span class="nc" id="L825">                        int codonIdx2 = getUpperCaseLetterPosition(consequenceType2.getCodon().split(&quot;/&quot;)[0]);</span>
+
+                        // Set referenceCodon  and alternateCodon leaving only the nts that change in uppercase.
+                        // Careful with upper/lower case letters
+<span class="nc" id="L829">                        char[] referenceCodonArray = consequenceType1.getCodon().split(&quot;/&quot;)[0].toLowerCase().toCharArray();</span>
+<span class="nc" id="L830">                        referenceCodonArray[codonIdx1] = Character.toUpperCase(referenceCodonArray[codonIdx1]);</span>
+<span class="nc" id="L831">                        referenceCodonArray[codonIdx2] = Character.toUpperCase(referenceCodonArray[codonIdx2]);</span>
+<span class="nc" id="L832">                        char[] alternateCodonArray = referenceCodonArray.clone();</span>
+<span class="nc" id="L833">                        alternateCodonArray[codonIdx1] = variant0.getAlternate().toUpperCase().toCharArray()[0];</span>
+<span class="nc" id="L834">                        alternateCodonArray[codonIdx2] = variant1.getAlternate().toUpperCase().toCharArray()[0];</span>
+
+<span class="nc" id="L836">                        codon = String.valueOf(referenceCodonArray) + &quot;/&quot; + String.valueOf(alternateCodonArray);</span>
+<span class="nc" id="L837">                        alternateAA = VariantAnnotationUtils.CODON_TO_A.get(String.valueOf(alternateCodonArray).toUpperCase());</span>
+<span class="nc" id="L838">                        soTerms = updatePhasedSoTerms(consequenceType1.getSequenceOntologyTerms(),</span>
+<span class="nc" id="L839">                                String.valueOf(referenceCodonArray).toUpperCase(),</span>
+<span class="nc" id="L840">                                String.valueOf(alternateCodonArray).toUpperCase(), variant1.getChromosome().equals(&quot;MT&quot;));</span>
+                    }
+
+                    // Update consequenceType1 &amp; 2
+<span class="nc" id="L844">                    consequenceType1.setCodon(codon);</span>
+<span class="nc" id="L845">                    consequenceType1.getProteinVariantAnnotation().setAlternate(alternateAA);</span>
+<span class="nc bnc" id="L846" title="All 2 branches missed.">                    consequenceType1.setProteinVariantAnnotation(newProteinVariantAnnotation == null</span>
+<span class="nc" id="L847">                            ? getProteinAnnotation(consequenceType1) : newProteinVariantAnnotation);</span>
+<span class="nc" id="L848">                    consequenceType1.setSequenceOntologyTerms(soTerms);</span>
+<span class="nc" id="L849">                    consequenceType2.setCdnaPosition(cdnaPosition);</span>
+<span class="nc" id="L850">                    consequenceType2.setCdsPosition(cdsPosition);</span>
+<span class="nc" id="L851">                    consequenceType2.setCodon(codon);</span>
+<span class="nc" id="L852">                    consequenceType2.getProteinVariantAnnotation().setAlternate(alternateAA);</span>
+<span class="nc" id="L853">                    consequenceType2.setProteinVariantAnnotation(consequenceType1.getProteinVariantAnnotation());</span>
+<span class="nc" id="L854">                    consequenceType2.setSequenceOntologyTerms(soTerms);</span>
+
+                    // Flag these transcripts as already updated for this variant
+<span class="nc" id="L857">                    flagTranscriptAnnotationUpdated(variant0, consequenceType1.getEnsemblTranscriptId());</span>
+<span class="nc" id="L858">                    flagTranscriptAnnotationUpdated(variant1, consequenceType1.getEnsemblTranscriptId());</span>
+
+<span class="nc" id="L860">                    variant0DisplayCTNeedsUpdate = true;</span>
+<span class="nc" id="L861">                    variant1DisplayCTNeedsUpdate = true;</span>
+                }
+            }
+<span class="nc" id="L864">        }</span>
+
+<span class="nc bnc" id="L866" title="All 2 branches missed.">        if (variant0DisplayCTNeedsUpdate) {</span>
+<span class="nc" id="L867">            variant0.getAnnotation()</span>
+<span class="nc" id="L868">                    .setDisplayConsequenceType(getMostSevereConsequenceType(variant0.getAnnotation()</span>
+<span class="nc" id="L869">                            .getConsequenceTypes()));</span>
+        }
+<span class="nc bnc" id="L871" title="All 2 branches missed.">        if (variant1DisplayCTNeedsUpdate) {</span>
+<span class="nc" id="L872">            variant1.getAnnotation()</span>
+<span class="nc" id="L873">                    .setDisplayConsequenceType(getMostSevereConsequenceType(variant1.getAnnotation()</span>
+<span class="nc" id="L874">                            .getConsequenceTypes()));</span>
+        }
+<span class="nc bnc" id="L876" title="All 2 branches missed.">        if (variant2DisplayCTNeedsUpdate) {</span>
+<span class="nc" id="L877">            variant2.getAnnotation()</span>
+<span class="nc" id="L878">                    .setDisplayConsequenceType(getMostSevereConsequenceType(variant2.getAnnotation()</span>
+<span class="nc" id="L879">                            .getConsequenceTypes()));</span>
+        }
+<span class="nc" id="L881">    }</span>
+
+    private void flagTranscriptAnnotationUpdated(Variant variant, String ensemblTranscriptId) {
+<span class="nc" id="L884">        Map&lt;String, AdditionalAttribute&gt; additionalAttributesMap = variant.getAnnotation().getAdditionalAttributes();</span>
+<span class="nc bnc" id="L885" title="All 2 branches missed.">        if (additionalAttributesMap == null) {</span>
+<span class="nc" id="L886">            additionalAttributesMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L887">            AdditionalAttribute additionalAttribute = new AdditionalAttribute();</span>
+<span class="nc" id="L888">            Map&lt;String, String&gt; transcriptsSet = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L889">            transcriptsSet.put(ensemblTranscriptId, null);</span>
+<span class="nc" id="L890">            additionalAttribute.setAttribute(transcriptsSet);</span>
+<span class="nc" id="L891">            additionalAttributesMap.put(&quot;phasedTranscripts&quot;, additionalAttribute);</span>
+<span class="nc" id="L892">            variant.getAnnotation().setAdditionalAttributes(additionalAttributesMap);</span>
+<span class="nc bnc" id="L893" title="All 2 branches missed.">        } else if (additionalAttributesMap.get(&quot;phasedTranscripts&quot;) == null) {</span>
+<span class="nc" id="L894">            AdditionalAttribute additionalAttribute = new AdditionalAttribute();</span>
+<span class="nc" id="L895">            Map&lt;String, String&gt; transcriptsSet = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L896">            transcriptsSet.put(ensemblTranscriptId, null);</span>
+<span class="nc" id="L897">            additionalAttribute.setAttribute(transcriptsSet);</span>
+<span class="nc" id="L898">            additionalAttributesMap.put(&quot;phasedTranscripts&quot;, additionalAttribute);</span>
+<span class="nc" id="L899">        } else {</span>
+<span class="nc" id="L900">            additionalAttributesMap.get(&quot;phasedTranscripts&quot;).getAttribute().put(ensemblTranscriptId, null);</span>
+        }
+<span class="nc" id="L902">    }</span>
+
+    private boolean transcriptAnnotationUpdated(Variant variant, String ensemblTranscriptId) {
+<span class="nc bnc" id="L905" title="All 2 branches missed.">        if (variant.getAnnotation().getAdditionalAttributes() != null</span>
+<span class="nc bnc" id="L906" title="All 2 branches missed.">                &amp;&amp; variant.getAnnotation().getAdditionalAttributes().get(&quot;phasedTranscripts&quot;) != null</span>
+<span class="nc" id="L907">                &amp;&amp; variant.getAnnotation().getAdditionalAttributes().get(&quot;phasedTranscripts&quot;)</span>
+<span class="nc bnc" id="L908" title="All 2 branches missed.">                    .getAttribute().containsKey(ensemblTranscriptId)) {</span>
+<span class="nc" id="L909">            return true;</span>
+        }
+<span class="nc" id="L911">        return false;</span>
+    }
+
+    private int getUpperCaseLetterPosition(String string) {
+//        Pattern pat = Pattern.compile(&quot;G&quot;);
+<span class="nc" id="L916">        Pattern pat = Pattern.compile(&quot;[A,C,G,T]&quot;);</span>
+<span class="nc" id="L917">        Matcher match = pat.matcher(string);</span>
+<span class="nc bnc" id="L918" title="All 2 branches missed.">        if (match.find()) {</span>
+<span class="nc" id="L919">            return match.start();</span>
+        } else {
+<span class="nc" id="L921">            return -1;</span>
+        }
+    }
+
+    private ConsequenceType findCodingOverlappingConsequenceType(ConsequenceType consequenceType,
+                                                                 List&lt;ConsequenceType&gt; consequenceTypeList) {
+<span class="nc bnc" id="L927" title="All 2 branches missed.">        for (ConsequenceType consequenceType1 : consequenceTypeList) {</span>
+<span class="nc bnc" id="L928" title="All 2 branches missed.">            if (isCoding(consequenceType1)</span>
+<span class="nc bnc" id="L929" title="All 2 branches missed.">                    &amp;&amp; consequenceType.getEnsemblTranscriptId().equals(consequenceType1.getEnsemblTranscriptId())</span>
+<span class="nc" id="L930">                    &amp;&amp; consequenceType.getProteinVariantAnnotation().getPosition()</span>
+<span class="nc bnc" id="L931" title="All 2 branches missed.">                    .equals(consequenceType1.getProteinVariantAnnotation().getPosition())) {</span>
+<span class="nc" id="L932">                return consequenceType1;</span>
+            }
+<span class="nc" id="L934">        }</span>
+<span class="nc" id="L935">        return null;</span>
+    }
+
+    private boolean isCoding(ConsequenceType consequenceType) {
+<span class="nc bnc" id="L939" title="All 2 branches missed.">        for (SequenceOntologyTerm sequenceOntologyTerm : consequenceType.getSequenceOntologyTerms()) {</span>
+<span class="nc bnc" id="L940" title="All 2 branches missed.">            if (VariantAnnotationUtils.CODING_SO_NAMES.contains(sequenceOntologyTerm.getName())) {</span>
+<span class="nc" id="L941">                return true;</span>
+            }
+<span class="nc" id="L943">        }</span>
+<span class="nc" id="L944">        return false;</span>
+    }
+
+    private List&lt;SequenceOntologyTerm&gt; updatePhasedSoTerms(List&lt;SequenceOntologyTerm&gt; sequenceOntologyTermList,
+                                                           String referenceCodon, String alternateCodon,
+                                                           Boolean useMitochondrialCode) {
+
+        // Removes all coding-associated SO terms
+<span class="nc" id="L952">        int i = 0;</span>
+        do {
+<span class="nc bnc" id="L954" title="All 2 branches missed.">            if (VariantAnnotationUtils.CODING_SO_NAMES.contains(sequenceOntologyTermList.get(i).getName())) {</span>
+<span class="nc" id="L955">                sequenceOntologyTermList.remove(i);</span>
+            } else {
+<span class="nc" id="L957">                i++;</span>
+            }
+<span class="nc bnc" id="L959" title="All 2 branches missed.">        } while(i &lt; sequenceOntologyTermList.size());</span>
+
+        // Add the new coding SO term as appropriate
+<span class="nc" id="L962">        String newSoName = null;</span>
+<span class="nc bnc" id="L963" title="All 2 branches missed.">        if (VariantAnnotationUtils.isSynonymousCodon(useMitochondrialCode, referenceCodon, alternateCodon)) {</span>
+<span class="nc bnc" id="L964" title="All 2 branches missed.">            if (VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon)) {</span>
+<span class="nc" id="L965">                newSoName = VariantAnnotationUtils.STOP_RETAINED_VARIANT;</span>
+            } else {  // coding end may be not correctly annotated (incomplete_terminal_codon_variant),
+                // but if the length of the cds%3=0, annotation should be synonymous variant
+<span class="nc" id="L968">                newSoName = VariantAnnotationUtils.SYNONYMOUS_VARIANT;</span>
+            }
+<span class="nc bnc" id="L970" title="All 2 branches missed.">        } else if (VariantAnnotationUtils.isStopCodon(useMitochondrialCode, referenceCodon)) {</span>
+<span class="nc" id="L971">            newSoName = VariantAnnotationUtils.STOP_LOST;</span>
+<span class="nc bnc" id="L972" title="All 2 branches missed.">        } else if (VariantAnnotationUtils.isStopCodon(useMitochondrialCode, alternateCodon)) {</span>
+<span class="nc" id="L973">            newSoName = VariantAnnotationUtils.STOP_GAINED;</span>
+        } else {
+<span class="nc" id="L975">            newSoName = VariantAnnotationUtils.MISSENSE_VARIANT;</span>
+        }
+<span class="nc" id="L977">        sequenceOntologyTermList</span>
+<span class="nc" id="L978">                .add(new SequenceOntologyTerm(ConsequenceTypeMappings.getSoAccessionString(newSoName), newSoName));</span>
+
+<span class="nc" id="L980">        return sequenceOntologyTermList;</span>
+    }
+
+    private boolean potentialCodingSNVOverlap(Variant variant1, Variant variant2) {
+<span class="nc bnc" id="L984" title="All 2 branches missed.">        return Math.abs(variant1.getStart() - variant2.getStart()) &lt; 3</span>
+<span class="nc bnc" id="L985" title="All 2 branches missed.">                &amp;&amp; variant1.getChromosome().equals(variant2.getChromosome())</span>
+<span class="nc bnc" id="L986" title="All 4 branches missed.">                &amp;&amp; variant1.getType().equals(VariantType.SNV) &amp;&amp; variant2.getType().equals(VariantType.SNV)</span>
+<span class="nc bnc" id="L987" title="All 2 branches missed.">                &amp;&amp; samePhase(variant1, variant2);</span>
+    }
+
+    private boolean samePhase(Variant variant1, Variant variant2) {
+
+<span class="nc" id="L992">        String phaseSet1 = getSampleAttribute(variant1, PHASE_SET_TAG);</span>
+
+        // No PS means not sure it is in phase
+<span class="nc bnc" id="L995" title="All 2 branches missed.">        if (phaseSet1 == null) {</span>
+<span class="nc" id="L996">            return false;</span>
+        }
+
+        // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+        // TODO: arbitrarily selecting the first one
+        // No PS means not sure it is in phase
+<span class="nc" id="L1002">        String phaseSet2 = getSampleAttribute(variant2, PHASE_SET_TAG);</span>
+<span class="nc bnc" id="L1003" title="All 2 branches missed.">        if (phaseSet2 == null) {</span>
+<span class="nc" id="L1004">            return false;</span>
+        }
+
+        // None of the PS is missing
+<span class="nc bnc" id="L1008" title="All 2 branches missed.">        if (phaseSet1.equals(phaseSet2)) {</span>
+            // TODO: phase depends on the sample. Phased queries constrained to just one sample. The code below is
+            // TODO: arbitrarily selecting the first one
+<span class="nc" id="L1011">            String genotype1 = getSampleAttribute(variant1, GENOTYPE_TAG);</span>
+<span class="nc" id="L1012">            String genotype2 = getSampleAttribute(variant2, GENOTYPE_TAG);</span>
+
+            // Variants obtained as a result of an MNV decomposition - must just check the original call
+<span class="nc bnc" id="L1015" title="All 4 branches missed.">            if (genotype1 == null &amp;&amp; genotype2 == null) {</span>
+<span class="nc bnc" id="L1016" title="All 2 branches missed.">                return variant1.getStudies().get(0).getFiles() != null</span>
+<span class="nc bnc" id="L1017" title="All 2 branches missed.">                        &amp;&amp; !variant1.getStudies().get(0).getFiles().isEmpty()</span>
+<span class="nc bnc" id="L1018" title="All 2 branches missed.">                        &amp;&amp; StringUtils.isNotBlank(variant1.getStudies().get(0).getFiles().get(0).getCall())</span>
+<span class="nc bnc" id="L1019" title="All 2 branches missed.">                        &amp;&amp; variant2.getStudies().get(0).getFiles() != null</span>
+<span class="nc bnc" id="L1020" title="All 2 branches missed.">                        &amp;&amp; !variant2.getStudies().get(0).getFiles().isEmpty()</span>
+<span class="nc bnc" id="L1021" title="All 2 branches missed.">                        &amp;&amp; StringUtils.isNotBlank(variant2.getStudies().get(0).getFiles().get(0).getCall())</span>
+<span class="nc" id="L1022">                        &amp;&amp; variant1.getStudies().get(0).getFiles().get(0).getCall()</span>
+<span class="nc bnc" id="L1023" title="All 2 branches missed.">                        .equals(variant2.getStudies().get(0).getFiles().get(0).getCall());</span>
+
+            // Checks that in both genotypes there's something different than a reference allele, i.e. that none of
+            // them is 0/0 (or 0 for haploid)
+<span class="nc bnc" id="L1027" title="All 4 branches missed.">            } else if (alternatePresent(genotype1) &amp;&amp; alternatePresent(genotype2)) {</span>
+
+<span class="nc bnc" id="L1029" title="All 2 branches missed.">                if (genotype1.contains(UNPHASED_GENOTYPE_SEPARATOR)) {</span>
+<span class="nc" id="L1030">                    return false;</span>
+                }
+
+<span class="nc bnc" id="L1033" title="All 2 branches missed.">                if (genotype2.contains(UNPHASED_GENOTYPE_SEPARATOR)) {</span>
+<span class="nc" id="L1034">                    return false;</span>
+                }
+
+                // None of the genotypes fully missing nor un-phased
+<span class="nc" id="L1038">                String[] genotypeParts = genotype1.split(PHASED_GENOTYPE_SEPARATOR);</span>
+<span class="nc" id="L1039">                String[] genotypeParts1 = genotype2.split(PHASED_GENOTYPE_SEPARATOR);</span>
+
+                // TODO: code below might not work for multiallelic positions
+                // For hemizygous variants lets just consider that the phase is the same if both are hemizygous
+                // First genotype alternate hemizygous
+<span class="nc bnc" id="L1044" title="All 2 branches missed.">                if (genotypeParts.length == 1) {</span>
+<span class="nc bnc" id="L1045" title="All 2 branches missed.">                    return genotypeParts1.length == 1;</span>
+                // Second genotype alternate hemizygous
+<span class="nc bnc" id="L1047" title="All 2 branches missed.">                } else if (genotypeParts1.length == 1) {</span>
+                    // First genotype diploid, second genotype alternate hemizygous
+<span class="nc" id="L1049">                    return false;</span>
+
+                // Both genotypes diploid
+                } else {
+<span class="nc bnc" id="L1053" title="All 2 branches missed.">                    return genotypeParts[0].equals(genotypeParts1[0])</span>
+<span class="nc bnc" id="L1054" title="All 2 branches missed.">                            &amp;&amp; genotypeParts[2].equals(genotypeParts1[2]);</span>
+                }
+
+            // At least one of the genotypes contains just reference alleles. Clearly, alleles cannot be in phase since
+            // one of them is not even present!
+            } else {
+<span class="nc" id="L1060">                return false;</span>
+            }
+
+        // If PS is different both variants might not be in phase
+        } else {
+<span class="nc" id="L1065">            return false;</span>
+        }
+    }
+
+    /**
+     * TODO: this code does not work properly for multiallelic positions.
+     * @param genotype String codifying for the genotype in VCF-like way, e.g. 0/1, 1|0, 0, ...
+     * @return whether an alternate allele is present.
+     */
+    private boolean alternatePresent(String genotype) {
+
+<span class="nc bnc" id="L1076" title="All 4 branches missed.">        return genotype != null &amp;&amp; genotype.contains(ALTERNATE);</span>
+
+    }
+
+    private String getMostSevereConsequenceType(List&lt;ConsequenceType&gt; consequenceTypeList) {
+<span class="nc" id="L1081">        int max = -1;</span>
+<span class="nc" id="L1082">        String mostSevereConsequencetype = null;</span>
+<span class="nc bnc" id="L1083" title="All 2 branches missed.">        for (ConsequenceType consequenceType : consequenceTypeList) {</span>
+<span class="nc bnc" id="L1084" title="All 2 branches missed.">            for (SequenceOntologyTerm sequenceOntologyTerm : consequenceType.getSequenceOntologyTerms()) {</span>
+                try {
+<span class="nc" id="L1086">                    int rank = VariantAnnotationUtils.SO_SEVERITY.get(sequenceOntologyTerm.getName());</span>
+<span class="nc bnc" id="L1087" title="All 2 branches missed.">                    if (rank &gt; max) {</span>
+<span class="nc" id="L1088">                        max = rank;</span>
+<span class="nc" id="L1089">                        mostSevereConsequencetype = sequenceOntologyTerm.getName();</span>
+                    }
+<span class="nc" id="L1091">                } catch (Exception e) {</span>
+<span class="nc" id="L1092">                    int a = 1;</span>
+<span class="nc" id="L1093">                }</span>
+<span class="nc" id="L1094">            }</span>
+<span class="nc" id="L1095">        }</span>
+
+<span class="nc" id="L1097">        return mostSevereConsequencetype;</span>
+    }
+
+    private Set&lt;String&gt; getAnnotatorSet(QueryOptions queryOptions) {
+        Set&lt;String&gt; annotatorSet;
+<span class="nc" id="L1102">        List&lt;String&gt; includeList = queryOptions.getAsStringList(&quot;include&quot;);</span>
+<span class="nc bnc" id="L1103" title="All 2 branches missed.">        if (includeList.size() &gt; 0) {</span>
+<span class="nc" id="L1104">            annotatorSet = new HashSet&lt;&gt;(includeList);</span>
+        } else {
+<span class="nc" id="L1106">            annotatorSet = new HashSet&lt;&gt;(Arrays.asList(&quot;variation&quot;, &quot;clinical&quot;, &quot;conservation&quot;, &quot;functionalScore&quot;,</span>
+                    &quot;consequenceType&quot;, &quot;expression&quot;, &quot;geneDisease&quot;, &quot;drugInteraction&quot;, &quot;populationFrequencies&quot;,
+                    &quot;repeats&quot;, &quot;cytoband&quot;, &quot;hgvs&quot;));
+<span class="nc" id="L1109">            List&lt;String&gt; excludeList = queryOptions.getAsStringList(&quot;exclude&quot;);</span>
+<span class="nc" id="L1110">            excludeList.forEach(annotatorSet::remove);</span>
+        }
+<span class="nc" id="L1112">        return annotatorSet;</span>
+    }
+
+    private String getIncludedGeneFields(Set&lt;String&gt; annotatorSet) {
+<span class="nc" id="L1116">        String includeGeneFields = &quot;name,id,chromosome,start,end,transcripts.id,transcripts.start,transcripts.end,&quot;</span>
+                + &quot;transcripts.strand,transcripts.cdsLength,transcripts.annotationFlags,transcripts.biotype,&quot;
+                + &quot;transcripts.genomicCodingStart,transcripts.genomicCodingEnd,transcripts.cdnaCodingStart,&quot;
+                + &quot;transcripts.cdnaCodingEnd,transcripts.exons.start,transcripts.exons.cdsStart,transcripts.exons.end,&quot;
+                + &quot;transcripts.exons.cdsEnd,transcripts.exons.sequence,transcripts.exons.phase,&quot;
+                + &quot;transcripts.exons.exonNumber,mirna.matures,mirna.sequence,mirna.matures.cdnaStart,&quot;
+                + &quot;transcripts.exons.genomicCodingStart,transcripts.exons.genomicCodingEnd,&quot;
+                + &quot;mirna.matures.cdnaEnd&quot;;
+
+<span class="nc bnc" id="L1125" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;expression&quot;)) {</span>
+<span class="nc" id="L1126">            includeGeneFields += &quot;,annotation.expression&quot;;</span>
+        }
+<span class="nc bnc" id="L1128" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;geneDisease&quot;)) {</span>
+<span class="nc" id="L1129">            includeGeneFields += &quot;,annotation.diseases&quot;;</span>
+        }
+<span class="nc bnc" id="L1131" title="All 2 branches missed.">        if (annotatorSet.contains(&quot;drugInteraction&quot;)) {</span>
+<span class="nc" id="L1132">            includeGeneFields += &quot;,annotation.drugs&quot;;</span>
+        }
+<span class="nc" id="L1134">        return includeGeneFields;</span>
+    }
+
+    private List&lt;Gene&gt; getAffectedGenes(List&lt;Gene&gt; batchGeneList, Variant variant) {
+<span class="nc" id="L1138">        List&lt;Gene&gt; geneList = new ArrayList&lt;&gt;(batchGeneList.size());</span>
+<span class="nc bnc" id="L1139" title="All 2 branches missed.">        for (Gene gene : batchGeneList) {</span>
+<span class="nc bnc" id="L1140" title="All 2 branches missed.">            for (Region region : variantToRegionList(variant)) {</span>
+<span class="nc bnc" id="L1141" title="All 4 branches missed.">                if (region.getChromosome().equals(gene.getChromosome()) &amp;&amp; gene.getStart() &lt;= (region.getEnd() + 5000)</span>
+<span class="nc bnc" id="L1142" title="All 2 branches missed.">                        &amp;&amp; gene.getEnd() &gt;= Math.max(1, region.getStart() - 5000)) {</span>
+<span class="nc" id="L1143">                    geneList.add(gene);</span>
+                }
+<span class="nc" id="L1145">            }</span>
+<span class="nc" id="L1146">        }</span>
+<span class="nc" id="L1147">        return geneList;</span>
+    }
+
+    private List&lt;Gene&gt; getGenesInRange(String chromosome, int start, int end, String includeFields) {
+<span class="nc" id="L1151">        QueryOptions queryOptions = new QueryOptions(&quot;include&quot;, includeFields);</span>
+
+<span class="nc" id="L1153">        return geneDBAdaptor</span>
+<span class="nc" id="L1154">                .getByRegion(new Region(chromosome, Math.max(1, start - 5000),</span>
+<span class="nc" id="L1155">                        end + 5000), queryOptions).getResult();</span>
+    }
+
+    private boolean nonSynonymous(ConsequenceType consequenceType, boolean useMitochondrialCode) {
+<span class="nc bnc" id="L1159" title="All 2 branches missed.">        if (consequenceType.getCodon() == null) {</span>
+<span class="nc" id="L1160">            return false;</span>
+        } else {
+<span class="nc" id="L1162">            String[] parts = consequenceType.getCodon().split(&quot;/&quot;);</span>
+<span class="nc" id="L1163">            String ref = String.valueOf(parts[0]).toUpperCase();</span>
+<span class="nc" id="L1164">            String alt = String.valueOf(parts[1]).toUpperCase();</span>
+<span class="nc bnc" id="L1165" title="All 2 branches missed.">            return !VariantAnnotationUtils.isSynonymousCodon(useMitochondrialCode, ref, alt)</span>
+<span class="nc bnc" id="L1166" title="All 2 branches missed.">                    &amp;&amp; !VariantAnnotationUtils.isStopCodon(useMitochondrialCode, ref);</span>
+        }
+    }
+
+    private ProteinVariantAnnotation getProteinAnnotation(ConsequenceType consequenceType) {
+<span class="nc bnc" id="L1171" title="All 2 branches missed.">        if (consequenceType.getProteinVariantAnnotation() != null) {</span>
+<span class="nc" id="L1172">            QueryResult&lt;ProteinVariantAnnotation&gt; proteinVariantAnnotation = proteinDBAdaptor.getVariantAnnotation(</span>
+<span class="nc" id="L1173">                    consequenceType.getEnsemblTranscriptId(),</span>
+<span class="nc" id="L1174">                    consequenceType.getProteinVariantAnnotation().getPosition(),</span>
+<span class="nc" id="L1175">                    consequenceType.getProteinVariantAnnotation().getReference(),</span>
+<span class="nc" id="L1176">                    consequenceType.getProteinVariantAnnotation().getAlternate(), new QueryOptions());</span>
+
+<span class="nc bnc" id="L1178" title="All 2 branches missed.">            if (proteinVariantAnnotation.getNumResults() &gt; 0) {</span>
+<span class="nc" id="L1179">                return proteinVariantAnnotation.getResult().get(0);</span>
+            }
+        }
+<span class="nc" id="L1182">        return null;</span>
+    }
+
+    private ConsequenceTypeCalculator getConsequenceTypeCalculator(Variant variant) throws UnsupportedURLVariantFormat {
+<span class="nc bnc" id="L1186" title="All 9 branches missed.">        switch (VariantAnnotationUtils.getVariantType(variant)) {</span>
+            case SNV:
+<span class="nc" id="L1188">                return new ConsequenceTypeSNVCalculator();</span>
+            case INSERTION:
+<span class="nc" id="L1190">                return new ConsequenceTypeInsertionCalculator(genomeDBAdaptor);</span>
+            case DELETION:
+<span class="nc" id="L1192">                return new ConsequenceTypeDeletionCalculator(genomeDBAdaptor);</span>
+            case MNV:
+<span class="nc" id="L1194">                return new ConsequenceTypeMNVCalculator(genomeDBAdaptor);</span>
+            case CNV:
+<span class="nc bnc" id="L1196" title="All 2 branches missed.">                if (variant.getSv().getCopyNumber() == null) {</span>
+<span class="nc" id="L1197">                    return new ConsequenceTypeGenericRegionCalculator();</span>
+<span class="nc bnc" id="L1198" title="All 2 branches missed.">                } else if (variant.getSv().getCopyNumber() &gt; 2) {</span>
+<span class="nc" id="L1199">                    return new ConsequenceTypeCNVGainCalculator();</span>
+                } else {
+<span class="nc" id="L1201">                    return new ConsequenceTypeDeletionCalculator(genomeDBAdaptor);</span>
+                }
+            case DUPLICATION:
+<span class="nc" id="L1204">                return new ConsequenceTypeCNVGainCalculator();</span>
+            case INVERSION:
+<span class="nc" id="L1206">                return new ConsequenceTypeGenericRegionCalculator();</span>
+            case BREAKEND:
+<span class="nc" id="L1208">                return new ConsequenceTypeBNDCalculator();</span>
+            default:
+<span class="nc" id="L1210">                throw new UnsupportedURLVariantFormat();</span>
+        }
+    }
+
+    private boolean[] getRegulatoryRegionOverlaps(Variant variant) {
+        // 0: overlaps any regulatory region type
+        // 1: overlaps transcription factor binding site
+<span class="nc" id="L1217">        boolean[] overlapsRegulatoryRegion = {false, false};</span>
+
+        // Variant type checked in expected order of frequency of occurrence to minimize number of checks
+        // Most queries will be SNVs - it's worth implementing an special case for them
+<span class="nc bnc" id="L1221" title="All 2 branches missed.">        if (VariantType.SNV.equals(variant.getType())) {</span>
+<span class="nc" id="L1222">            return getRegulatoryRegionOverlaps(variant.getChromosome(), variant.getStart());</span>
+<span class="nc bnc" id="L1223" title="All 4 branches missed.">        } else if (VariantType.INDEL.equals(variant.getType()) &amp;&amp; StringUtils.isBlank(variant.getReference())) {</span>
+<span class="nc" id="L1224">            return getRegulatoryRegionOverlaps(variant.getChromosome(), variant.getStart() - 1, variant.getEnd());</span>
+        // Short deletions and symbolic variants except breakends
+<span class="nc bnc" id="L1226" title="All 2 branches missed.">        } else if (!VariantType.BREAKEND.equals(variant.getType())) {</span>
+<span class="nc" id="L1227">            return getRegulatoryRegionOverlaps(variant.getChromosome(), variant.getStart(), variant.getEnd());</span>
+        // Breakend &quot;variants&quot; only annotate features overlapping the exact positions
+        } else  {
+<span class="nc" id="L1230">            overlapsRegulatoryRegion = getRegulatoryRegionOverlaps(variant.getChromosome(), Math.max(1, variant.getStart()));</span>
+            // If already found one overlapping regulatory region there's no need to keep checking
+<span class="nc bnc" id="L1232" title="All 2 branches missed.">            if (overlapsRegulatoryRegion[0]) {</span>
+<span class="nc" id="L1233">                return overlapsRegulatoryRegion;</span>
+            // Otherwise check the other breakend in case exists
+            } else {
+<span class="nc bnc" id="L1236" title="All 4 branches missed.">                if (variant.getSv() != null &amp;&amp; variant.getSv().getBreakend() != null</span>
+<span class="nc bnc" id="L1237" title="All 2 branches missed.">                    &amp;&amp; variant.getSv().getBreakend().getMate() != null) {</span>
+<span class="nc" id="L1238">                    return getRegulatoryRegionOverlaps(variant.getSv().getBreakend().getMate().getChromosome(),</span>
+<span class="nc" id="L1239">                            Math.max(1, variant.getSv().getBreakend().getMate().getPosition()));</span>
+                } else {
+<span class="nc" id="L1241">                    return overlapsRegulatoryRegion;</span>
+                }
+            }
+        }
+
+//        List&lt;RegulatoryFeature&gt; regionList = new ArrayList&lt;&gt;(queryResult.getNumResults());
+//        for (RegulatoryFeature object : queryResult.getResult()) {
+//            regionList.add(object);
+//        }
+
+
+//        return regionList;
+    }
+
+    private boolean[] getRegulatoryRegionOverlaps(String chromosome, Integer position) {
+<span class="nc" id="L1256">        QueryOptions queryOptions = new QueryOptions();</span>
+<span class="nc" id="L1257">        queryOptions.add(&quot;include&quot;, REGULATORY_REGION_FEATURE_TYPE_ATTRIBUTE);</span>
+        // 0: overlaps any regulatory region type
+        // 1: overlaps transcription factor binding site
+<span class="nc" id="L1260">        boolean[] overlapsRegulatoryRegion = {false, false};</span>
+
+<span class="nc" id="L1262">        QueryResult&lt;RegulatoryFeature&gt; queryResult = regulationDBAdaptor</span>
+<span class="nc" id="L1263">                .get(new Query(REGION, toRegionString(chromosome, position)), queryOptions);</span>
+
+<span class="nc bnc" id="L1265" title="All 2 branches missed.">        if (queryResult.getNumTotalResults() &gt; 0) {</span>
+<span class="nc" id="L1266">            overlapsRegulatoryRegion[0] = true;</span>
+<span class="nc" id="L1267">            boolean tfbsFound = false;</span>
+<span class="nc bnc" id="L1268" title="All 4 branches missed.">            for (int i = 0; (i &lt; queryResult.getResult().size() &amp;&amp; !tfbsFound); i++) {</span>
+<span class="nc" id="L1269">                String regulatoryRegionType = queryResult.getResult().get(i).getFeatureType();</span>
+<span class="nc bnc" id="L1270" title="All 2 branches missed.">                tfbsFound = regulatoryRegionType != null</span>
+<span class="nc bnc" id="L1271" title="All 2 branches missed.">                        &amp;&amp; (regulatoryRegionType.equals(RegulationDBAdaptor.FeatureType.TF_binding_site.name())</span>
+<span class="nc" id="L1272">                        || queryResult.getResult().get(i).getFeatureType()</span>
+<span class="nc bnc" id="L1273" title="All 2 branches missed.">                            .equals(RegulationDBAdaptor.FeatureType.TF_binding_site_motif.name()));</span>
+            }
+<span class="nc" id="L1275">            overlapsRegulatoryRegion[1] = tfbsFound;</span>
+        }
+
+<span class="nc" id="L1278">        return overlapsRegulatoryRegion;</span>
+    }
+
+    private boolean[] getRegulatoryRegionOverlaps(String chromosome, Integer start, Integer end) {
+<span class="nc" id="L1282">        QueryOptions queryOptions = new QueryOptions();</span>
+<span class="nc" id="L1283">        queryOptions.add(&quot;exclude&quot;, &quot;_id&quot;);</span>
+<span class="nc" id="L1284">        queryOptions.add(&quot;include&quot;, &quot;chromosome&quot;);</span>
+<span class="nc" id="L1285">        queryOptions.add(&quot;limit&quot;, &quot;1&quot;);</span>
+        // 0: overlaps any regulatory region type
+        // 1: overlaps transcription factor binding site
+<span class="nc" id="L1288">        boolean[] overlapsRegulatoryRegion = {false, false};</span>
+<span class="nc" id="L1289">        String regionString = toRegionString(chromosome, start, end);</span>
+<span class="nc" id="L1290">        Query query = new Query(REGION, regionString);</span>
+
+<span class="nc" id="L1292">        QueryResult&lt;RegulatoryFeature&gt; queryResult = regulationDBAdaptor</span>
+<span class="nc" id="L1293">                .get(query.append(REGULATORY_REGION_FEATURE_TYPE_ATTRIBUTE, TF_BINDING_SITE), queryOptions);</span>
+
+        // Overlaps transcription factor binding site - it's therefore a regulatory variant
+<span class="nc bnc" id="L1296" title="All 2 branches missed.">        if (queryResult.getNumResults() == 1) {</span>
+<span class="nc" id="L1297">            overlapsRegulatoryRegion[0] = true;</span>
+<span class="nc" id="L1298">            overlapsRegulatoryRegion[1] = true;</span>
+        // Does not overlap transcription factor binding site - check any other regulatory region type
+        } else {
+<span class="nc" id="L1301">            query.remove(REGULATORY_REGION_FEATURE_TYPE_ATTRIBUTE);</span>
+<span class="nc" id="L1302">            queryResult = regulationDBAdaptor.get(query, queryOptions);</span>
+            // Does overlap other types of regulatory regions
+<span class="nc bnc" id="L1304" title="All 2 branches missed.">            if (queryResult.getNumResults() == 1) {</span>
+<span class="nc" id="L1305">                overlapsRegulatoryRegion[0] = true;</span>
+            }
+        }
+
+<span class="nc" id="L1309">        return overlapsRegulatoryRegion;</span>
+    }
+
+    private String toRegionString(String chromosome, Integer position) {
+<span class="nc" id="L1313">        return toRegionString(chromosome, position, position);</span>
+    }
+
+    private String toRegionString(String chromosome, Integer start, Integer end) {
+<span class="nc" id="L1317">        StringBuilder stringBuilder = new StringBuilder(chromosome);</span>
+<span class="nc" id="L1318">        stringBuilder.append(&quot;:&quot;);</span>
+<span class="nc" id="L1319">        stringBuilder.append(start);</span>
+<span class="nc" id="L1320">        stringBuilder.append(&quot;-&quot;);</span>
+<span class="nc bnc" id="L1321" title="All 2 branches missed.">        stringBuilder.append(end == null ? start : end);</span>
+<span class="nc" id="L1322">        return stringBuilder.toString();</span>
+    }
+
+    private List&lt;ConsequenceType&gt; getConsequenceTypeList(Variant variant, List&lt;Gene&gt; geneList,
+                                                         boolean regulatoryAnnotation, QueryOptions queryOptions) {
+<span class="nc" id="L1327">        boolean[] overlapsRegulatoryRegion = {false, false};</span>
+<span class="nc bnc" id="L1328" title="All 2 branches missed.">        if (regulatoryAnnotation) {</span>
+<span class="nc" id="L1329">            overlapsRegulatoryRegion = getRegulatoryRegionOverlaps(variant);</span>
+        }
+<span class="nc" id="L1331">        ConsequenceTypeCalculator consequenceTypeCalculator = getConsequenceTypeCalculator(variant);</span>
+<span class="nc" id="L1332">        List&lt;ConsequenceType&gt; consequenceTypeList = consequenceTypeCalculator.run(variant, geneList,</span>
+                overlapsRegulatoryRegion, queryOptions);
+<span class="nc bnc" id="L1334" title="All 2 branches missed.">        if (variant.getType() == VariantType.SNV</span>
+<span class="nc bnc" id="L1335" title="All 2 branches missed.">                || Variant.inferType(variant.getReference(), variant.getAlternate()) == VariantType.SNV) {</span>
+<span class="nc bnc" id="L1336" title="All 2 branches missed.">            for (ConsequenceType consequenceType : consequenceTypeList) {</span>
+<span class="nc bnc" id="L1337" title="All 2 branches missed.">                if (nonSynonymous(consequenceType, variant.getChromosome().equals(&quot;MT&quot;))) {</span>
+<span class="nc" id="L1338">                    consequenceType.setProteinVariantAnnotation(getProteinAnnotation(consequenceType));</span>
+                }
+<span class="nc" id="L1340">            }</span>
+        }
+<span class="nc" id="L1342">        return consequenceTypeList;</span>
+    }
+
+    private List&lt;Region&gt; variantListToRegionList(List&lt;Variant&gt; variantList) {
+//        return variantList.stream().map((variant) -&gt; variantToRegion(variant)).collect(Collectors.toList());
+
+        // In great majority of cases returned region list size will equal variant list; this will happen except when
+        // there's a breakend within the variantList
+<span class="nc" id="L1350">        List&lt;Region&gt; regionList = new ArrayList&lt;&gt;(variantList.size());</span>
+
+<span class="nc bnc" id="L1352" title="All 2 branches missed.">        for (Variant variant : variantList) {</span>
+<span class="nc" id="L1353">            regionList.addAll(variantToRegionList(variant));</span>
+<span class="nc" id="L1354">        }</span>
+
+<span class="nc" id="L1356">        return regionList;</span>
+
+//        List&lt;Region&gt; regionList = new ArrayList&lt;&gt;(variantList.size());
+//        if (imprecise) {
+//            for (Variant variant : variantList) {
+//                if (VariantType.CNV.equals(variant.getType())) {
+//                    regionList.add(new Region(variant.getChromosome(),
+//                            variant.getStart() - cnvExtraPadding,
+//                            variant.getEnd() + cnvExtraPadding));
+//                } else if (variant.getSv() != null) {
+//                    regionList.add(new Region(variant.getChromosome(),
+//                            variant.getSv() != null &amp;&amp; variant.getSv().getCiStartLeft() != null
+//                                    ? variant.getSv().getCiStartLeft() : variant.getStart(),
+//                            variant.getSv() != null &amp;&amp; variant.getSv().getCiEndRight() != null
+//                                    ? variant.getSv().getCiEndRight() : variant.getEnd()));
+//                // Insertion
+//                } else if (variant.getStart() &gt; variant.getEnd()) {
+//                    regionList.add(new Region(variant.getChromosome(), variant.getEnd(), variant.getStart()));
+//                // Other but insertion
+//                } else {
+//                    regionList.add(new Region(variant.getChromosome(), variant.getStart(), variant.getEnd()));
+//                }
+//            }
+//        } else {
+//            for (Variant variant : variantList) {
+//                // Insertion
+//                if (variant.getStart() &gt; variant.getEnd()) {
+//                    regionList.add(new Region(variant.getChromosome(), variant.getEnd(), variant.getStart()));
+//                // Other but insertion
+//                } else {
+//                    regionList.add(new Region(variant.getChromosome(), variant.getStart(), variant.getEnd()));
+//                }
+//            }
+//        }
+//        return regionList;
+    }
+
+    private List&lt;Region&gt; variantToRegionList(Variant variant) {
+        // Variant type checked in expected order of frequency of occurrence to minimize number of checks
+        // SNV
+<span class="nc bnc" id="L1396" title="All 2 branches missed.">        if (VariantType.SNV.equals(variant.getType())) {</span>
+<span class="nc" id="L1397">            return Collections.singletonList(new Region(variant.getChromosome(), variant.getStart(), variant.getEnd()));</span>
+        // Short insertion
+<span class="nc bnc" id="L1399" title="All 4 branches missed.">        } else if (VariantType.INDEL.equals(variant.getType()) &amp;&amp; StringUtils.isBlank(variant.getReference())) {</span>
+<span class="nc" id="L1400">            return Collections.singletonList(new Region(variant.getChromosome(), variant.getStart() - 1,</span>
+<span class="nc" id="L1401">                    variant.getEnd()));</span>
+        // CNV
+<span class="nc bnc" id="L1403" title="All 2 branches missed.">        } else if (VariantType.CNV.equals(variant.getType())) {</span>
+<span class="nc bnc" id="L1404" title="All 2 branches missed.">            if (imprecise) {</span>
+<span class="nc" id="L1405">                return Collections.singletonList(new Region(variant.getChromosome(),</span>
+<span class="nc" id="L1406">                        variant.getStart() - cnvExtraPadding, variant.getEnd() + cnvExtraPadding));</span>
+            } else {
+<span class="nc" id="L1408">                return Collections.singletonList(new Region(variant.getChromosome(), variant.getStart(),</span>
+<span class="nc" id="L1409">                        variant.getEnd()));</span>
+            }
+        // BREAKEND
+<span class="nc bnc" id="L1412" title="All 2 branches missed.">        } else if (VariantType.BREAKEND.equals(variant.getType())) {</span>
+<span class="nc" id="L1413">            List&lt;Region&gt; regionList = new ArrayList&lt;&gt;(2);</span>
+<span class="nc" id="L1414">            regionList.add(startBreakpointToRegion(variant));</span>
+<span class="nc" id="L1415">            Variant breakendMate = VariantBuilder.getMateBreakend(variant);</span>
+<span class="nc bnc" id="L1416" title="All 2 branches missed.">            if (breakendMate != null) {</span>
+<span class="nc" id="L1417">                regionList.add(startBreakpointToRegion(breakendMate));</span>
+            }
+<span class="nc" id="L1419">            return regionList;</span>
+        // Short deletions and symbolic variants (no BREAKENDS expected althought not checked either)
+        } else {
+<span class="nc bnc" id="L1422" title="All 4 branches missed.">            if (imprecise &amp;&amp; variant.getSv() != null) {</span>
+<span class="nc" id="L1423">                return Collections.singletonList(new Region(variant.getChromosome(),</span>
+<span class="nc bnc" id="L1424" title="All 2 branches missed.">                        variant.getSv().getCiStartLeft() != null</span>
+<span class="nc" id="L1425">                            ? variant.getSv().getCiStartLeft() - svExtraPadding : variant.getStart(),</span>
+<span class="nc bnc" id="L1426" title="All 2 branches missed.">                        variant.getSv().getCiEndRight() != null ? variant.getSv().getCiEndRight() + svExtraPadding</span>
+<span class="nc" id="L1427">                                : variant.getEnd()));</span>
+            } else {
+<span class="nc" id="L1429">                return Collections.singletonList(new Region(variant.getChromosome(), variant.getStart(),</span>
+<span class="nc" id="L1430">                        variant.getEnd()));</span>
+            }
+        }
+    }
+
+    private List&lt;Region&gt; breakpointsToRegionList(Variant variant) {
+<span class="nc" id="L1436">        List&lt;Region&gt; regionList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L1438" title="All 4 branches missed.">        switch (variant.getType()) {</span>
+            case SNV:
+<span class="nc" id="L1440">                regionList.add(new Region(variant.getChromosome(), variant.getStart(), variant.getStart()));</span>
+<span class="nc" id="L1441">                break;</span>
+            case CNV:
+<span class="nc bnc" id="L1443" title="All 2 branches missed.">                if (imprecise) {</span>
+<span class="nc" id="L1444">                    regionList.add(new Region(variant.getChromosome(), variant.getStart() - cnvExtraPadding,</span>
+<span class="nc" id="L1445">                            variant.getStart() + cnvExtraPadding));</span>
+<span class="nc" id="L1446">                    regionList.add(new Region(variant.getChromosome(), variant.getEnd() - cnvExtraPadding,</span>
+<span class="nc" id="L1447">                            variant.getEnd() + cnvExtraPadding));</span>
+                } else {
+<span class="nc" id="L1449">                    regionList.add(new Region(variant.getChromosome(), variant.getStart(), variant.getStart()));</span>
+<span class="nc" id="L1450">                    regionList.add(new Region(variant.getChromosome(), variant.getEnd(), variant.getEnd()));</span>
+                }
+<span class="nc" id="L1452">                break;</span>
+            case BREAKEND:
+<span class="nc" id="L1454">                regionList.add(startBreakpointToRegion(variant));</span>
+<span class="nc" id="L1455">                Variant breakendMate = VariantBuilder.getMateBreakend(variant);</span>
+<span class="nc bnc" id="L1456" title="All 2 branches missed.">                if (breakendMate != null) {</span>
+<span class="nc" id="L1457">                    regionList.add(startBreakpointToRegion(breakendMate));</span>
+                }
+                break;
+            default:
+<span class="nc bnc" id="L1461" title="All 4 branches missed.">                if (imprecise &amp;&amp; variant.getSv() != null) {</span>
+<span class="nc bnc" id="L1462" title="All 2 branches missed.">                    regionList.add(new Region(variant.getChromosome(), variant.getSv().getCiStartLeft() != null</span>
+<span class="nc" id="L1463">                                    ? variant.getSv().getCiStartLeft() - svExtraPadding : variant.getStart(),</span>
+<span class="nc bnc" id="L1464" title="All 2 branches missed.">                            variant.getSv().getCiStartRight() != null</span>
+<span class="nc" id="L1465">                                    ? variant.getSv().getCiStartRight() + svExtraPadding : variant.getStart()));</span>
+<span class="nc" id="L1466">                    regionList.add(new Region(variant.getChromosome(),</span>
+<span class="nc bnc" id="L1467" title="All 2 branches missed.">                            variant.getSv().getCiEndLeft() != null</span>
+<span class="nc" id="L1468">                                    ? variant.getSv().getCiEndLeft() - svExtraPadding : variant.getEnd(),</span>
+<span class="nc bnc" id="L1469" title="All 2 branches missed.">                            variant.getSv().getCiEndRight() != null</span>
+<span class="nc" id="L1470">                                    ? variant.getSv().getCiEndRight() + svExtraPadding : variant.getEnd()));</span>
+                } else {
+<span class="nc" id="L1472">                    regionList.add(new Region(variant.getChromosome(), variant.getStart(), variant.getStart()));</span>
+<span class="nc" id="L1473">                    regionList.add(new Region(variant.getChromosome(), variant.getEnd(), variant.getEnd()));</span>
+                }
+                break;
+        }
+
+<span class="nc" id="L1478">        return regionList;</span>
+    }
+
+    private Region startBreakpointToRegion(Variant variant) {
+<span class="nc bnc" id="L1482" title="All 4 branches missed.">        if (imprecise &amp;&amp; variant.getSv() != null) {</span>
+<span class="nc bnc" id="L1483" title="All 2 branches missed.">            return new Region(variant.getChromosome(), variant.getSv().getCiStartLeft() != null</span>
+<span class="nc" id="L1484">                    ? variant.getSv().getCiStartLeft() - svExtraPadding : variant.getStart(),</span>
+<span class="nc bnc" id="L1485" title="All 2 branches missed.">                    variant.getSv().getCiStartRight() != null</span>
+<span class="nc" id="L1486">                            ? variant.getSv().getCiStartRight() + svExtraPadding : variant.getStart());</span>
+        } else {
+<span class="nc" id="L1488">            return new Region(variant.getChromosome(), variant.getStart(), variant.getStart());</span>
+        }
+    }
+
+    /*
+     * Future classes for Async annotations
+     */
+    class FutureVariationAnnotator implements Callable&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; {
+        private List&lt;Variant&gt; variantList;
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1499">        FutureVariationAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1500">            this.variantList = variantList;</span>
+<span class="nc" id="L1501">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1502">        }</span>
+
+        @Override
+        public List&lt;QueryResult&lt;Variant&gt;&gt; call() throws Exception {
+<span class="nc" id="L1506">            long startTime = System.currentTimeMillis();</span>
+<span class="nc" id="L1507">            logger.debug(&quot;Query variation&quot;);</span>
+<span class="nc" id="L1508">            List&lt;QueryResult&lt;Variant&gt;&gt; variationQueryResultList</span>
+<span class="nc" id="L1509">                    = variantDBAdaptor.getPopulationFrequencyByVariant(variantList, queryOptions);</span>
+<span class="nc" id="L1510">            logger.debug(&quot;Variation query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime, variantList.size());</span>
+<span class="nc" id="L1511">            return variationQueryResultList;</span>
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; variationFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationList,
+                                   Set&lt;String&gt; annotatorSet) throws InterruptedException, ExecutionException {
+
+<span class="nc bnc" id="L1518" title="All 2 branches missed.">            while (!variationFuture.isDone()) {</span>
+<span class="nc" id="L1519">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1522">            List&lt;QueryResult&lt;Variant&gt;&gt; variationQueryResults = variationFuture.get();</span>
+<span class="nc bnc" id="L1523" title="All 2 branches missed.">            if (variationQueryResults != null) {</span>
+<span class="nc bnc" id="L1524" title="All 2 branches missed.">                for (int i = 0; i &lt; variantAnnotationList.size(); i++) {</span>
+<span class="nc" id="L1525">                    Variant preferredVariant = getPreferredVariant(variationQueryResults.get(i));</span>
+<span class="nc bnc" id="L1526" title="All 2 branches missed.">                    if (preferredVariant != null) {</span>
+<span class="nc bnc" id="L1527" title="All 2 branches missed.">                        if (preferredVariant.getIds().size() &gt; 0) {</span>
+<span class="nc" id="L1528">                            variantAnnotationList.get(i).setId(preferredVariant.getIds().get(0));</span>
+                        }
+<span class="nc bnc" id="L1530" title="All 2 branches missed.">                        if (preferredVariant.getAnnotation() != null</span>
+<span class="nc bnc" id="L1531" title="All 2 branches missed.">                                &amp;&amp; preferredVariant.getAnnotation().getAdditionalAttributes() != null</span>
+<span class="nc bnc" id="L1532" title="All 2 branches missed.">                                &amp;&amp; preferredVariant.getAnnotation().getAdditionalAttributes().size() &gt; 0) {</span>
+<span class="nc" id="L1533">                            variantAnnotationList.get(i)</span>
+<span class="nc" id="L1534">                                    .setAdditionalAttributes(preferredVariant.getAnnotation().getAdditionalAttributes());</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L1538" title="All 4 branches missed.">                    if (annotatorSet.contains(&quot;populationFrequencies&quot;) &amp;&amp; preferredVariant != null) {</span>
+<span class="nc" id="L1539">                        variantAnnotationList.get(i)</span>
+<span class="nc" id="L1540">                                .setPopulationFrequencies(preferredVariant.getAnnotation().getPopulationFrequencies());</span>
+                    }
+                }
+            }
+<span class="nc" id="L1544">        }</span>
+    }
+
+    class FutureConservationAnnotator implements Callable&lt;List&lt;QueryResult&gt;&gt; {
+        private List&lt;Variant&gt; variantList;
+
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1552">        FutureConservationAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1553">            this.variantList = variantList;</span>
+<span class="nc" id="L1554">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1555">        }</span>
+
+        @Override
+        public List&lt;QueryResult&gt; call() throws Exception {
+<span class="nc" id="L1559">            long startTime = System.currentTimeMillis();</span>
+
+<span class="nc" id="L1561">            List&lt;QueryResult&gt; queryResultList = new ArrayList&lt;&gt;(variantList.size());</span>
+
+<span class="nc" id="L1563">            logger.debug(&quot;Query conservation&quot;);</span>
+            // Want to return only one QueryResult object per Variant
+<span class="nc bnc" id="L1565" title="All 2 branches missed.">            for (Variant variant : variantList) {</span>
+
+                // Truncate region size of SVs to avoid server collapse
+<span class="nc" id="L1568">                List&lt;Region&gt; regionList</span>
+<span class="nc" id="L1569">                        = variantToRegionList(variant)</span>
+<span class="nc" id="L1570">                        .stream()</span>
+<span class="nc bnc" id="L1571" title="All 2 branches missed.">                        .map(region -&gt; region.size() &gt; 50</span>
+<span class="nc" id="L1572">                                ? (new Region(region.getChromosome(), region.getStart(), region.getStart() + 49))</span>
+<span class="nc" id="L1573">                                : region).collect(Collectors.toList());</span>
+
+<span class="nc" id="L1575">                List&lt;QueryResult&gt; tmpQueryResultList = conservationDBAdaptor</span>
+<span class="nc" id="L1576">                    .getAllScoresByRegionList(regionList, queryOptions);</span>
+
+                // There may be more than one QueryResult per variant for breakends
+                // Reuse one of the QueryResult objects returned by the adaptor
+<span class="nc" id="L1580">                QueryResult newQueryResult = tmpQueryResultList.get(0);</span>
+<span class="nc bnc" id="L1581" title="All 2 branches missed.">                if (tmpQueryResultList.size() &gt; 1) {</span>
+                    // Reuse one of the QueryResult objects - new result is the set formed by the scores corresponding
+                    // to the two breakpoints
+<span class="nc" id="L1584">                    newQueryResult.getResult().addAll(tmpQueryResultList.get(1).getResult());</span>
+<span class="nc" id="L1585">                    newQueryResult.setNumResults(newQueryResult.getResult().size());</span>
+<span class="nc" id="L1586">                    newQueryResult.setNumTotalResults(newQueryResult.getResult().size());</span>
+                }
+<span class="nc" id="L1588">                queryResultList.add(newQueryResult);</span>
+<span class="nc" id="L1589">            }</span>
+
+<span class="nc" id="L1591">            logger.debug(&quot;Conservation query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime,</span>
+<span class="nc" id="L1592">                    variantList.size());</span>
+<span class="nc" id="L1593">            return queryResultList;</span>
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&gt;&gt; conservationFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationList)
+                throws InterruptedException, ExecutionException {
+<span class="nc bnc" id="L1599" title="All 2 branches missed.">            while (!conservationFuture.isDone()) {</span>
+<span class="nc" id="L1600">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1603">            List&lt;QueryResult&gt; conservationQueryResults = conservationFuture.get();</span>
+<span class="nc bnc" id="L1604" title="All 2 branches missed.">            if (conservationQueryResults != null) {</span>
+<span class="nc bnc" id="L1605" title="All 2 branches missed.">                for (int i = 0; i &lt; variantAnnotationList.size(); i++) {</span>
+<span class="nc" id="L1606">                    variantAnnotationList.get(i)</span>
+<span class="nc" id="L1607">                            .setConservation((List&lt;Score&gt;) conservationQueryResults.get(i).getResult());</span>
+                }
+            }
+<span class="nc" id="L1610">        }</span>
+
+    }
+
+    class FutureVariantFunctionalScoreAnnotator implements Callable&lt;List&lt;QueryResult&lt;Score&gt;&gt;&gt; {
+        private List&lt;Variant&gt; variantList;
+
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1619">        FutureVariantFunctionalScoreAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1620">            this.variantList = variantList;</span>
+<span class="nc" id="L1621">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1622">        }</span>
+
+        @Override
+        public List&lt;QueryResult&lt;Score&gt;&gt; call() throws Exception {
+<span class="nc" id="L1626">            long startTime = System.currentTimeMillis();</span>
+//            List&lt;QueryResult&gt; variantFunctionalScoreQueryResultList =
+//                    variantFunctionalScoreDBAdaptor.getAllByVariantList(variantList, queryOptions);
+<span class="nc" id="L1629">            logger.debug(&quot;Query variant functional score&quot;);</span>
+<span class="nc" id="L1630">            List&lt;QueryResult&lt;Score&gt;&gt; variantFunctionalScoreQueryResultList =</span>
+<span class="nc" id="L1631">                    variantDBAdaptor.getFunctionalScoreVariant(variantList, queryOptions);</span>
+<span class="nc" id="L1632">            logger.debug(&quot;VariantFunctionalScore query performance is {}ms for {} variants&quot;,</span>
+<span class="nc" id="L1633">                    System.currentTimeMillis() - startTime, variantList.size());</span>
+<span class="nc" id="L1634">            return variantFunctionalScoreQueryResultList;</span>
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&lt;Score&gt;&gt;&gt; variantFunctionalScoreFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationList)
+                throws InterruptedException, ExecutionException {
+
+<span class="nc bnc" id="L1641" title="All 2 branches missed.">            while (!variantFunctionalScoreFuture.isDone()) {</span>
+<span class="nc" id="L1642">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1645">            List&lt;QueryResult&lt;Score&gt;&gt; variantFunctionalScoreQueryResults = variantFunctionalScoreFuture.get();</span>
+<span class="nc bnc" id="L1646" title="All 2 branches missed.">            if (variantFunctionalScoreQueryResults != null) {</span>
+<span class="nc bnc" id="L1647" title="All 2 branches missed.">                for (int i = 0; i &lt; variantAnnotationList.size(); i++) {</span>
+<span class="nc bnc" id="L1648" title="All 2 branches missed.">                    if (variantFunctionalScoreQueryResults.get(i).getNumResults() &gt; 0) {</span>
+<span class="nc" id="L1649">                        variantAnnotationList.get(i)</span>
+<span class="nc" id="L1650">                                .setFunctionalScore((List&lt;Score&gt;) variantFunctionalScoreQueryResults.get(i).getResult());</span>
+                    }
+                }
+            }
+<span class="nc" id="L1654">        }</span>
+    }
+
+    class FutureClinicalAnnotator implements Callable&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; {
+        private static final String CLINVAR = &quot;clinvar&quot;;
+        private static final String COSMIC = &quot;cosmic&quot;;
+        private static final String CLINICAL_SIGNIFICANCE_IN_SOURCE_FILE = &quot;ClinicalSignificance_in_source_file&quot;;
+        private static final String REVIEW_STATUS_IN_SOURCE_FILE = &quot;ReviewStatus_in_source_file&quot;;
+        private static final String MUTATION_SOMATIC_STATUS_IN_SOURCE_FILE = &quot;mutationSomaticStatus_in_source_file&quot;;
+        private static final String SYMBOL = &quot;symbol&quot;;
+        private List&lt;Variant&gt; variantList;
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1667">        FutureClinicalAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1668">            this.variantList = variantList;</span>
+<span class="nc" id="L1669">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1670">        }</span>
+
+        @Override
+        public List&lt;QueryResult&lt;Variant&gt;&gt; call() throws Exception {
+<span class="nc" id="L1674">            long startTime = System.currentTimeMillis();</span>
+//            List&lt;QueryResult&gt; clinicalQueryResultList = clinicalDBAdaptor.getAllByGenomicVariantList(variantList, queryOptions);
+<span class="nc" id="L1676">            List&lt;QueryResult&lt;Variant&gt;&gt; clinicalQueryResultList = clinicalDBAdaptor.getByVariant(variantList, queryOptions);</span>
+<span class="nc" id="L1677">            logger.debug(&quot;Clinical query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime, variantList.size());</span>
+<span class="nc" id="L1678">            return clinicalQueryResultList;</span>
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&lt;Variant&gt;&gt;&gt; clinicalFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationList)
+                throws InterruptedException, ExecutionException {
+//            try {
+<span class="nc bnc" id="L1685" title="All 2 branches missed.">            while (!clinicalFuture.isDone()) {</span>
+<span class="nc" id="L1686">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1689">            List&lt;QueryResult&lt;Variant&gt;&gt; clinicalQueryResults = clinicalFuture.get();</span>
+<span class="nc bnc" id="L1690" title="All 2 branches missed.">            if (clinicalQueryResults != null) {</span>
+<span class="nc bnc" id="L1691" title="All 2 branches missed.">                for (int i = 0; i &lt; variantAnnotationList.size(); i++) {</span>
+<span class="nc" id="L1692">                    QueryResult&lt;Variant&gt; clinicalQueryResult = clinicalQueryResults.get(i);</span>
+<span class="nc bnc" id="L1693" title="All 4 branches missed.">                    if (clinicalQueryResult.getResult() != null &amp;&amp; clinicalQueryResult.getResult().size() &gt; 0) {</span>
+<span class="nc" id="L1694">                        variantAnnotationList.get(i)</span>
+<span class="nc" id="L1695">                                .setTraitAssociation(clinicalQueryResult.getResult().get(0).getAnnotation()</span>
+<span class="nc" id="L1696">                                        .getTraitAssociation());</span>
+                        // DEPRECATED
+                        // TODO: remove in 4.6
+<span class="nc" id="L1699">                        variantAnnotationList.get(i)</span>
+<span class="nc" id="L1700">                                .setVariantTraitAssociation(convertToVariantTraitAssociation(clinicalQueryResult</span>
+<span class="nc" id="L1701">                                        .getResult()</span>
+<span class="nc" id="L1702">                                        .get(0)</span>
+<span class="nc" id="L1703">                                        .getAnnotation()</span>
+<span class="nc" id="L1704">                                        .getTraitAssociation()));</span>
+                    }
+                }
+            }
+//            } catch (ExecutionException e) {
+////            } catch (InterruptedException | ExecutionException e) {
+//                e.printStackTrace();
+//            }
+<span class="nc" id="L1712">        }</span>
+
+        private VariantTraitAssociation convertToVariantTraitAssociation(List&lt;EvidenceEntry&gt; traitAssociation) {
+<span class="nc" id="L1715">            List&lt;ClinVar&gt; clinvarList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L1716">            List&lt;Cosmic&gt; cosmicList = new ArrayList&lt;&gt;(traitAssociation.size());</span>
+<span class="nc bnc" id="L1717" title="All 2 branches missed.">            for (EvidenceEntry evidenceEntry : traitAssociation) {</span>
+<span class="nc bnc" id="L1718" title="All 10 branches missed.">                switch (evidenceEntry.getSource().getName()) {</span>
+                    case CLINVAR:
+<span class="nc" id="L1720">                        clinvarList.add(parseClinvar(evidenceEntry));</span>
+<span class="nc" id="L1721">                        break;</span>
+                    case COSMIC:
+<span class="nc" id="L1723">                        cosmicList.add(parseCosmic(evidenceEntry));</span>
+<span class="nc" id="L1724">                        break;</span>
+                    default:
+                        break;
+                }
+<span class="nc" id="L1728">            }</span>
+<span class="nc" id="L1729">            return new VariantTraitAssociation(clinvarList, null, cosmicList);</span>
+        }
+
+        private Cosmic parseCosmic(EvidenceEntry evidenceEntry) {
+<span class="nc" id="L1733">            String primarySite = null;</span>
+<span class="nc" id="L1734">            String siteSubtype = null;</span>
+<span class="nc" id="L1735">            String primaryHistology = null;</span>
+<span class="nc" id="L1736">            String histologySubtype = null;</span>
+<span class="nc" id="L1737">            String sampleSource = null;</span>
+<span class="nc" id="L1738">            String tumourOrigin = null;</span>
+<span class="nc bnc" id="L1739" title="All 2 branches missed.">            if (evidenceEntry.getSomaticInformation() != null) {</span>
+<span class="nc" id="L1740">                primarySite = evidenceEntry.getSomaticInformation().getPrimarySite();</span>
+<span class="nc" id="L1741">                siteSubtype = evidenceEntry.getSomaticInformation().getSiteSubtype();</span>
+<span class="nc" id="L1742">                primaryHistology = evidenceEntry.getSomaticInformation().getPrimaryHistology();</span>
+<span class="nc" id="L1743">                histologySubtype = evidenceEntry.getSomaticInformation().getHistologySubtype();</span>
+<span class="nc" id="L1744">                sampleSource = evidenceEntry.getSomaticInformation().getSampleSource();</span>
+<span class="nc" id="L1745">                tumourOrigin = evidenceEntry.getSomaticInformation().getTumourOrigin();</span>
+            }
+<span class="nc" id="L1747">            return new Cosmic(evidenceEntry.getId(), primarySite, siteSubtype, primaryHistology, histologySubtype,</span>
+<span class="nc" id="L1748">                    sampleSource, tumourOrigin, parseGeneName(evidenceEntry),</span>
+<span class="nc" id="L1749">                    getAdditionalProperty(evidenceEntry, MUTATION_SOMATIC_STATUS_IN_SOURCE_FILE));</span>
+        }
+
+        private String parseGeneName(EvidenceEntry evidenceEntry) {
+<span class="nc bnc" id="L1753" title="All 4 branches missed.">            if (evidenceEntry.getGenomicFeatures() != null &amp;&amp; !evidenceEntry.getGenomicFeatures().isEmpty()</span>
+<span class="nc bnc" id="L1754" title="All 2 branches missed.">                    &amp;&amp; evidenceEntry.getGenomicFeatures().get(0).getXrefs() != null) {</span>
+                // There may be more than one genomic feature for cosmic evidence entries. However, the actual gene symbol
+                // is expected to be found at index 0.
+<span class="nc" id="L1757">                return evidenceEntry.getGenomicFeatures().get(0).getXrefs().get(SYMBOL);</span>
+            }
+<span class="nc" id="L1759">            return null;</span>
+        }
+
+        private ClinVar parseClinvar(EvidenceEntry evidenceEntry) {
+<span class="nc" id="L1763">            String clinicalSignificance = getAdditionalProperty(evidenceEntry, CLINICAL_SIGNIFICANCE_IN_SOURCE_FILE);</span>
+<span class="nc" id="L1764">            List&lt;String&gt; traitList = null;</span>
+<span class="nc bnc" id="L1765" title="All 2 branches missed.">            if (evidenceEntry.getHeritableTraits() != null) {</span>
+<span class="nc" id="L1766">                traitList = evidenceEntry</span>
+<span class="nc" id="L1767">                        .getHeritableTraits()</span>
+<span class="nc" id="L1768">                        .stream()</span>
+<span class="nc" id="L1769">                        .map((heritableTrait) -&gt; heritableTrait.getTrait())</span>
+<span class="nc" id="L1770">                        .collect(Collectors.toList());</span>
+            }
+<span class="nc" id="L1772">            List&lt;String&gt; geneNameList = null;</span>
+<span class="nc bnc" id="L1773" title="All 2 branches missed.">            if (evidenceEntry.getGenomicFeatures() != null) {</span>
+<span class="nc" id="L1774">                geneNameList = evidenceEntry</span>
+<span class="nc" id="L1775">                        .getGenomicFeatures()</span>
+<span class="nc" id="L1776">                        .stream()</span>
+<span class="nc" id="L1777">                        .map((genomicFeature) -&gt; genomicFeature.getXrefs().get(SYMBOL))</span>
+<span class="nc" id="L1778">                        .collect(Collectors.toList());</span>
+            }
+<span class="nc" id="L1780">            String reviewStatus = getAdditionalProperty(evidenceEntry, REVIEW_STATUS_IN_SOURCE_FILE);</span>
+<span class="nc" id="L1781">            return new ClinVar(evidenceEntry.getId(), clinicalSignificance, traitList, geneNameList,</span>
+                    reviewStatus);
+        }
+
+        private String getAdditionalProperty(EvidenceEntry evidenceEntry, String name) {
+<span class="nc bnc" id="L1786" title="All 2 branches missed.">            if (evidenceEntry.getAdditionalProperties() != null) {</span>
+<span class="nc bnc" id="L1787" title="All 2 branches missed.">                for (Property property : evidenceEntry.getAdditionalProperties()) {</span>
+<span class="nc bnc" id="L1788" title="All 2 branches missed.">                    if (name.equals(property.getName())) {</span>
+<span class="nc" id="L1789">                        return property.getValue();</span>
+                    }
+<span class="nc" id="L1791">                }</span>
+            }
+<span class="nc" id="L1793">            return null;</span>
+        }
+    }
+
+    class FutureRepeatsAnnotator implements Callable&lt;List&lt;QueryResult&lt;Repeat&gt;&gt;&gt; {
+        private List&lt;Variant&gt; variantList;
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1801">        FutureRepeatsAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1802">            this.variantList = variantList;</span>
+<span class="nc" id="L1803">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1804">        }</span>
+
+        public List&lt;QueryResult&lt;Repeat&gt;&gt; call() throws Exception {
+//            List&lt;QueryResult&lt;Repeat&gt;&gt; queryResultList
+//                    = repeatsDBAdaptor.getByRegion(variantListToRegionList(variantList), queryOptions);
+
+<span class="nc" id="L1810">            long startTime = System.currentTimeMillis();</span>
+<span class="nc" id="L1811">            List&lt;QueryResult&lt;Repeat&gt;&gt; queryResultList = new ArrayList&lt;&gt;(variantList.size());</span>
+
+<span class="nc" id="L1813">            logger.debug(&quot;Query repeats&quot;);</span>
+            // Want to return only one QueryResult object per Variant
+<span class="nc bnc" id="L1815" title="All 2 branches missed.">            for (Variant variant : variantList) {</span>
+<span class="nc" id="L1816">                List&lt;QueryResult&lt;Repeat&gt;&gt; tmpQueryResultList = repeatsDBAdaptor</span>
+<span class="nc" id="L1817">                        .getByRegion(breakpointsToRegionList(variant), queryOptions);</span>
+
+                // There may be more than one QueryResult per variant for non SNV variants since there will be
+                // two breakpoints
+                // Reuse one of the QueryResult objects returned by the adaptor
+<span class="nc" id="L1822">                QueryResult newQueryResult = tmpQueryResultList.get(0);</span>
+<span class="nc bnc" id="L1823" title="All 2 branches missed.">                if (tmpQueryResultList.size() &gt; 1) {</span>
+<span class="nc" id="L1824">                    Set&lt;Repeat&gt; repeatSet = new HashSet&lt;&gt;(newQueryResult.getResult());</span>
+                    // Reuse one of the QueryResult objects - new result is the set formed by the repeats corresponding
+                    // to the two breakpoints
+<span class="nc" id="L1827">                    repeatSet.addAll(tmpQueryResultList.get(1).getResult());</span>
+<span class="nc" id="L1828">                    newQueryResult.setNumResults(repeatSet.size());</span>
+<span class="nc" id="L1829">                    newQueryResult.setNumTotalResults(repeatSet.size());</span>
+<span class="nc" id="L1830">                    newQueryResult.setResult(new ArrayList(repeatSet));</span>
+                }
+<span class="nc" id="L1832">                queryResultList.add(newQueryResult);</span>
+<span class="nc" id="L1833">            }</span>
+
+<span class="nc" id="L1835">            logger.debug(&quot;Repeat query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime,</span>
+<span class="nc" id="L1836">                    variantList.size());</span>
+
+<span class="nc" id="L1838">            return queryResultList;</span>
+
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&lt;Repeat&gt;&gt;&gt; repeatsFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationResults)
+                throws InterruptedException, ExecutionException {
+//            try {
+<span class="nc bnc" id="L1846" title="All 2 branches missed.">            while (!repeatsFuture.isDone()) {</span>
+<span class="nc" id="L1847">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1850">            List&lt;QueryResult&lt;Repeat&gt;&gt; queryResultList = repeatsFuture.get();</span>
+<span class="nc bnc" id="L1851" title="All 2 branches missed.">            if (queryResultList != null) {</span>
+<span class="nc bnc" id="L1852" title="All 2 branches missed.">                for (int i = 0; i &lt; variantAnnotationResults.size(); i++) {</span>
+<span class="nc" id="L1853">                    QueryResult&lt;Repeat&gt; queryResult = queryResultList.get(i);</span>
+<span class="nc bnc" id="L1854" title="All 4 branches missed.">                    if (queryResult.getResult() != null &amp;&amp; queryResult.getResult().size() &gt; 0) {</span>
+<span class="nc" id="L1855">                        variantAnnotationResults.get(i)</span>
+<span class="nc" id="L1856">                                .setRepeat(queryResult.getResult());</span>
+                    }
+                }
+            }
+//            } catch (ExecutionException e) {
+////            } catch (InterruptedException | ExecutionException e) {
+//                e.printStackTrace();
+//            }
+<span class="nc" id="L1864">        }</span>
+    }
+
+    class FutureCytobandAnnotator implements Callable&lt;List&lt;QueryResult&lt;Cytoband&gt;&gt;&gt; {
+        private List&lt;Variant&gt; variantList;
+        private QueryOptions queryOptions;
+
+<span class="nc" id="L1871">        FutureCytobandAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {</span>
+<span class="nc" id="L1872">            this.variantList = variantList;</span>
+<span class="nc" id="L1873">            this.queryOptions = queryOptions;</span>
+<span class="nc" id="L1874">        }</span>
+
+        @Override
+        public List&lt;QueryResult&lt;Cytoband&gt;&gt; call() throws Exception {
+<span class="nc" id="L1878">            long startTime = System.currentTimeMillis();</span>
+<span class="nc" id="L1879">            List&lt;QueryResult&lt;Cytoband&gt;&gt; queryResultList = new ArrayList&lt;&gt;(variantList.size());</span>
+
+<span class="nc" id="L1881">            logger.debug(&quot;Query cytoband&quot;);</span>
+            // Want to return only one QueryResult object per Variant
+<span class="nc bnc" id="L1883" title="All 2 branches missed.">            for (Variant variant : variantList) {</span>
+<span class="nc" id="L1884">                List&lt;QueryResult&lt;Cytoband&gt;&gt; tmpQueryResultList = genomeDBAdaptor</span>
+<span class="nc" id="L1885">                        .getCytobands(breakpointsToRegionList(variant));</span>
+
+                // There may be more than one QueryResult per variant for non SNV variants since there will be
+                // two breakpoints
+                // Reuse one of the QueryResult objects returned by the adaptor
+<span class="nc" id="L1890">                QueryResult newQueryResult = tmpQueryResultList.get(0);</span>
+<span class="nc bnc" id="L1891" title="All 2 branches missed.">                if (tmpQueryResultList.size() &gt; 1) {</span>
+<span class="nc" id="L1892">                    Set&lt;Cytoband&gt; cytobandSet = new HashSet&lt;&gt;(newQueryResult.getResult());</span>
+                    // Reuse one of the QueryResult objects - new result is the set formed by the cytobands corresponding
+                    // to the two breakpoints
+<span class="nc" id="L1895">                    cytobandSet.addAll(tmpQueryResultList.get(1).getResult());</span>
+<span class="nc" id="L1896">                    newQueryResult.setNumResults(cytobandSet.size());</span>
+<span class="nc" id="L1897">                    newQueryResult.setNumTotalResults(cytobandSet.size());</span>
+<span class="nc" id="L1898">                    newQueryResult.setResult(new ArrayList(cytobandSet));</span>
+                }
+<span class="nc" id="L1900">                queryResultList.add(newQueryResult);</span>
+<span class="nc" id="L1901">            }</span>
+
+<span class="nc" id="L1903">            logger.debug(&quot;Cytoband query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime,</span>
+<span class="nc" id="L1904">                    variantList.size());</span>
+<span class="nc" id="L1905">            return queryResultList;</span>
+        }
+
+        public void processResults(Future&lt;List&lt;QueryResult&lt;Cytoband&gt;&gt;&gt; cytobandFuture,
+                                   List&lt;VariantAnnotation&gt; variantAnnotationList)
+                throws InterruptedException, ExecutionException {
+<span class="nc bnc" id="L1911" title="All 2 branches missed.">            while (!cytobandFuture.isDone()) {</span>
+<span class="nc" id="L1912">                Thread.sleep(1);</span>
+            }
+
+<span class="nc" id="L1915">            List&lt;QueryResult&lt;Cytoband&gt;&gt; queryResultList = cytobandFuture.get();</span>
+<span class="nc bnc" id="L1916" title="All 2 branches missed.">            if (queryResultList != null) {</span>
+<span class="nc bnc" id="L1917" title="All 2 branches missed.">                if (queryResultList.isEmpty()) {</span>
+<span class="nc" id="L1918">                    StringBuilder stringbuilder = new StringBuilder(variantList.get(0).toString());</span>
+<span class="nc bnc" id="L1919" title="All 2 branches missed.">                    for (int i = 1; i &lt; variantList.size(); i++) {</span>
+<span class="nc" id="L1920">                        stringbuilder.append(&quot;,&quot;).append(variantList.get(i).toString());</span>
+                    }
+<span class="nc" id="L1922">                    logger.warn(&quot;NO cytoband was found for any of these variants: {}&quot;, stringbuilder.toString());</span>
+<span class="nc" id="L1923">                } else {</span>
+                    // Cytoband lists are returned in the same order in which variants are queried
+<span class="nc bnc" id="L1925" title="All 2 branches missed.">                    for (int i = 0; i &lt; variantAnnotationList.size(); i++) {</span>
+<span class="nc" id="L1926">                        QueryResult queryResult = queryResultList.get(i);</span>
+<span class="nc bnc" id="L1927" title="All 4 branches missed.">                        if (queryResult.getResult() != null &amp;&amp; queryResult.getResult().size() &gt; 0) {</span>
+<span class="nc" id="L1928">                            variantAnnotationList.get(i).setCytoband(queryResult.getResult());</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L1933">        }</span>
+    }
+
+//    private class FutureHgvsAnnotator implements Callable&lt;List&lt;QueryResult&lt;String&gt;&gt;&gt; {
+//        private List&lt;Variant&gt; variantList;
+//        private QueryOptions queryOptions;
+//
+//        FutureHgvsAnnotator(List&lt;Variant&gt; variantList, QueryOptions queryOptions) {
+//            this.variantList = variantList;
+//            this.queryOptions = queryOptions;
+//        }
+//
+//        @Override
+//        public List&lt;QueryResult&lt;String&gt;&gt; call() throws Exception {
+//            long startTime = System.currentTimeMillis();
+//            List&lt;QueryResult&lt;String&gt;&gt; queryResultList = hgvsCalculator.run(variantList);
+//            logger.debug(&quot;HGVS query performance is {}ms for {} variants&quot;, System.currentTimeMillis() - startTime,
+//                    variantList.size());
+//            return queryResultList;
+//        }
+//
+//        public void processResults(Future&lt;List&lt;QueryResult&lt;Cytoband&gt;&gt;&gt; cytobandFuture,
+//                                   List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; variantAnnotationResults)
+//                throws InterruptedException, ExecutionException {
+//            while (!cytobandFuture.isDone()) {
+//                Thread.sleep(1);
+//            }
+//
+//            List&lt;QueryResult&lt;Cytoband&gt;&gt; queryResultList = cytobandFuture.get();
+//            if (queryResultList != null) {
+//                if (queryResultList.isEmpty()) {
+//                    StringBuilder stringbuilder = new StringBuilder(variantList.get(0).toString());
+//                    for (int i = 1; i &lt; variantList.size(); i++) {
+//                        stringbuilder.append(&quot;,&quot;).append(variantList.get(i).toString());
+//                    }
+//                    logger.warn(&quot;NO cytoband was found for any of these variants: {}&quot;, stringbuilder.toString());
+//                } else {
+//                    // Cytoband lists are returned in the same order in which variants are queried
+//                    for (int i = 0; i &lt; variantAnnotationResults.size(); i++) {
+//                        QueryResult queryResult = queryResultList.get(i);
+//                        if (queryResult.getResult() != null &amp;&amp; queryResult.getResult().size() &gt; 0) {
+//                            variantAnnotationResults.get(i).getResult().get(0).setCytoband(queryResult.getResult());
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

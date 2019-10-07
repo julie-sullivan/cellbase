@@ -1,0 +1,25 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+cellbase-lib,org.opencb.cellbase.lib.impl,MongoDBAdaptorFactory,483,372,30,16,95,70,48,16,26,15
+cellbase-lib,org.opencb.cellbase.lib.impl,GenomeMongoDBAdaptor,391,443,36,28,73,79,36,20,13,11
+cellbase-lib,org.opencb.cellbase.lib.impl,ProteinProteinInteractionMongoDBAdaptor,147,0,2,0,29,0,15,0,14,0
+cellbase-lib,org.opencb.cellbase.lib.impl,MongoDBAdaptor.new Object() {...},1,11,0,0,0,1,0,1,0,1
+cellbase-lib,org.opencb.cellbase.lib.impl,ConservationMongoDBAdaptor,598,130,54,8,106,27,43,4,14,2
+cellbase-lib,org.opencb.cellbase.lib.impl,MongoDBAdaptor.QueryValueType,5,33,0,0,0,1,1,3,1,3
+cellbase-lib,org.opencb.cellbase.lib.impl,ProteinMongoDBAdaptor,103,884,19,35,22,150,28,17,10,8
+cellbase-lib,org.opencb.cellbase.lib.impl,TranscriptMongoDBAdaptor,362,287,16,12,65,60,25,9,16,4
+cellbase-lib,org.opencb.cellbase.lib.impl,VariantMongoDBAdaptor,991,494,99,37,176,87,83,22,18,12
+cellbase-lib,org.opencb.cellbase.lib.impl,ClinicalLegacyMongoDBAdaptor,1273,0,136,0,255,0,111,0,43,0
+cellbase-lib,org.opencb.cellbase.lib.impl,RegulationMongoDBAdaptor,104,95,3,1,25,17,16,3,14,3
+cellbase-lib,org.opencb.cellbase.lib.impl,GeneMongoDBAdaptor,560,229,34,8,104,38,40,6,20,5
+cellbase-lib,org.opencb.cellbase.lib.impl,RepeatsMongoDBAdaptor,55,61,1,1,18,12,15,3,14,3
+cellbase-lib,org.opencb.cellbase.lib.impl,MongoDBAdaptor,1310,649,109,47,187,109,84,30,19,17
+cellbase-lib,org.opencb.cellbase.lib.impl,MetaMongoDBAdaptor,53,0,0,0,17,0,13,0,13,0
+cellbase-lib,org.opencb.cellbase.lib.impl,XRefMongoDBAdaptor,252,60,4,0,37,7,16,2,14,2
+cellbase-lib,org.opencb.cellbase.lib.impl,ClinicalMongoDBAdaptor,513,389,28,26,93,68,46,16,26,9
+cellbase-lib,org.opencb.cellbase.lib.loader,MongoDBCellBaseLoader,1421,1014,308,127,290,178,227,72,12,16
+cellbase-lib,org.opencb.cellbase.lib.model,ClinicalVariation,192,0,6,0,53,0,27,0,24,0
+cellbase-lib,org.opencb.cellbase.lib,MongoDBCollectionConfiguration,3,0,0,0,1,0,1,0,1,0
+cellbase-lib,org.opencb.cellbase.lib,VariantMongoIterator,38,0,0,0,10,0,6,0,6,0
+cellbase-lib,org.opencb.cellbase.lib.loader.converters,MongoDBTypeConverter,18,0,0,0,5,0,1,0,1,0
+cellbase-lib,org.opencb.cellbase.lib.loader.converters,VariationConverter,92,0,2,0,19,0,5,0,4,0
+cellbase-lib,org.opencb.cellbase.lib.loader.converters,GeneConverter,96,0,2,0,19,0,5,0,4,0

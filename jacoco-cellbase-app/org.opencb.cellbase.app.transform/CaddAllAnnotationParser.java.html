@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaddAllAnnotationParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">CaddAllAnnotationParser.java</span></div><h1>CaddAllAnnotationParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import htsjdk.tribble.readers.TabixReader;
+import org.opencb.cellbase.app.transform.formats.Cadd;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+
+import java.io.IOException;
+import java.nio.file.Path;
+
+/**
+ * @author Antonio Rueda
+ * @author Luis Miguel Cruz.
+ * @since October 08, 2014
+ */
+public class CaddAllAnnotationParser extends CellBaseParser {
+
+
+    private final Path caddFilePath;
+    private final String chrName;
+
+    public CaddAllAnnotationParser(Path caddFilePath, String chrName, CellBaseSerializer serializer) {
+<span class="fc" id="L38">        super(serializer);</span>
+<span class="fc" id="L39">        this.caddFilePath = caddFilePath;</span>
+<span class="fc" id="L40">        this.chrName = chrName;</span>
+<span class="fc" id="L41">    }</span>
+
+    public void parse() {
+        try {
+<span class="fc" id="L45">            TabixReader inputReader = new TabixReader(caddFilePath.toString());</span>
+<span class="fc" id="L46">            TabixReader.Iterator caddIterator = inputReader.query(chrName);</span>
+<span class="fc" id="L47">            Cadd caddVariant = null;</span>
+            String line;
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            while ((line = caddIterator.next()) != null) {</span>
+<span class="fc" id="L50">                String[] fields = line.split(&quot;\t&quot;);</span>
+<span class="fc" id="L51">                String chr = fields[0];</span>
+<span class="fc" id="L52">                String ref = fields[2];</span>
+<span class="fc" id="L53">                String alt = fields[4];</span>
+
+<span class="fc" id="L55">                int pos = Integer.parseInt(fields[1]);</span>
+
+                // If the variant is the same as the last iteration variant, don't print it
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                if (sameVariant(caddVariant, chr, pos, ref, alt)) {</span>
+<span class="fc" id="L59">                    caddVariant.addCaddValues(Float.parseFloat(fields[88]), Float.parseFloat(fields[89]), fields[68]);</span>
+                } else {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">                    if (caddVariant != null) {</span>
+<span class="fc" id="L62">                        serializer.serialize(caddVariant);</span>
+                    }
+<span class="fc" id="L64">                    caddVariant = createCaddVariant(fields);</span>
+                }
+<span class="fc" id="L66">            }</span>
+<span class="fc" id="L67">            serializer.serialize(caddVariant);</span>
+<span class="nc" id="L68">        } catch (ArrayIndexOutOfBoundsException | IOException e) {</span>
+<span class="nc" id="L69">            e.printStackTrace();</span>
+<span class="fc" id="L70">        }</span>
+<span class="fc" id="L71">    }</span>
+
+    private boolean sameVariant(Cadd caddVariant, String chr, int pos, String ref, String alt) {
+<span class="pc bpc" id="L74" title="1 of 6 branches missed.">        return caddVariant != null &amp;&amp; (caddVariant.getChromosome().equals(chr) &amp;&amp; caddVariant.getStart() == pos</span>
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">                &amp;&amp; caddVariant.getReference().equals(ref) &amp;&amp; caddVariant.getAlternate().equals(alt));</span>
+    }
+
+    private Cadd createCaddVariant(String[] fields) {
+<span class="fc" id="L79">        String ref = fields[2], alt = fields[4], chr = fields[0];</span>
+<span class="fc" id="L80">        int pos = Integer.parseInt(fields[1]);</span>
+
+<span class="fc" id="L82">        Float encExp = stringToFloat(fields[29]);</span>
+<span class="fc" id="L83">        Float encH3K27Ac = stringToFloat(fields[30]);</span>
+<span class="fc" id="L84">        Float encH3K4Me1 = stringToFloat(fields[31]);</span>
+<span class="fc" id="L85">        Float encH3K4Me3 = stringToFloat(fields[32]);</span>
+<span class="fc" id="L86">        Float encNucleo = stringToFloat(fields[33]);</span>
+
+<span class="fc" id="L88">        Integer encOCC = null;</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (!fields[34].equals(&quot;NA&quot;)) {</span>
+<span class="nc" id="L90">            encOCC = Integer.parseInt(fields[34]);</span>
+        }
+
+<span class="fc" id="L93">        Float encOCCombPVal = stringToFloat(fields[35]);</span>
+<span class="fc" id="L94">        Float encOCDNasePVal = stringToFloat(fields[36]);</span>
+<span class="fc" id="L95">        Float encOCFairePVal = stringToFloat(fields[37]);</span>
+<span class="fc" id="L96">        Float encOCpolIIPVal = stringToFloat(fields[38]);</span>
+<span class="fc" id="L97">        Float encOCctcfPVal = stringToFloat(fields[39]);</span>
+<span class="fc" id="L98">        Float encOCmycPVal = stringToFloat(fields[40]);</span>
+<span class="fc" id="L99">        Float encOCDNaseSig = stringToFloat(fields[41]);</span>
+<span class="fc" id="L100">        Float encOCFaireSig = stringToFloat(fields[42]);</span>
+<span class="fc" id="L101">        Float encOCpolIISig = stringToFloat(fields[43]);</span>
+<span class="fc" id="L102">        Float encOCctcfSig = stringToFloat(fields[44]);</span>
+<span class="fc" id="L103">        Float encOCmycSig = stringToFloat(fields[45]);</span>
+
+<span class="fc" id="L105">        Cadd caddVariant = new Cadd(</span>
+<span class="fc" id="L106">                alt, ref, chr, pos, pos, encExp, encH3K27Ac,</span>
+                encH3K4Me1, encH3K4Me3, encNucleo, encOCC,
+                encOCCombPVal, encOCDNasePVal, encOCFairePVal,
+                encOCpolIIPVal, encOCctcfPVal, encOCmycPVal,
+                encOCDNaseSig, encOCFaireSig, encOCpolIISig,
+                encOCctcfSig, encOCmycSig);
+
+<span class="fc" id="L113">        caddVariant.addCaddValues(Float.parseFloat(fields[88]), Float.parseFloat(fields[89]), fields[68]);</span>
+<span class="fc" id="L114">        return caddVariant;</span>
+    }
+
+    private Float stringToFloat(String floatName) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (floatName.equals(&quot;NA&quot;)) {</span>
+<span class="fc" id="L119">            return null;</span>
+        } else {
+<span class="fc" id="L121">            return Float.valueOf(floatName);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

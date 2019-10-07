@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProteinMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">ProteinMongoDBAdaptor.java</span></div><h1>ProteinMongoDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.BasicDBList;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.formats.protein.uniprot.v201504jaxb.Entry;
+import org.opencb.biodata.models.variant.avro.ProteinFeature;
+import org.opencb.biodata.models.variant.avro.ProteinVariantAnnotation;
+import org.opencb.biodata.models.variant.avro.Score;
+import org.opencb.cellbase.core.api.ProteinDBAdaptor;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationUtils;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+/**
+ * Created by imedina on 01/12/15.
+ */
+public class ProteinMongoDBAdaptor extends MongoDBAdaptor implements ProteinDBAdaptor&lt;Entry&gt; {
+
+    private MongoDBCollection proteinSubstitutionMongoDBCollection;
+
+    private static final int NUM_PROTEIN_SUBSTITUTION_SCORE_METHODS = 2;
+
+<span class="fc" id="L48">    private static Map&lt;String, String&gt; aaShortNameMap = new HashMap&lt;&gt;();</span>
+
+    static {
+<span class="fc" id="L51">        aaShortNameMap.put(&quot;ALA&quot;, &quot;A&quot;);</span>
+<span class="fc" id="L52">        aaShortNameMap.put(&quot;ARG&quot;, &quot;R&quot;);</span>
+<span class="fc" id="L53">        aaShortNameMap.put(&quot;ASN&quot;, &quot;N&quot;);</span>
+<span class="fc" id="L54">        aaShortNameMap.put(&quot;ASP&quot;, &quot;D&quot;);</span>
+<span class="fc" id="L55">        aaShortNameMap.put(&quot;CYS&quot;, &quot;C&quot;);</span>
+<span class="fc" id="L56">        aaShortNameMap.put(&quot;GLN&quot;, &quot;Q&quot;);</span>
+<span class="fc" id="L57">        aaShortNameMap.put(&quot;GLU&quot;, &quot;E&quot;);</span>
+<span class="fc" id="L58">        aaShortNameMap.put(&quot;GLY&quot;, &quot;G&quot;);</span>
+<span class="fc" id="L59">        aaShortNameMap.put(&quot;HIS&quot;, &quot;H&quot;);</span>
+<span class="fc" id="L60">        aaShortNameMap.put(&quot;ILE&quot;, &quot;I&quot;);</span>
+<span class="fc" id="L61">        aaShortNameMap.put(&quot;LEU&quot;, &quot;L&quot;);</span>
+<span class="fc" id="L62">        aaShortNameMap.put(&quot;LYS&quot;, &quot;K&quot;);</span>
+<span class="fc" id="L63">        aaShortNameMap.put(&quot;MET&quot;, &quot;M&quot;);</span>
+<span class="fc" id="L64">        aaShortNameMap.put(&quot;PHE&quot;, &quot;F&quot;);</span>
+<span class="fc" id="L65">        aaShortNameMap.put(&quot;PRO&quot;, &quot;P&quot;);</span>
+<span class="fc" id="L66">        aaShortNameMap.put(&quot;SER&quot;, &quot;S&quot;);</span>
+<span class="fc" id="L67">        aaShortNameMap.put(&quot;THR&quot;, &quot;T&quot;);</span>
+<span class="fc" id="L68">        aaShortNameMap.put(&quot;TRP&quot;, &quot;W&quot;);</span>
+<span class="fc" id="L69">        aaShortNameMap.put(&quot;TYR&quot;, &quot;Y&quot;);</span>
+<span class="fc" id="L70">        aaShortNameMap.put(&quot;VAL&quot;, &quot;V&quot;);</span>
+<span class="fc" id="L71">    }</span>
+
+
+    public ProteinMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L75">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L76">        mongoDBCollection = mongoDataStore.getCollection(&quot;protein&quot;);</span>
+<span class="fc" id="L77">        proteinSubstitutionMongoDBCollection = mongoDataStore.getCollection(&quot;protein_functional_prediction&quot;);</span>
+
+<span class="fc" id="L79">        logger.debug(&quot;ProteinMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L80">    }</span>
+
+
+    @Override
+    public QueryResult&lt;Score&gt; getSubstitutionScores(Query query, QueryOptions options) {
+<span class="fc" id="L85">        QueryResult result = null;</span>
+
+        // Ensembl transcript id is needed for this collection
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (query.getString(&quot;transcript&quot;) != null) {</span>
+<span class="fc" id="L89">            Bson transcript = Filters.eq(&quot;transcriptId&quot;, query.getString(&quot;transcript&quot;));</span>
+
+<span class="fc" id="L91">            int position = -1;</span>
+<span class="fc" id="L92">            String aaShortName = null;</span>
+            // If position and aa change are provided we create a 'projection' to return only the required data from the database
+<span class="pc bpc" id="L94" title="3 of 6 branches missed.">            if (query.get(&quot;position&quot;) != null &amp;&amp; !query.getString(&quot;position&quot;).isEmpty() &amp;&amp; query.getInt(&quot;position&quot;, 0) != 0) {</span>
+<span class="fc" id="L95">                position = query.getInt(&quot;position&quot;);</span>
+<span class="fc" id="L96">                String projectionString = &quot;aaPositions.&quot; + position;</span>
+
+                // If aa change is provided we only return that information
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">                if (query.getString(&quot;aa&quot;) != null &amp;&amp; !query.getString(&quot;aa&quot;).isEmpty()) {</span>
+<span class="fc" id="L100">                    aaShortName = aaShortNameMap.get(query.getString(&quot;aa&quot;).toUpperCase());</span>
+<span class="fc" id="L101">                    projectionString += &quot;.&quot; + aaShortName;</span>
+                }
+
+                // Projection is used to minimize the returned data
+<span class="fc" id="L105">                Bson positionProjection = Projections.include(projectionString);</span>
+<span class="fc" id="L106">                result = proteinSubstitutionMongoDBCollection.find(transcript, positionProjection, options);</span>
+<span class="fc" id="L107">            } else {</span>
+                // Return the whole transcript data
+<span class="nc" id="L109">                result = proteinSubstitutionMongoDBCollection.find(transcript, options);</span>
+            }
+
+<span class="pc bpc" id="L112" title="1 of 4 branches missed.">            if (result != null &amp;&amp; !result.getResult().isEmpty()) {</span>
+<span class="fc" id="L113">                Document document = (Document) result.getResult().get(0);</span>
+<span class="fc" id="L114">                Document aaPositionsDocument = (Document) document.get(&quot;aaPositions&quot;);</span>
+
+                // Position or aa change were not provided, returning whole transcript data
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">                if (position == -1 || aaShortName == null) {</span>
+                    // Return only the inner Document, not the whole document projected
+<span class="nc" id="L119">                    result.setResult(Collections.singletonList(aaPositionsDocument));</span>
+                // Position and aa were provided, return only corresponding Score objects
+                } else {
+<span class="fc" id="L122">                    List&lt;Score&gt; scoreList = null;</span>
+<span class="pc bpc" id="L123" title="2 of 4 branches missed.">                    if (result.getNumResults() == 1 &amp;&amp; aaPositionsDocument != null) {</span>
+<span class="fc" id="L124">                        scoreList = new ArrayList&lt;&gt;(NUM_PROTEIN_SUBSTITUTION_SCORE_METHODS);</span>
+<span class="fc" id="L125">                        Document positionDocument = (Document) aaPositionsDocument.get(Integer.toString(position));</span>
+<span class="fc" id="L126">                        Document aaDocument = (Document) positionDocument.get(aaShortName);</span>
+//                        Document proteinSubstitutionScores = (Document) result.getResult().get(0);
+<span class="fc bfc" id="L128" title="All 2 branches covered.">                        if (aaDocument.get(&quot;ss&quot;) != null) {</span>
+<span class="fc" id="L129">                            scoreList.add(new Score(Double.parseDouble(&quot;&quot; + aaDocument.get(&quot;ss&quot;)),</span>
+<span class="fc" id="L130">                                    &quot;sift&quot;, VariantAnnotationUtils.SIFT_DESCRIPTIONS.get(aaDocument.get(&quot;se&quot;))));</span>
+                        }
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">                        if (aaDocument.get(&quot;ps&quot;) != null) {</span>
+<span class="fc" id="L133">                            scoreList.add(new Score(Double.parseDouble(&quot;&quot; + aaDocument.get(&quot;ps&quot;)),</span>
+<span class="fc" id="L134">                                    &quot;polyphen&quot;, VariantAnnotationUtils.POLYPHEN_DESCRIPTIONS.get(aaDocument.get(&quot;pe&quot;))));</span>
+                        }
+                    }
+<span class="fc" id="L137">                    result.setResult(scoreList);</span>
+//                    result.setResult(Collections.singletonList(scoreList));
+                }
+//            // Return empty QueryResult if the query did not return any result
+//            } else {
+//                return result;
+            }
+        }
+        // Return null if no transcript id is provided
+<span class="fc" id="L146">        return result;</span>
+
+    }
+
+//    private List&lt;Score&gt; getProteinSubstitutionScores(String ensemblTranscriptId, int aaPosition, String alternativeAa) {
+//        QueryResult proteinSubstitutionScoresQueryResult = getFunctionPredictionByAaChange(ensemblTranscriptId,
+//                aaPosition, alternativeAa, new QueryOptions());
+//        List&lt;Score&gt; scoreList = null;
+//        if (proteinSubstitutionScoresQueryResult.getNumResults() == 1) {
+//            scoreList = new ArrayList&lt;&gt;(NUM_PROTEIN_SUBSTITUTION_SCORE_METHODS);
+//            Document proteinSubstitutionScores = (Document) proteinSubstitutionScoresQueryResult.getResult().get(0);
+//            if (proteinSubstitutionScores.get(&quot;ss&quot;) != null) {
+//                scoreList.add(new Score(Double.parseDouble(&quot;&quot; + proteinSubstitutionScores.get(&quot;ss&quot;)),
+//                        &quot;sift&quot;, VariantAnnotationUtils.SIFT_DESCRIPTIONS.get(proteinSubstitutionScores.get(&quot;se&quot;))));
+//            }
+//            if (proteinSubstitutionScores.get(&quot;ps&quot;) != null) {
+//                scoreList.add(new Score(Double.parseDouble(&quot;&quot; + proteinSubstitutionScores.get(&quot;ps&quot;)),
+//                        &quot;polyphen&quot;, VariantAnnotationUtils.POLYPHEN_DESCRIPTIONS.get(proteinSubstitutionScores.get(&quot;pe&quot;))));
+//            }
+//        }
+//        return scoreList;
+//    }
+
+    @Override
+    public QueryResult&lt;ProteinVariantAnnotation&gt; getVariantAnnotation(String ensemblTranscriptId, int position, String aaReference,
+                                                                      String aaAlternate, QueryOptions options) {
+<span class="fc" id="L172">        QueryResult&lt;ProteinVariantAnnotation&gt; queryResult = new QueryResult&lt;&gt;();</span>
+<span class="fc" id="L173">        queryResult.setId(ensemblTranscriptId + &quot;/&quot; + position + &quot;/&quot; + aaAlternate);</span>
+<span class="fc" id="L174">        long dbTimeStart = System.currentTimeMillis();</span>
+
+<span class="fc" id="L176">        ProteinVariantAnnotation proteinVariantAnnotation = new ProteinVariantAnnotation();</span>
+<span class="fc" id="L177">        proteinVariantAnnotation.setPosition(position);</span>
+<span class="fc" id="L178">        proteinVariantAnnotation.setReference(aaReference);</span>
+<span class="fc" id="L179">        proteinVariantAnnotation.setAlternate(aaAlternate);</span>
+//        proteinVariantAnnotation.setSubstitutionScores(getProteinSubstitutionScores(ensemblTranscriptId, position, aaAlternate));
+<span class="fc" id="L181">        Query query = new Query(&quot;transcript&quot;, ensemblTranscriptId).append(&quot;position&quot;, position).append(&quot;aa&quot;, aaAlternate);</span>
+//        try {
+//            if (ensemblTranscriptId.equals(&quot;ENST00000383037&quot;) || ensemblTranscriptId.equals(&quot;ENST00000428666&quot;)) {
+//                int a = 1;
+//            }
+        // Stop_gain/lost variants do not have SIFT/POLYPHEN scores
+<span class="pc bpc" id="L187" title="1 of 4 branches missed.">        if (!aaAlternate.equals(&quot;STOP&quot;) &amp;&amp; !aaReference.equals(&quot;STOP&quot;)) {</span>
+<span class="fc" id="L188">            proteinVariantAnnotation.setSubstitutionScores(getSubstitutionScores(query, null).getResult());</span>
+        }
+//        } catch (Exception e) {
+//            int a = 1;
+//        }
+
+<span class="fc" id="L194">        QueryResult proteinVariantData = null;</span>
+<span class="fc" id="L195">        String shortAlternativeAa = aaShortNameMap.get(aaAlternate);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        if (shortAlternativeAa != null) {</span>
+<span class="fc" id="L197">            List&lt;Bson&gt; pipeline = new ArrayList&lt;&gt;();</span>
+
+//            BasicDBList andDBList1 = new BasicDBList();
+//            andDBList1.add(new Document(&quot;dbReference.id&quot;, ensemblTranscriptId));
+//            andDBList1.add(new Document(&quot;feature.location.position.position&quot;, position));
+//            andDBList1.add(new Document(&quot;feature.variation&quot;, shortAlternativeAa));
+//            pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;$and&quot;, andDBList1)));
+
+<span class="fc" id="L205">            pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;dbReference.id&quot;, ensemblTranscriptId)));</span>
+
+<span class="fc" id="L207">            Document projection = new Document();</span>
+<span class="fc" id="L208">            projection.put(&quot;accession&quot;, 1);</span>
+<span class="fc" id="L209">            projection.put(&quot;keyword&quot;, 1);</span>
+<span class="fc" id="L210">            projection.put(&quot;feature&quot;, 1);</span>
+<span class="fc" id="L211">            pipeline.add(new Document(&quot;$project&quot;, projection));</span>
+
+<span class="fc" id="L213">            pipeline.add(new Document(&quot;$unwind&quot;, &quot;$feature&quot;));</span>
+
+<span class="fc" id="L215">            BasicDBList andDBList2 = new BasicDBList();</span>
+<span class="fc" id="L216">            andDBList2.add(new Document(&quot;feature.location.position.position&quot;, position));</span>
+<span class="fc" id="L217">            andDBList2.add(new Document(&quot;feature.variation&quot;, shortAlternativeAa));</span>
+<span class="fc" id="L218">            Document firstOr = new Document(&quot;$and&quot;, andDBList2);</span>
+<span class="fc" id="L219">            BasicDBList andDBList3 = new BasicDBList();</span>
+<span class="fc" id="L220">            andDBList3.add(new Document(&quot;feature.location.end.position&quot;, new Document(&quot;$gte&quot;, position)));</span>
+<span class="fc" id="L221">            andDBList3.add(new Document(&quot;feature.location.begin.position&quot;, new Document(&quot;$lte&quot;, position)));</span>
+<span class="fc" id="L222">            Document secondOr = new Document();</span>
+<span class="fc" id="L223">            secondOr.put(&quot;$and&quot;, andDBList3);</span>
+<span class="fc" id="L224">            BasicDBList orList = new BasicDBList();</span>
+<span class="fc" id="L225">            orList.add(firstOr);</span>
+<span class="fc" id="L226">            orList.add(secondOr);</span>
+<span class="fc" id="L227">            pipeline.add(new Document(&quot;$match&quot;, new Document(&quot;$or&quot;, orList)));</span>
+//            pipeline.add(new Document(&quot;$match&quot;, firstOr));
+//
+<span class="fc" id="L230">            Document groupFields = new Document();</span>
+<span class="fc" id="L231">            groupFields.put(&quot;_id&quot;, &quot;$accession&quot;);</span>
+<span class="fc" id="L232">            groupFields.put(&quot;keyword&quot;, new Document(&quot;$addToSet&quot;, &quot;$keyword&quot;));</span>
+<span class="fc" id="L233">            groupFields.put(&quot;feature&quot;, new Document(&quot;$addToSet&quot;, &quot;$feature&quot;));</span>
+<span class="fc" id="L234">            pipeline.add(new Document(&quot;$group&quot;, groupFields));</span>
+
+
+            //TODO:terminar el pipeline de agregacion
+//            QueryBuilder builder = QueryBuilder.start(&quot;dbReference.id&quot;).is(ensemblTranscriptId)
+//                    .and(&quot;feature.location.position.position&quot;).is(position)
+//                    .and(&quot;feature.variation&quot;).is(shortAlternativeAa);
+//
+//            Document firstOr = new Document();
+//            firstOr.put(&quot;location.position.position&quot;, position);
+//            firstOr.put(&quot;variation&quot;, shortAlternativeAa);
+//
+//            BasicDBList andList = new BasicDBList();
+//            andList.add(new Document(&quot;location.end.position&quot;, new Document(&quot;$gte&quot;, position)));
+//            andList.add(new Document(&quot;location.begin.position&quot;, new Document(&quot;$lte&quot;, position)));
+//            Document secondOr = new Document();
+//            secondOr.put(&quot;$and&quot;, andList);
+//
+//            BasicDBList orList = new BasicDBList();
+//            orList.add(firstOr);
+//            orList.add(secondOr);
+//
+//            Document elemMatch = new Document();
+//            elemMatch.put(&quot;$elemMatch&quot;, new Document(&quot;$or&quot;, orList));
+//
+//            Document projection = new Document();
+//            projection.put(&quot;feature&quot;, elemMatch);
+//
+//            QueryOptions localQueryOptions = new QueryOptions();
+//            localQueryOptions.put(&quot;elemMatch&quot;,projection);
+//            localQueryOptions.put(&quot;include&quot;,&quot;accession,keyword,feature&quot;);
+//            proteinVariantData = executeQuery(ensemblTranscriptId + &quot;_&quot; + String.valueOf(position) + &quot;_&quot;
+//                            + aaAlternate, new Document(builder.get().toMap()), localQueryOptions);
+<span class="fc" id="L267">            proteinVariantData = executeAggregation2(ensemblTranscriptId + &quot;_&quot; + String.valueOf(position) + &quot;_&quot;</span>
+                    + aaAlternate, pipeline, new QueryOptions());
+<span class="fc bfc" id="L269" title="All 2 branches covered.">            if (proteinVariantData.getNumResults() &gt; 0) {</span>
+<span class="fc" id="L270">                proteinVariantAnnotation = processProteinVariantData(proteinVariantAnnotation, shortAlternativeAa,</span>
+<span class="fc" id="L271">                        (Document) proteinVariantData.getResult().get(0));</span>
+            }
+        }
+
+<span class="fc" id="L275">        long dbTimeEnd = System.currentTimeMillis();</span>
+<span class="fc" id="L276">        queryResult.setDbTime(Long.valueOf(dbTimeEnd - dbTimeStart).intValue());</span>
+
+//        if (proteinVariantAnnotation.getSubstitutionScores() != null || proteinVariantAnnotation.getUniprotAccession() != null) {
+<span class="fc" id="L279">        queryResult.setNumResults(1);</span>
+<span class="fc" id="L280">        queryResult.setResult(Collections.singletonList(proteinVariantAnnotation));</span>
+//        }
+<span class="fc" id="L282">        return queryResult;</span>
+    }
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L287">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L292">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L293">        return groupBy(bsonQuery, field, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List&lt;String&gt; fields, QueryOptions options) {
+<span class="nc" id="L298">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L299">        return groupBy(bsonQuery, fields, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L304">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L309">        Bson document = parseQuery(query);</span>
+<span class="nc" id="L310">        return mongoDBCollection.count(document);</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L315">        Bson document = parseQuery(query);</span>
+<span class="nc" id="L316">        return mongoDBCollection.distinct(field, document);</span>
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L321">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Entry&gt; get(Query query, QueryOptions options) {
+<span class="fc" id="L326">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L327">        return mongoDBCollection.find(bson, null, Entry.class, options);</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="fc" id="L332">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L333">        return mongoDBCollection.find(bson, options);</span>
+    }
+
+    @Override
+    public Iterator&lt;Entry&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L338">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L343">        Bson bson = parseQuery(query);</span>
+<span class="nc" id="L344">        return mongoDBCollection.nativeQuery().find(bson, options).iterator();</span>
+    }
+
+    @Override
+    public void forEach(Query query, Consumer&lt;? super Object&gt; action, QueryOptions options) {
+
+<span class="nc" id="L350">    }</span>
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L353">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L355">        createOrQuery(query, QueryParams.ACCESSION.key(), &quot;accession&quot;, andBsonList);</span>
+<span class="fc" id="L356">        createOrQuery(query, QueryParams.NAME.key(), &quot;name&quot;, andBsonList);</span>
+<span class="fc" id="L357">        createOrQuery(query, QueryParams.GENE.key(), &quot;gene.name.value&quot;, andBsonList);</span>
+<span class="fc" id="L358">        createOrQuery(query, QueryParams.XREFS.key(), &quot;dbReference.id&quot;, andBsonList);</span>
+<span class="fc" id="L359">        createOrQuery(query, QueryParams.KEYWORD.key(), &quot;keyword.value&quot;, andBsonList);</span>
+<span class="fc" id="L360">        createOrQuery(query, QueryParams.FEATURE_ID.key(), &quot;feature.id&quot;, andBsonList);</span>
+<span class="fc" id="L361">        createOrQuery(query, QueryParams.FEATURE_TYPE.key(), &quot;feature.type&quot;, andBsonList);</span>
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L364">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="fc" id="L366">            return new Document();</span>
+        }
+    }
+
+    private ProteinVariantAnnotation processProteinVariantData(ProteinVariantAnnotation proteinVariantAnnotation,
+                                                               String shortAlternativeAa, Document proteinVariantData) {
+
+<span class="fc" id="L373">        proteinVariantAnnotation.setUniprotAccession(proteinVariantData.get(&quot;_id&quot;, ArrayList.class).get(0).toString());</span>
+
+<span class="fc" id="L375">        proteinVariantAnnotation.setKeywords(new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L376">        ArrayList keywordList = (ArrayList) proteinVariantData.get(&quot;keyword&quot;, ArrayList.class).get(0);</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">        for (Object keywordObject : keywordList) {</span>
+<span class="fc" id="L378">            proteinVariantAnnotation.getKeywords().add((String) ((Document) keywordObject).get(&quot;value&quot;));</span>
+<span class="fc" id="L379">        }</span>
+
+<span class="fc" id="L381">        proteinVariantAnnotation.setFeatures(new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L382">        ArrayList featureList = proteinVariantData.get(&quot;feature&quot;, ArrayList.class);</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">        for (Object featureObject : featureList) {</span>
+<span class="fc" id="L384">            Document featureDocument = (Document) featureObject;</span>
+<span class="fc" id="L385">            String type = (String) featureDocument.get(&quot;type&quot;);</span>
+
+
+<span class="fc" id="L388">            ArrayList variationList = featureDocument.get(&quot;variation&quot;, ArrayList.class);</span>
+            //Check and process protein variants within the &quot;feature&quot; list
+//            if(type!=null &amp;&amp; type.equals(&quot;sequence variant&quot;) &amp;&amp;
+//                    ((int)((Document)((Document) featureDBObject.get(&quot;location&quot;)).get(&quot;position&quot;))
+//                            .get(&quot;position&quot;))==proteinVariantAnnotation.getPosition()) {
+            // Current feature corresponds to current variant
+<span class="pc bpc" id="L394" title="1 of 4 branches missed.">            if (variationList != null &amp;&amp; variationList.contains(shortAlternativeAa)) {</span>
+<span class="fc" id="L395">                proteinVariantAnnotation.setUniprotVariantId((String) featureDocument.get(&quot;id&quot;));</span>
+<span class="fc" id="L396">                proteinVariantAnnotation.setFunctionalDescription((String) featureDocument.get(&quot;description&quot;));</span>
+                // Not a protein variant, another type of feature e.g. protein domain
+            } else {
+<span class="fc" id="L399">                ProteinFeature proteinFeature = new ProteinFeature();</span>
+<span class="fc" id="L400">                proteinFeature.setId((String) featureDocument.get(&quot;id&quot;));</span>
+<span class="fc" id="L401">                proteinFeature.setType((String) featureDocument.get(&quot;type&quot;));</span>
+<span class="fc" id="L402">                proteinFeature.setDescription((String) featureDocument.get(&quot;description&quot;));</span>
+//                proteinFeature.setRef((String) featureDBObject.get(&quot;ref&quot;));
+<span class="pc bpc" id="L404" title="1 of 2 branches missed.">                if (featureDocument.get(&quot;location&quot;) != null) {</span>
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">                    if (((Document) featureDocument.get(&quot;location&quot;)).get(&quot;begin&quot;) != null) {</span>
+<span class="fc" id="L406">                        proteinFeature.setStart((int) ((Document) ((Document) featureDocument.get(&quot;location&quot;))</span>
+<span class="fc" id="L407">                                .get(&quot;begin&quot;)).get(&quot;position&quot;));</span>
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">                        if (((Document) featureDocument.get(&quot;location&quot;)).get(&quot;end&quot;) != null) {</span>
+<span class="fc" id="L409">                            proteinFeature.setEnd((int) ((Document) ((Document) featureDocument.get(&quot;location&quot;))</span>
+<span class="fc" id="L410">                                    .get(&quot;end&quot;)).get(&quot;position&quot;));</span>
+                        } else {
+<span class="nc" id="L412">                            proteinFeature.setEnd(proteinFeature.getStart());</span>
+                        }
+<span class="nc bnc" id="L414" title="All 2 branches missed.">                    } else if (((Document) featureDocument.get(&quot;location&quot;)).get(&quot;position&quot;) != null) {</span>
+<span class="nc" id="L415">                        proteinFeature.setStart((int) ((Document) ((Document) featureDocument.get(&quot;location&quot;))</span>
+<span class="nc" id="L416">                                .get(&quot;position&quot;)).get(&quot;position&quot;));</span>
+<span class="nc" id="L417">                        proteinFeature.setEnd(proteinFeature.getStart());</span>
+                    }
+                }
+<span class="fc" id="L420">                proteinVariantAnnotation.getFeatures().add(proteinFeature);</span>
+            }
+<span class="fc" id="L422">        }</span>
+<span class="fc" id="L423">        return proteinVariantAnnotation;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

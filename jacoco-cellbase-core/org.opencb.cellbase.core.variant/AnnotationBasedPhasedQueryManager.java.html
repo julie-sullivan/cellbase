@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AnnotationBasedPhasedQueryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant</a> &gt; <span class="el_source">AnnotationBasedPhasedQueryManager.java</span></div><h1>AnnotationBasedPhasedQueryManager.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+
+<span class="nc" id="L10">public abstract class AnnotationBasedPhasedQueryManager&lt;T&gt; extends PhasedQueryManager {</span>
+
+<span class="nc" id="L12">    protected Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+
+    public List&lt;QueryResult&lt;Variant&gt;&gt; run(List&lt;Variant&gt; variantList, List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResultList) {
+        // Go through all input variants and their corresponding query results
+<span class="nc bnc" id="L16" title="All 2 branches missed.">        for (int j = 0; j &lt; variantQueryResultList.size(); j++) {</span>
+<span class="nc" id="L17">            QueryResult&lt;Variant&gt; variantQueryResult = variantQueryResultList.get(j);</span>
+<span class="nc bnc" id="L18" title="All 2 branches missed.">            if (!variantQueryResult.getResult().isEmpty()) {</span>
+                // Variants are normalised and data from each of the sources (COSMIC, ClinVar, DOCM, etc.) integrated
+                // during the build process. Only one variant record should be present per assembly.
+<span class="nc bnc" id="L21" title="All 2 branches missed.">                if (variantQueryResult.getResult().size() &gt; 1) {</span>
+<span class="nc" id="L22">                    logger.warn(&quot;More than one result found either the clinical_variants or variation collection&quot;</span>
+<span class="nc" id="L23">                            + &quot;for variant &quot; + variantQueryResult.getId() + &quot;. Arbitrarily selecting the first one. &quot;</span>
+                            + &quot;Please, check.&quot;);
+                }
+
+<span class="nc" id="L27">                Variant matchedVariant = variantQueryResult.getResult().get(0);</span>
+<span class="nc" id="L28">                Variant queryVariant = variantList.get(j);</span>
+<span class="nc" id="L29">                List&lt;T&gt; annotationObjectList = getAnnotationObjectList(matchedVariant);</span>
+                // Phase is stored at the evidence entry/population frequency level, e.g.: there might be two ClinVar
+                // RCVs for one variant:
+                //   - In the first the variant is submitted as part of an MNV and therefore it is phased
+                //   - In the second one the variant is submitted singleton and therefore it is not phased
+                // both RCVs will be integrated in the same Variant object after decomposition as separate EvidenceEntry
+                // objects, each with its corresponding phase information
+<span class="nc" id="L36">                int i = 0;</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">                while (i &lt; annotationObjectList.size()) {</span>
+<span class="nc" id="L38">                    T annotationObject = annotationObjectList.get(i);</span>
+<span class="nc" id="L39">                    List&lt;Variant&gt; databaseHaplotype = getHaplotype(annotationObject, matchedVariant);</span>
+                    // Haplotype empty if EvidenceEntry/PopulationFrequency is not phased
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                    if (databaseHaplotype.isEmpty()) {</span>
+<span class="nc" id="L42">                        i++;</span>
+                    } else {
+                        // Sample   Cellbase  Match
+                        // -------------------------------
+                        // SNV      MNV       X
+                        // MNV      MNV       ✓
+                        // Missing genotypes in the input list will be considered as wildcards towards finding a
+                        // matching haplotype (MNV) in the input list, since otherwise the clinical variant would not be
+                        // returned
+<span class="nc bnc" id="L51" title="All 2 branches missed.">                        if (sameHaplotype(queryVariant, variantList, databaseHaplotype)) {</span>
+<span class="nc" id="L52">                            i++;</span>
+                        } else {
+<span class="nc" id="L54">                            annotationObjectList.remove(i);</span>
+                        }
+                        // Sample   Cellbase  Match
+                        // -------------------------------
+                        // SNV      SNV       ✓
+                        // MNV      SNV       ✓
+                    }
+<span class="nc" id="L61">                }</span>
+
+                // Remove whole variant from the query result object if ended up without any evidence entry
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                if (annotationObjectList.isEmpty()) {</span>
+<span class="nc" id="L65">                    reset(variantQueryResult);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L70">        return variantQueryResultList;</span>
+    }
+
+    protected abstract List&lt;Variant&gt; getHaplotype(T annotationObject, Variant variant);
+
+    protected abstract List&lt;T&gt; getAnnotationObjectList(Variant variant);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

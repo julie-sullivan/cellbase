@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Cosmic.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.clinical</a> &gt; <span class="el_source">Cosmic.java</span></div><h1>Cosmic.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.clinical;
+
+/**
+ * @author by antonior on 5/22/14.
+ * @author Luis Miguel Cruz.
+ * @since October 08, 2014
+ */
+public class Cosmic extends ClinicalVariant {
+
+    /**
+     * geneName.
+     */
+    private String geneName;
+
+    /**
+     * Mutation GRCh37 strand.
+     */
+    private String mutationGRCh37Strand;
+
+    /**
+     * Primary site.
+     */
+    private String primarySite;
+
+    /**
+     * Mutation zygosity.
+     */
+    private String mutationZygosity;
+
+    /**
+     * Mutation AA.
+     */
+    private String mutationAA;
+
+    /**
+     * Tumour origin.
+     */
+    private String tumourOrigin;
+
+    /**
+     * Histology subtype.
+     */
+    private String histologySubtype;
+
+    /**
+     * Accession Number.
+     */
+    private String accessionNumber;
+
+    /**
+     * Mutation ID.
+     */
+    private String mutationID;
+
+    /**
+     * Mutation CDS.
+     */
+    private String mutationCDS;
+
+    /**
+     * Sample name..
+     */
+    private String sampleName;
+
+    /**
+     * Primary histology.
+     */
+    private String primaryHistology;
+
+    /**
+     * Mutation GRCh37 genome position.
+     */
+    private String mutationGRCh37GenomePosition;
+
+    /**
+     * Mutation Description.
+     */
+    private String mutationDescription;
+
+    /**
+     * Genome-wide screen.
+     */
+    private String genomeWideScreen;
+
+    /**
+     * idTumour.
+     */
+    private String idTumour;
+
+    /**
+     * idSample.
+     */
+    private String idSample;
+
+    /**
+     * Mutation somatic status.
+     */
+    private String mutationSomaticStatus;
+
+    /**
+     * Site subtype.
+     */
+    private String siteSubtype;
+
+    /**
+     * Gene CDS length.
+     */
+    private int geneCDSLength;
+
+    /**
+     * HGNC ID.
+     */
+    private String hgncId;
+
+    /**
+     * Pubmed PMID.
+     */
+    private String pubmedPMID;
+
+    private String sampleSource;
+
+    /**
+     * Age (may be null).
+     */
+    private Float age;
+
+    /**
+     * Comments.
+     */
+    private String comments;
+
+    private boolean snp;
+
+    private String fathmmPrediction;
+
+    private Integer idStudy;
+
+    public Cosmic() {
+<span class="nc" id="L155">        super(&quot;cosmic&quot;);</span>
+<span class="nc" id="L156">    }</span>
+
+    // ----------------------- GETTERS / SETTERS --------------------------------
+
+    public String getGeneName() {
+<span class="nc" id="L161">        return geneName;</span>
+    }
+
+    public void setGeneName(String geneName) {
+<span class="nc" id="L165">        this.geneName = geneName;</span>
+<span class="nc" id="L166">    }</span>
+
+    public String getMutationGRCh37Strand() {
+<span class="nc" id="L169">        return mutationGRCh37Strand;</span>
+    }
+
+    public void setMutationGRCh37Strand(String mutationGRCh37Strand) {
+<span class="nc" id="L173">        this.mutationGRCh37Strand = mutationGRCh37Strand;</span>
+<span class="nc" id="L174">    }</span>
+
+    public String getPrimarySite() {
+<span class="nc" id="L177">        return primarySite;</span>
+    }
+
+    public void setPrimarySite(String primarySite) {
+<span class="nc" id="L181">        this.primarySite = primarySite;</span>
+<span class="nc" id="L182">    }</span>
+
+    public String getMutationZygosity() {
+<span class="nc" id="L185">        return mutationZygosity;</span>
+    }
+
+    public void setMutationZygosity(String mutationZygosity) {
+<span class="nc" id="L189">        this.mutationZygosity = mutationZygosity;</span>
+<span class="nc" id="L190">    }</span>
+
+    public String getMutationAA() {
+<span class="nc" id="L193">        return mutationAA;</span>
+    }
+
+    public void setMutationAA(String mutationAA) {
+<span class="nc" id="L197">        this.mutationAA = mutationAA;</span>
+<span class="nc" id="L198">    }</span>
+
+    public String getTumourOrigin() {
+<span class="nc" id="L201">        return tumourOrigin;</span>
+    }
+
+    public void setTumourOrigin(String tumourOrigin) {
+<span class="nc" id="L205">        this.tumourOrigin = tumourOrigin;</span>
+<span class="nc" id="L206">    }</span>
+
+    public String getHistologySubtype() {
+<span class="nc" id="L209">        return histologySubtype;</span>
+    }
+
+    public void setHistologySubtype(String histologySubtype) {
+<span class="nc" id="L213">        this.histologySubtype = histologySubtype;</span>
+<span class="nc" id="L214">    }</span>
+
+    public String getAccessionNumber() {
+<span class="nc" id="L217">        return accessionNumber;</span>
+    }
+
+    public void setAccessionNumber(String accessionNumber) {
+<span class="nc" id="L221">        this.accessionNumber = accessionNumber;</span>
+<span class="nc" id="L222">    }</span>
+
+    public String getMutationID() {
+<span class="nc" id="L225">        return mutationID;</span>
+    }
+
+    public void setMutationID(String mutationID) {
+<span class="nc" id="L229">        this.mutationID = mutationID;</span>
+<span class="nc" id="L230">    }</span>
+
+    public String getMutationCDS() {
+<span class="nc" id="L233">        return mutationCDS;</span>
+    }
+
+    public void setMutationCDS(String mutationCDS) {
+<span class="nc" id="L237">        this.mutationCDS = mutationCDS;</span>
+<span class="nc" id="L238">    }</span>
+
+    public String getSampleName() {
+<span class="nc" id="L241">        return sampleName;</span>
+    }
+
+    public void setSampleName(String sampleName) {
+<span class="nc" id="L245">        this.sampleName = sampleName;</span>
+<span class="nc" id="L246">    }</span>
+
+    public String getPrimaryHistology() {
+<span class="nc" id="L249">        return primaryHistology;</span>
+    }
+
+    public void setPrimaryHistology(String primaryHistology) {
+<span class="nc" id="L253">        this.primaryHistology = primaryHistology;</span>
+<span class="nc" id="L254">    }</span>
+
+    public String getMutationGRCh37GenomePosition() {
+<span class="nc" id="L257">        return mutationGRCh37GenomePosition;</span>
+    }
+
+    public void setMutationGRCh37GenomePosition(String mutationGRCh37GenomePosition) {
+<span class="nc" id="L261">        this.mutationGRCh37GenomePosition = mutationGRCh37GenomePosition;</span>
+<span class="nc" id="L262">    }</span>
+
+    public String getMutationDescription() {
+<span class="nc" id="L265">        return mutationDescription;</span>
+    }
+
+    public void setMutationDescription(String mutationDescription) {
+<span class="nc" id="L269">        this.mutationDescription = mutationDescription;</span>
+<span class="nc" id="L270">    }</span>
+
+    public String getGenomeWideScreen() {
+<span class="nc" id="L273">        return genomeWideScreen;</span>
+    }
+
+    public void setGenomeWideScreen(String genomeWideScreen) {
+<span class="nc" id="L277">        this.genomeWideScreen = genomeWideScreen;</span>
+<span class="nc" id="L278">    }</span>
+
+    public String getIdTumour() {
+<span class="nc" id="L281">        return idTumour;</span>
+    }
+
+    public void setIdTumour(String idTumour) {
+<span class="nc" id="L285">        this.idTumour = idTumour;</span>
+<span class="nc" id="L286">    }</span>
+
+    public String getIdSample() {
+<span class="nc" id="L289">        return idSample;</span>
+    }
+
+    public void setIdSample(String idSample) {
+<span class="nc" id="L293">        this.idSample = idSample;</span>
+<span class="nc" id="L294">    }</span>
+
+    public String getMutationSomaticStatus() {
+<span class="nc" id="L297">        return mutationSomaticStatus;</span>
+    }
+
+    public void setMutationSomaticStatus(String mutationSomaticStatus) {
+<span class="nc" id="L301">        this.mutationSomaticStatus = mutationSomaticStatus;</span>
+<span class="nc" id="L302">    }</span>
+
+    public String getSiteSubtype() {
+<span class="nc" id="L305">        return siteSubtype;</span>
+    }
+
+    public void setSiteSubtype(String siteSubtype) {
+<span class="nc" id="L309">        this.siteSubtype = siteSubtype;</span>
+<span class="nc" id="L310">    }</span>
+
+    public int getGeneCDSLength() {
+<span class="nc" id="L313">        return geneCDSLength;</span>
+    }
+
+    public void setGeneCDSLength(int geneCDSLength) {
+<span class="nc" id="L317">        this.geneCDSLength = geneCDSLength;</span>
+<span class="nc" id="L318">    }</span>
+
+    public boolean isSnp() {
+<span class="nc" id="L321">        return snp;</span>
+    }
+
+    public void setSnp(boolean snp) {
+<span class="nc" id="L325">        this.snp = snp;</span>
+<span class="nc" id="L326">    }</span>
+
+    public String getFathmmPrediction() {
+<span class="nc" id="L329">        return fathmmPrediction;</span>
+    }
+
+    public void setFathmmPrediction(String fathmmPrediction) {
+<span class="nc" id="L333">        this.fathmmPrediction = fathmmPrediction;</span>
+<span class="nc" id="L334">    }</span>
+
+    public Integer getIdStudy() {
+<span class="nc" id="L337">        return idStudy;</span>
+    }
+
+    public void setIdStudy(Integer idStudy) {
+<span class="nc" id="L341">        this.idStudy = idStudy;</span>
+<span class="nc" id="L342">    }</span>
+
+    public String getHgncId() {
+<span class="nc" id="L345">        return hgncId;</span>
+    }
+
+    public void setHgncId(String hgncId) {
+<span class="nc" id="L349">        this.hgncId = hgncId;</span>
+<span class="nc" id="L350">    }</span>
+
+    public String getPubmedPMID() {
+<span class="nc" id="L353">        return pubmedPMID;</span>
+    }
+
+    public void setPubmedPMID(String pubmedPMID) {
+<span class="nc" id="L357">        this.pubmedPMID = pubmedPMID;</span>
+<span class="nc" id="L358">    }</span>
+
+    public Float getAge() {
+<span class="nc" id="L361">        return age;</span>
+    }
+
+    public void setAge(Float age) {
+<span class="nc" id="L365">        this.age = age;</span>
+<span class="nc" id="L366">    }</span>
+
+    public String getComments() {
+<span class="nc" id="L369">        return comments;</span>
+    }
+
+    public void setComments(String comments) {
+<span class="nc" id="L373">        this.comments = comments;</span>
+<span class="nc" id="L374">    }</span>
+
+    public String getSampleSource() {
+<span class="nc" id="L377">        return sampleSource;</span>
+    }
+
+    public void setSampleSource(String sampleSource) {
+<span class="nc" id="L381">        this.sampleSource = sampleSource;</span>
+<span class="nc" id="L382">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

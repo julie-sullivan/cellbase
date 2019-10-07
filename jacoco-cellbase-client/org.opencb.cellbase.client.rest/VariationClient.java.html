@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariationClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.rest</a> &gt; <span class="el_source">VariationClient.java</span></div><h1>VariationClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.rest;
+
+import org.opencb.biodata.models.core.RegulatoryFeature;
+import org.opencb.biodata.models.core.Xref;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.cellbase.client.config.ClientConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResponse;
+
+import java.io.IOException;
+
+/**
+ * Created by swaathi on 23/05/16.
+ */
+public class VariationClient extends FeatureClient&lt;Variant&gt; {
+
+    public VariationClient(String species, String assembly, ClientConfiguration configuration) {
+<span class="fc" id="L19">        super(species, assembly, configuration);</span>
+<span class="fc" id="L20">        this.clazz = Variant.class;</span>
+
+<span class="fc" id="L22">        this.category = &quot;feature&quot;;</span>
+<span class="fc" id="L23">        this.subcategory = &quot;variation&quot;;</span>
+<span class="fc" id="L24">    }</span>
+
+    public QueryResponse&lt;String&gt; getAllConsequenceTypes(Query query) throws IOException {
+<span class="fc" id="L27">        return execute(&quot;consequence_types&quot;, query, new QueryOptions(), String.class);</span>
+    }
+
+    public QueryResponse&lt;String&gt; getConsequenceTypeById(String id, QueryOptions options) throws IOException {
+<span class="fc" id="L31">        return execute(id, &quot;consequence_type&quot;, options, String.class);</span>
+    }
+//    check data model returned
+    public QueryResponse&lt;RegulatoryFeature&gt; getRegulatory(String id, QueryOptions options) throws IOException {
+<span class="nc" id="L35">        return execute(id, &quot;regulatory&quot;, options, RegulatoryFeature.class);</span>
+    }
+
+    public QueryResponse&lt;String&gt; getPhenotype(String id, QueryOptions options) throws IOException {
+<span class="nc" id="L39">        return execute(id, &quot;phenotype&quot;, options, String.class);</span>
+    }
+
+    public QueryResponse&lt;String&gt; getSequence(String id, QueryOptions options) throws IOException {
+<span class="nc" id="L43">        return execute(id, &quot;sequence&quot;, options, String.class);</span>
+    }
+
+    public QueryResponse&lt;String&gt; getPopulationFrequency(String id, QueryOptions options) throws IOException {
+<span class="nc" id="L47">        return execute(id, &quot;population_frequency&quot;, options, String.class);</span>
+    }
+
+    public QueryResponse&lt;Xref&gt; getXref(String id, QueryOptions options) throws IOException {
+<span class="nc" id="L51">        return execute(id, &quot;xref&quot;, options, Xref.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

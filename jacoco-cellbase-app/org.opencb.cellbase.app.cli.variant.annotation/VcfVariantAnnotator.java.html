@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VcfVariantAnnotator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">VcfVariantAnnotator.java</span></div><h1>VcfVariantAnnotator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.opencb.biodata.models.variant.StudyEntry;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.AdditionalAttribute;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.core.variant.CustomAnnotationPhasedQueryManager;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.*;
+
+/**
+ * Created by fjlopez on 28/04/15.
+ */
+public class VcfVariantAnnotator implements VariantAnnotator {
+
+<span class="fc" id="L26">    private static ObjectMapper mapper = new ObjectMapper();</span>
+
+    static {
+<span class="fc" id="L29">        mapper.configure(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS, true);</span>
+    }
+
+    private final QueryOptions queryOptions;
+    private String fileName;
+    private RocksDB dbIndex;
+    private String fileId;
+    private RandomAccessFile reader;
+<span class="fc" id="L37">    private static CustomAnnotationPhasedQueryManager phasedQueryManager = new CustomAnnotationPhasedQueryManager();</span>
+
+<span class="fc" id="L39">    public VcfVariantAnnotator(String fileName, RocksDB dbIndex, String fileId, QueryOptions queryOptions) {</span>
+<span class="fc" id="L40">        this.fileName = fileName;</span>
+<span class="fc" id="L41">        this.dbIndex = dbIndex;</span>
+<span class="fc" id="L42">        this.fileId = fileId;</span>
+<span class="fc" id="L43">        this.queryOptions = queryOptions;</span>
+<span class="fc" id="L44">    }</span>
+
+    public boolean open() {
+        try {
+<span class="fc" id="L48">            reader = new RandomAccessFile(fileName, &quot;r&quot;);</span>
+<span class="nc" id="L49">        } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L50">            return false;</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">        return true;</span>
+    }
+
+
+    /**
+     * Updates VariantAnnotation objects in variantAnnotationList.
+     *
+     * @param variantList List of Variant objects. variantList and variantAnnotationList must contain variants in the
+     *                    SAME order: variantAnnotation at position i must correspond to variant i
+     */
+    public void run(List&lt;Variant&gt; variantList) {
+
+<span class="fc" id="L64">        List&lt;QueryResult&lt;Variant&gt;&gt; variantQueryResult = new ArrayList&lt;&gt;(variantList.size());</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        for (Variant variant: variantList) {</span>
+<span class="fc" id="L66">            variantQueryResult.add(getCustomAnnotation(variant));</span>
+<span class="fc" id="L67">        }</span>
+
+<span class="pc bpc" id="L69" title="2 of 4 branches missed.">        if (queryOptions.get(IGNORE_PHASE) != null &amp;&amp; !queryOptions.getBoolean(IGNORE_PHASE)) {</span>
+<span class="fc" id="L70">            variantQueryResult = phasedQueryManager.run(variantList, variantQueryResult);</span>
+        }
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (int i = 0; i &lt; variantList.size(); i++) {</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (!variantQueryResult.get(i).getResult().isEmpty()) {</span>
+                // Assuming if it gets to this point the variant has VariantAnnotation
+                // Only one variant  can be returned per query to RocksDB
+<span class="fc" id="L77">                Map&lt;String, AdditionalAttribute&gt; customAnnotation</span>
+<span class="fc" id="L78">                        = parseCustomAnnotation(variantQueryResult.get(i).getResult().get(0));</span>
+                // Update only if there are annotations for this variant. customAnnotation may be empty if the variant
+                // exists in the vcf but the info field does not contain any of the required attributes
+<span class="pc bpc" id="L81" title="1 of 4 branches missed.">                if (customAnnotation != null &amp;&amp; !customAnnotation.isEmpty()) {</span>
+<span class="fc" id="L82">                    VariantAnnotation variantAnnotation = variantList.get(i).getAnnotation();</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">                    if (variantAnnotation != null) {</span>
+                        // variantList and variantAnnotationList must contain variants in the SAME order: variantAnnotation
+                        // at position i must correspond to variant i
+<span class="fc bfc" id="L86" title="All 2 branches covered.">                        if (variantAnnotation.getAdditionalAttributes() == null) {</span>
+<span class="fc" id="L87">                            variantAnnotation.setAdditionalAttributes(customAnnotation);</span>
+                        } else {
+<span class="fc" id="L89">                            variantAnnotation.getAdditionalAttributes().putAll(customAnnotation);</span>
+                        }
+                    } else {
+<span class="nc" id="L92">                        variantAnnotation = new VariantAnnotation();</span>
+<span class="nc" id="L93">                        variantAnnotation.setAdditionalAttributes(customAnnotation);</span>
+<span class="nc" id="L94">                        variantList.get(i).setAnnotation(variantAnnotation);</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L99">    }</span>
+
+    private Map&lt;String, AdditionalAttribute&gt; parseCustomAnnotation(Variant variant) {
+<span class="fc" id="L102">        List&lt;StudyEntry&gt; studyEntryList = variant.getStudies();</span>
+<span class="pc bpc" id="L103" title="2 of 4 branches missed.">        if (studyEntryList != null &amp;&amp; !studyEntryList.isEmpty()) {</span>
+<span class="fc" id="L104">            StudyEntry studyEntry = studyEntryList.get(0);</span>
+<span class="pc bpc" id="L105" title="2 of 4 branches missed.">            if (studyEntry.getFiles() != null &amp;&amp; !studyEntry.getFiles().isEmpty()) {</span>
+<span class="fc" id="L106">                Map&lt;String, String&gt; customAnnotationMap = studyEntry.getFiles().get(0).getAttributes();</span>
+<span class="pc bpc" id="L107" title="1 of 4 branches missed.">                if (customAnnotationMap != null &amp;&amp; !customAnnotationMap.isEmpty()) {</span>
+<span class="fc" id="L108">                    AdditionalAttribute infoAttribute = new AdditionalAttribute();</span>
+<span class="fc" id="L109">                    infoAttribute.setAttribute(customAnnotationMap);</span>
+<span class="fc" id="L110">                    Map&lt;String, AdditionalAttribute&gt; customAnnotation = new HashMap&lt;&gt;(1);</span>
+<span class="fc" id="L111">                    customAnnotation.put(fileId, infoAttribute);</span>
+
+<span class="fc" id="L113">                    return customAnnotation;</span>
+                }
+            }
+        }
+<span class="fc" id="L117">        return null;</span>
+    }
+
+    private QueryResult&lt;Variant&gt; getCustomAnnotation(Variant variant) {
+<span class="fc" id="L121">        QueryResult&lt;Variant&gt; customAnnotationQueryResult = new QueryResult&lt;&gt;();</span>
+<span class="fc" id="L122">        customAnnotationQueryResult.setId(variant.toString());</span>
+<span class="fc" id="L123">        long start = System.currentTimeMillis();</span>
+        try {
+<span class="fc" id="L125">            byte[] variantKey = variant.toString().getBytes();</span>
+<span class="fc" id="L126">            byte[] dbContent = dbIndex.get(variantKey);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">            if (dbContent != null) {</span>
+<span class="fc" id="L128">                Variant variant1 = mapper.readValue(dbContent, Variant.class);</span>
+
+<span class="fc" id="L130">                customAnnotationQueryResult.setResult(Collections.singletonList(variant1));</span>
+<span class="fc" id="L131">                customAnnotationQueryResult.setNumTotalResults(1);</span>
+<span class="fc" id="L132">                customAnnotationQueryResult.setNumResults(1);</span>
+            }
+<span class="nc" id="L134">        } catch (RocksDBException | IOException e) {</span>
+<span class="nc" id="L135">            e.printStackTrace();</span>
+<span class="fc" id="L136">        }</span>
+
+<span class="fc" id="L138">        long end = System.currentTimeMillis();</span>
+<span class="fc" id="L139">        customAnnotationQueryResult.setDbTime((int) (end - start));</span>
+
+<span class="fc" id="L141">        return customAnnotationQueryResult;</span>
+    }
+
+    public boolean close() {
+        try {
+<span class="fc" id="L146">            reader.close();</span>
+<span class="nc" id="L147">        } catch (IOException e) {</span>
+<span class="nc" id="L148">            return false;</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">        return true;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

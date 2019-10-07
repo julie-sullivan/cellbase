@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeatureDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.api</a> &gt; <span class="el_source">FeatureDBAdaptor.java</span></div><h1>FeatureDBAdaptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.api;
+
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.VariantType;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+/**
+ * Created by imedina on 25/11/15.
+ */
+public interface FeatureDBAdaptor&lt;T&gt; extends CellBaseDBAdaptor&lt;T&gt; {
+
+    String MERGE = &quot;merge&quot;;
+    String REGION = &quot;region&quot;;
+
+    default QueryResult first() {
+<span class="nc" id="L41">        return first(new QueryOptions());</span>
+    }
+
+    default QueryResult first(QueryOptions options) {
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (options == null) {</span>
+<span class="nc" id="L46">            options = new QueryOptions();</span>
+        }
+<span class="nc" id="L48">        options.put(&quot;limit&quot;, 1);</span>
+<span class="nc" id="L49">        return nativeGet(new Query(), options);</span>
+    }
+
+    QueryResult&lt;T&gt; next(Query query, QueryOptions options);
+
+    QueryResult nativeNext(Query query, QueryOptions options);
+
+    default QueryResult&lt;T&gt; getByRegion(Region region, QueryOptions options) {
+<span class="nc" id="L57">        Query query = new Query(&quot;region&quot;, region.toString());</span>
+<span class="nc" id="L58">        return get(query, options);</span>
+    }
+
+    default List&lt;QueryResult&lt;T&gt;&gt; getByRegion(List&lt;Region&gt; regions, QueryOptions options) {
+<span class="nc bnc" id="L62" title="All 4 branches missed.">        if (options.containsKey(MERGE) &amp;&amp; (Boolean) options.get(MERGE)) {</span>
+<span class="nc" id="L63">            Query query = new Query(REGION, String.join(&quot;,&quot;,</span>
+<span class="nc" id="L64">                    regions.stream().map((region) -&gt; region.toString()).collect(Collectors.toList())));</span>
+<span class="nc" id="L65">            QueryResult&lt;T&gt; queryResult = get(query, options);</span>
+<span class="nc" id="L66">            return Collections.singletonList(queryResult);</span>
+        } else {
+<span class="nc" id="L68">            List&lt;QueryResult&lt;T&gt;&gt; results = new ArrayList&lt;&gt;(regions.size());</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            for (Region region : regions) {</span>
+<span class="nc" id="L70">                Query query = new Query(&quot;region&quot;, region.toString());</span>
+<span class="nc" id="L71">                results.add(get(query, options));</span>
+<span class="nc" id="L72">            }</span>
+<span class="nc" id="L73">            return results;</span>
+        }
+    }
+
+    QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options);
+
+    default List&lt;QueryResult&gt; getIntervalFrequencies(List&lt;Query&gt; queries, int intervalSize, QueryOptions options) {
+<span class="nc" id="L80">        Objects.requireNonNull(queries);</span>
+<span class="nc" id="L81">        List&lt;QueryResult&gt; queryResults = new ArrayList&lt;&gt;(queries.size());</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        for (Query query : queries) {</span>
+<span class="nc" id="L83">            queryResults.add(getIntervalFrequencies(query, intervalSize, options));</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">        return queryResults;</span>
+    }
+
+    default QueryResult&lt;T&gt; getByVariant(Variant variant, QueryOptions options) {
+        Query query;
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (VariantType.CNV.equals(variant.getType())) {</span>
+<span class="nc" id="L91">            query = new Query(VariantDBAdaptor.QueryParams.CHROMOSOME.key(), variant.getChromosome())</span>
+<span class="nc" id="L92">                    .append(VariantDBAdaptor.QueryParams.CI_START_LEFT.key(), variant.getSv().getCiStartLeft())</span>
+<span class="nc" id="L93">                    .append(VariantDBAdaptor.QueryParams.CI_START_RIGHT.key(), variant.getSv().getCiStartRight())</span>
+<span class="nc" id="L94">                    .append(VariantDBAdaptor.QueryParams.CI_END_LEFT.key(), variant.getSv().getCiEndLeft())</span>
+<span class="nc" id="L95">                    .append(VariantDBAdaptor.QueryParams.CI_END_RIGHT.key(), variant.getSv().getCiEndRight())</span>
+<span class="nc" id="L96">                    .append(VariantDBAdaptor.QueryParams.REFERENCE.key(), variant.getReference())</span>
+<span class="nc" id="L97">                    .append(VariantDBAdaptor.QueryParams.ALTERNATE.key(), variant.getAlternate());</span>
+        } else {
+<span class="nc" id="L99">            query = new Query(VariantDBAdaptor.QueryParams.CHROMOSOME.key(), variant.getChromosome())</span>
+<span class="nc" id="L100">                    .append(VariantDBAdaptor.QueryParams.START.key(), variant.getStart())</span>
+<span class="nc" id="L101">                    .append(VariantDBAdaptor.QueryParams.REFERENCE.key(), variant.getReference())</span>
+<span class="nc" id="L102">                    .append(VariantDBAdaptor.QueryParams.ALTERNATE.key(), variant.getAlternate());</span>
+        }
+<span class="nc" id="L104">        QueryResult&lt;T&gt; queryResult = get(query, options);</span>
+<span class="nc" id="L105">        queryResult.setId(variant.toString());</span>
+
+<span class="nc" id="L107">        return queryResult;</span>
+    }
+
+    default List&lt;QueryResult&lt;T&gt;&gt; getByVariant(List&lt;Variant&gt; variants, QueryOptions options) {
+<span class="nc" id="L111">        List&lt;QueryResult&lt;T&gt;&gt; results = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        for (Variant variant: variants) {</span>
+<span class="nc" id="L113">            results.add(getByVariant(variant, options));</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">        return results;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

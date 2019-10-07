@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProteinParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">ProteinParser.java</span></div><h1>ProteinParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.formats.protein.uniprot.UniProtParser;
+import org.opencb.biodata.formats.protein.uniprot.v201504jaxb.*;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.xml.bind.JAXBException;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+public class ProteinParser extends CellBaseParser {
+
+    private Path uniprotFilesDir;
+    private Path interproFilePath;
+    private String species;
+
+    private Map&lt;String, Entry&gt; proteinMap;
+
+<span class="nc" id="L44">    protected Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+
+    public ProteinParser(Path uniprotFilesDir, String species, CellBaseSerializer serializer) {
+<span class="nc" id="L47">        this(uniprotFilesDir, null, species, serializer);</span>
+<span class="nc" id="L48">    }</span>
+
+    public ProteinParser(Path uniprotFilesDir, Path interproFilePath, String species, CellBaseSerializer serializer) {
+<span class="nc" id="L51">        super(serializer);</span>
+
+<span class="nc" id="L53">        this.uniprotFilesDir = uniprotFilesDir;</span>
+<span class="nc" id="L54">        this.interproFilePath = interproFilePath;</span>
+<span class="nc" id="L55">        this.species = species;</span>
+<span class="nc" id="L56">    }</span>
+
+    @Override
+    public void parse() throws IOException {
+
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        if (uniprotFilesDir == null || !Files.exists(uniprotFilesDir)) {</span>
+<span class="nc" id="L62">            throw new IOException(&quot;File '&quot; + uniprotFilesDir + &quot;' not valid&quot;);</span>
+        }
+
+<span class="nc" id="L65">        proteinMap = new HashMap&lt;&gt;(30000);</span>
+<span class="nc" id="L66">        UniProtParser up = new UniProtParser();</span>
+        try {
+<span class="nc" id="L68">            File[] files = uniprotFilesDir.toFile().listFiles(new FilenameFilter() {</span>
+                @Override
+                public boolean accept(File dir, String name) {
+<span class="nc bnc" id="L71" title="All 4 branches missed.">                    return name.endsWith(&quot;.xml&quot;) || name.endsWith(&quot;.xml.gz&quot;);</span>
+                }
+            });
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            for (File file : files) {</span>
+<span class="nc" id="L76">                Uniprot uniprot = (Uniprot) up.loadXMLInfo(file.toString(), UniProtParser.UNIPROT_CONTEXT_v201504);</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                for (Entry entry : uniprot.getEntry()) {</span>
+<span class="nc" id="L79">                    String entryOrganism = null;</span>
+<span class="nc" id="L80">                    Iterator&lt;OrganismNameType&gt; iter = entry.getOrganism().getName().iterator();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                    while (iter.hasNext()) {</span>
+<span class="nc" id="L82">                        entryOrganism = iter.next().getValue();</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                        if (entryOrganism.equals(species)) {</span>
+<span class="nc" id="L84">                            proteinMap.put(entry.getAccession().get(0), entry);</span>
+//                            serializer.serialize(entry);
+                        }
+                    }
+<span class="nc" id="L88">                }</span>
+            }
+<span class="nc" id="L90">            logger.debug(&quot;Number of proteins stored in map: '{}'&quot;, proteinMap.size());</span>
+
+<span class="nc bnc" id="L92" title="All 4 branches missed.">            if (interproFilePath != null &amp;&amp; Files.exists(interproFilePath)) {</span>
+<span class="nc" id="L93">                BufferedReader interproBuffereReader = FileUtils.newBufferedReader(interproFilePath);</span>
+<span class="nc" id="L94">                Set&lt;String&gt; hashSet = new HashSet&lt;&gt;(proteinMap.keySet());</span>
+<span class="nc" id="L95">                Set&lt;String&gt; visited = new HashSet&lt;&gt;(30000);</span>
+
+<span class="nc" id="L97">                int numInterProLinesProcessed = 0;</span>
+<span class="nc" id="L98">                int numUniqueProteinsProcessed = 0;</span>
+                String[] fields;
+                String line;
+                boolean iprAdded;
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                while ((line = interproBuffereReader.readLine()) != null) {</span>
+<span class="nc" id="L103">                    fields = line.split(&quot;\t&quot;);</span>
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                    if (hashSet.contains(fields[0])) {</span>
+<span class="nc" id="L106">                        iprAdded = false;</span>
+<span class="nc" id="L107">                        BigInteger start = BigInteger.valueOf(Integer.parseInt(fields[4]));</span>
+<span class="nc" id="L108">                        BigInteger end = BigInteger.valueOf(Integer.parseInt(fields[5]));</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                        for (FeatureType featureType : proteinMap.get(fields[0]).getFeature()) {</span>
+<span class="nc bnc" id="L110" title="All 4 branches missed.">                            if (featureType.getLocation() != null &amp;&amp; featureType.getLocation().getBegin() != null</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                                    &amp;&amp; featureType.getLocation().getBegin().getPosition() != null</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                                    &amp;&amp; featureType.getLocation().getEnd().getPosition() != null</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                                    &amp;&amp; featureType.getLocation().getBegin().getPosition().equals(start)</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                                    &amp;&amp; featureType.getLocation().getEnd().getPosition().equals(end)) {</span>
+<span class="nc" id="L115">                                featureType.setId(fields[1]);</span>
+<span class="nc" id="L116">                                featureType.setRef(fields[3]);</span>
+<span class="nc" id="L117">                                iprAdded = true;</span>
+<span class="nc" id="L118">                                break;</span>
+                            }
+<span class="nc" id="L120">                        }</span>
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                        if (!iprAdded) {</span>
+<span class="nc" id="L123">                            FeatureType featureType = new FeatureType();</span>
+<span class="nc" id="L124">                            featureType.setId(fields[1]);</span>
+<span class="nc" id="L125">                            featureType.setDescription(fields[2]);</span>
+<span class="nc" id="L126">                            featureType.setRef(fields[3]);</span>
+
+<span class="nc" id="L128">                            LocationType locationType = new LocationType();</span>
+<span class="nc" id="L129">                            PositionType positionType = new PositionType();</span>
+<span class="nc" id="L130">                            positionType.setPosition(start);</span>
+<span class="nc" id="L131">                            locationType.setBegin(positionType);</span>
+<span class="nc" id="L132">                            PositionType positionType2 = new PositionType();</span>
+<span class="nc" id="L133">                            positionType2.setPosition(end);</span>
+<span class="nc" id="L134">                            locationType.setEnd(positionType2);</span>
+<span class="nc" id="L135">                            featureType.setLocation(locationType);</span>
+
+<span class="nc" id="L137">                            proteinMap.get(fields[0]).getFeature().add(featureType);</span>
+                        }
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                        if (!visited.contains(fields[0])) {</span>
+<span class="nc" id="L141">                            visited.add(fields[0]);</span>
+<span class="nc" id="L142">                            numUniqueProteinsProcessed++;</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                    if (++numInterProLinesProcessed % 10000000 == 0) {</span>
+<span class="nc" id="L147">                        logger.debug(&quot;{} InterPro lines processed. {} unique proteins processed&quot;,</span>
+<span class="nc" id="L148">                                numInterProLinesProcessed, numUniqueProteinsProcessed);</span>
+                    }
+                }
+<span class="nc" id="L151">                interproBuffereReader.close();</span>
+            }
+
+            // Serialize and save results
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            for (Entry entry : proteinMap.values()) {</span>
+<span class="nc" id="L156">                serializer.serialize(entry);</span>
+<span class="nc" id="L157">            }</span>
+
+<span class="nc" id="L159">        } catch (JAXBException e) {</span>
+<span class="nc" id="L160">            e.printStackTrace();</span>
+<span class="nc" id="L161">        }</span>
+<span class="nc" id="L162">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

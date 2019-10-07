@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GwasTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.clinical.gwas</a> &gt; <span class="el_source">GwasTest.java</span></div><h1>GwasTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.clinical.gwas;
+
+/**
+* Created by parce on 5/12/14.
+*/
+public class GwasTest {
+
+    private Float pValue;
+    private Float pValueMlog;
+    private String pValueText;
+    private String orBeta;
+    private String percentCI;
+
+<span class="nc" id="L30">    public GwasTest() {}</span>
+
+<span class="nc" id="L32">    public GwasTest(Float pValue, Float pValueMlog, String pValueText, String orBeta, String percentCI) {</span>
+<span class="nc" id="L33">        this.pValue = pValue;</span>
+<span class="nc" id="L34">        this.pValueMlog = pValueMlog;</span>
+<span class="nc" id="L35">        this.pValueText = pValueText;</span>
+<span class="nc" id="L36">        this.orBeta = orBeta;</span>
+<span class="nc" id="L37">        this.percentCI = percentCI;</span>
+<span class="nc" id="L38">    }</span>
+
+    public Float getpValue() {
+<span class="nc" id="L41">        return pValue;</span>
+    }
+
+    public void setpValue(Float pValue) {
+<span class="nc" id="L45">        this.pValue = pValue;</span>
+<span class="nc" id="L46">    }</span>
+
+    public Float getpValueMlog() {
+<span class="nc" id="L49">        return pValueMlog;</span>
+    }
+
+    public void setpValueMlog(Float pValueMlog) {
+<span class="nc" id="L53">        this.pValueMlog = pValueMlog;</span>
+<span class="nc" id="L54">    }</span>
+
+    public String getpValueText() {
+<span class="nc" id="L57">        return pValueText;</span>
+    }
+
+    public void setpValueText(String pValueText) {
+<span class="nc" id="L61">        this.pValueText = pValueText;</span>
+<span class="nc" id="L62">    }</span>
+
+    public String getOrBeta() {
+<span class="nc" id="L65">        return orBeta;</span>
+    }
+
+    public void setOrBeta(String orBeta) {
+<span class="nc" id="L69">        this.orBeta = orBeta;</span>
+<span class="nc" id="L70">    }</span>
+
+    public String getPercentCI() {
+<span class="nc" id="L73">        return percentCI;</span>
+    }
+
+    public void setPercentCI(String percentCI) {
+<span class="nc" id="L77">        this.percentCI = percentCI;</span>
+<span class="nc" id="L78">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

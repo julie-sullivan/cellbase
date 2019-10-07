@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Mutation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.variation</a> &gt; <span class="el_source">Mutation.java</span></div><h1>Mutation.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.variation;
+
+/**
+ * This class models a Cosmic mutation, the attributes are found in the TXT file
+ * User: imedina
+ * Date: 9/21/13
+ * Time: 7:37 PM
+ * To change this template use File | Settings | File Templates.
+ */
+@Deprecated
+public class Mutation {
+
+    private String id;
+    private String chromosome;
+    private int start;
+    private int end;
+    private String strand;
+    private String protein;
+    private int proteinStart;
+    private int proteinEnd;
+    private String gene;
+    private String transcriptId;
+    private String hgncId;
+    private String sampleId;
+    private String sampleName;
+    private String sampleSource;
+    private String tumourId;
+    private String primarySite;
+    private String siteSubtype;
+    private String primaryHistology;
+    private String histologySubtype;
+    private String genomeWideScreen;
+    private String mutationCDS;
+    private String mutationAA;
+    private String mutationZygosity;
+    private String status;
+    private String pubmed;
+    private String tumourOrigin;
+    private String description;
+    private String source;
+//    private String comments;
+
+<span class="nc" id="L59">    public Mutation() {</span>
+
+<span class="nc" id="L61">    }</span>
+
+    public Mutation(String id, String chromosome, int start, int end, String strand, String protein, int proteinStart,
+                    int proteinEnd, String gene, String transcriptId, String hgncId, String sampleId, String sampleName,
+                    String sampleSource, String tumourId, String primarySite, String siteSubtype, String primaryHistology,
+                    String histologySubtype, String genomeWideScreen, String mutationCDS, String mutationAA, String mutationZygosity,
+<span class="nc" id="L67">                    String status, String pubmed, String tumourOrigin, String description, String source) {</span>
+<span class="nc" id="L68">        this.id = id;</span>
+<span class="nc" id="L69">        this.chromosome = chromosome;</span>
+<span class="nc" id="L70">        this.start = start;</span>
+<span class="nc" id="L71">        this.end = end;</span>
+<span class="nc" id="L72">        this.strand = strand;</span>
+<span class="nc" id="L73">        this.protein = protein;</span>
+<span class="nc" id="L74">        this.proteinStart = proteinStart;</span>
+<span class="nc" id="L75">        this.proteinEnd = proteinEnd;</span>
+<span class="nc" id="L76">        this.gene = gene;</span>
+<span class="nc" id="L77">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L78">        this.hgncId = hgncId;</span>
+<span class="nc" id="L79">        this.sampleId = sampleId;</span>
+<span class="nc" id="L80">        this.sampleName = sampleName;</span>
+<span class="nc" id="L81">        this.sampleSource = sampleSource;</span>
+<span class="nc" id="L82">        this.tumourId = tumourId;</span>
+<span class="nc" id="L83">        this.primarySite = primarySite;</span>
+<span class="nc" id="L84">        this.siteSubtype = siteSubtype;</span>
+<span class="nc" id="L85">        this.primaryHistology = primaryHistology;</span>
+<span class="nc" id="L86">        this.histologySubtype = histologySubtype;</span>
+<span class="nc" id="L87">        this.genomeWideScreen = genomeWideScreen;</span>
+<span class="nc" id="L88">        this.mutationCDS = mutationCDS;</span>
+<span class="nc" id="L89">        this.mutationAA = mutationAA;</span>
+<span class="nc" id="L90">        this.mutationZygosity = mutationZygosity;</span>
+<span class="nc" id="L91">        this.status = status;</span>
+<span class="nc" id="L92">        this.pubmed = pubmed;</span>
+<span class="nc" id="L93">        this.tumourOrigin = tumourOrigin;</span>
+<span class="nc" id="L94">        this.description = description;</span>
+<span class="nc" id="L95">        this.source = source;</span>
+<span class="nc" id="L96">    }</span>
+
+
+    public String getChromosome() {
+<span class="nc" id="L100">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L104">        this.chromosome = chromosome;</span>
+<span class="nc" id="L105">    }</span>
+
+    public int getStart() {
+<span class="nc" id="L108">        return start;</span>
+    }
+
+    public void setStart(int start) {
+<span class="nc" id="L112">        this.start = start;</span>
+<span class="nc" id="L113">    }</span>
+
+    public int getEnd() {
+<span class="nc" id="L116">        return end;</span>
+    }
+
+    public void setEnd(int end) {
+<span class="nc" id="L120">        this.end = end;</span>
+<span class="nc" id="L121">    }</span>
+
+    public String getStrand() {
+<span class="nc" id="L124">        return strand;</span>
+    }
+
+    public void setStrand(String strand) {
+<span class="nc" id="L128">        this.strand = strand;</span>
+<span class="nc" id="L129">    }</span>
+
+    public String getProtein() {
+<span class="nc" id="L132">        return protein;</span>
+    }
+
+    public void setProtein(String protein) {
+<span class="nc" id="L136">        this.protein = protein;</span>
+<span class="nc" id="L137">    }</span>
+
+    public int getProteinStart() {
+<span class="nc" id="L140">        return proteinStart;</span>
+    }
+
+    public void setProteinStart(int proteinStart) {
+<span class="nc" id="L144">        this.proteinStart = proteinStart;</span>
+<span class="nc" id="L145">    }</span>
+
+    public int getProteinEnd() {
+<span class="nc" id="L148">        return proteinEnd;</span>
+    }
+
+    public void setProteinEnd(int proteinEnd) {
+<span class="nc" id="L152">        this.proteinEnd = proteinEnd;</span>
+<span class="nc" id="L153">    }</span>
+
+    public String getGene() {
+<span class="nc" id="L156">        return gene;</span>
+    }
+
+    public void setGene(String gene) {
+<span class="nc" id="L160">        this.gene = gene;</span>
+<span class="nc" id="L161">    }</span>
+
+    public String getTranscriptId() {
+<span class="nc" id="L164">        return transcriptId;</span>
+    }
+
+    public void setTranscriptId(String transcriptId) {
+<span class="nc" id="L168">        this.transcriptId = transcriptId;</span>
+<span class="nc" id="L169">    }</span>
+
+    public String getHgncId() {
+<span class="nc" id="L172">        return hgncId;</span>
+    }
+
+    public void setHgncId(String hgncId) {
+<span class="nc" id="L176">        this.hgncId = hgncId;</span>
+<span class="nc" id="L177">    }</span>
+
+    public String getSampleName() {
+<span class="nc" id="L180">        return sampleName;</span>
+    }
+
+    public void setSampleName(String sampleName) {
+<span class="nc" id="L184">        this.sampleName = sampleName;</span>
+<span class="nc" id="L185">    }</span>
+
+    public String getSampleId() {
+<span class="nc" id="L188">        return sampleId;</span>
+    }
+
+    public void setSampleId(String sampleId) {
+<span class="nc" id="L192">        this.sampleId = sampleId;</span>
+<span class="nc" id="L193">    }</span>
+
+    public String getTumourId() {
+<span class="nc" id="L196">        return tumourId;</span>
+    }
+
+    public void setTumourId(String tumourId) {
+<span class="nc" id="L200">        this.tumourId = tumourId;</span>
+<span class="nc" id="L201">    }</span>
+
+    public String getPrimarySite() {
+<span class="nc" id="L204">        return primarySite;</span>
+    }
+
+    public void setPrimarySite(String primarySite) {
+<span class="nc" id="L208">        this.primarySite = primarySite;</span>
+<span class="nc" id="L209">    }</span>
+
+    public String getSiteSubtype() {
+<span class="nc" id="L212">        return siteSubtype;</span>
+    }
+
+    public void setSiteSubtype(String siteSubtype) {
+<span class="nc" id="L216">        this.siteSubtype = siteSubtype;</span>
+<span class="nc" id="L217">    }</span>
+
+    public String getPrimaryHistology() {
+<span class="nc" id="L220">        return primaryHistology;</span>
+    }
+
+    public void setPrimaryHistology(String primaryHistology) {
+<span class="nc" id="L224">        this.primaryHistology = primaryHistology;</span>
+<span class="nc" id="L225">    }</span>
+
+    public String getHistologySubtype() {
+<span class="nc" id="L228">        return histologySubtype;</span>
+    }
+
+    public void setHistologySubtype(String histologySubtype) {
+<span class="nc" id="L232">        this.histologySubtype = histologySubtype;</span>
+<span class="nc" id="L233">    }</span>
+
+    public String getGenomeWideScreen() {
+<span class="nc" id="L236">        return genomeWideScreen;</span>
+    }
+
+    public void setGenomeWideScreen(String genomeWideScreen) {
+<span class="nc" id="L240">        this.genomeWideScreen = genomeWideScreen;</span>
+<span class="nc" id="L241">    }</span>
+
+    public String getId() {
+<span class="nc" id="L244">        return id;</span>
+    }
+
+    public void setId(String id) {
+<span class="nc" id="L248">        this.id = id;</span>
+<span class="nc" id="L249">    }</span>
+
+    public String getMutationCDS() {
+<span class="nc" id="L252">        return mutationCDS;</span>
+    }
+
+    public void setMutationCDS(String mutationCDS) {
+<span class="nc" id="L256">        this.mutationCDS = mutationCDS;</span>
+<span class="nc" id="L257">    }</span>
+
+    public String getMutationAA() {
+<span class="nc" id="L260">        return mutationAA;</span>
+    }
+
+    public void setMutationAA(String mutationAA) {
+<span class="nc" id="L264">        this.mutationAA = mutationAA;</span>
+<span class="nc" id="L265">    }</span>
+
+    public String getMutationZygosity() {
+<span class="nc" id="L268">        return mutationZygosity;</span>
+    }
+
+    public void setMutationZygosity(String mutationZygosity) {
+<span class="nc" id="L272">        this.mutationZygosity = mutationZygosity;</span>
+<span class="nc" id="L273">    }</span>
+
+
+    public String getStatus() {
+<span class="nc" id="L277">        return status;</span>
+    }
+
+    public void setStatus(String status) {
+<span class="nc" id="L281">        this.status = status;</span>
+<span class="nc" id="L282">    }</span>
+
+
+    public String getPubmed() {
+<span class="nc" id="L286">        return pubmed;</span>
+    }
+
+    public void setPubmed(String pubmed) {
+<span class="nc" id="L290">        this.pubmed = pubmed;</span>
+<span class="nc" id="L291">    }</span>
+
+
+    public String getSampleSource() {
+<span class="nc" id="L295">        return sampleSource;</span>
+    }
+
+    public void setSampleSource(String sampleSource) {
+<span class="nc" id="L299">        this.sampleSource = sampleSource;</span>
+<span class="nc" id="L300">    }</span>
+
+
+    public String getTumourOrigin() {
+<span class="nc" id="L304">        return tumourOrigin;</span>
+    }
+
+    public void setTumourOrigin(String tumourOrigin) {
+<span class="nc" id="L308">        this.tumourOrigin = tumourOrigin;</span>
+<span class="nc" id="L309">    }</span>
+
+
+    public String getDescription() {
+<span class="nc" id="L313">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L317">        this.description = description;</span>
+<span class="nc" id="L318">    }</span>
+
+    public String getSource() {
+<span class="nc" id="L321">        return source;</span>
+    }
+
+    public void setSource(String source) {
+<span class="nc" id="L325">        this.source = source;</span>
+<span class="nc" id="L326">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

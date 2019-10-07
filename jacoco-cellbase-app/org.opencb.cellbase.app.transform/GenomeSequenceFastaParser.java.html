@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenomeSequenceFastaParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">GenomeSequenceFastaParser.java</span></div><h1>GenomeSequenceFastaParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.models.core.GenomeSequenceChunk;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Path;
+
+public class GenomeSequenceFastaParser extends CellBaseParser {
+
+    private Path genomeReferenceFastaFile;
+
+    private static final int CHUNK_SIZE = 2000;
+
+    public GenomeSequenceFastaParser(Path genomeReferenceFastaFile, CellBaseSerializer serializer) {
+<span class="nc" id="L34">        super(serializer);</span>
+<span class="nc" id="L35">        this.genomeReferenceFastaFile = genomeReferenceFastaFile;</span>
+<span class="nc" id="L36">    }</span>
+
+    @Override
+    public void parse() {
+
+        try {
+<span class="nc" id="L42">            String sequenceName = null;</span>
+<span class="nc" id="L43">            String sequenceType = &quot;&quot;;</span>
+<span class="nc" id="L44">            String sequenceAssembly = null;</span>
+            String line;
+<span class="nc" id="L46">            StringBuilder sequenceStringBuilder = new StringBuilder();</span>
+
+            // Preparing input and output files
+            BufferedReader br;
+<span class="nc" id="L50">            br = FileUtils.newBufferedReader(genomeReferenceFastaFile);</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            while ((line = br.readLine()) != null) {</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                if (!line.startsWith(&quot;&gt;&quot;)) {</span>
+<span class="nc" id="L55">                    sequenceStringBuilder.append(line);</span>
+                } else {
+                    // new chromosome, save data
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                    if (sequenceStringBuilder.length() &gt; 0) {</span>
+<span class="nc bnc" id="L59" title="All 6 branches missed.">                        if (!sequenceName.contains(&quot;PATCH&quot;) &amp;&amp; !sequenceName.contains(&quot;HSCHR&quot;) &amp;&amp; !sequenceName.contains(&quot;contig&quot;)) {</span>
+<span class="nc" id="L60">                            System.out.println(sequenceName);</span>
+<span class="nc" id="L61">                            serializeGenomeSequence(sequenceName, sequenceType, sequenceAssembly, sequenceStringBuilder.toString());</span>
+                        }
+                    }
+
+                    // initialize data structures
+<span class="nc" id="L66">                    String[] lineParts = line.replace(&quot;&gt;&quot;, &quot;&quot;).split(&quot; &quot;);</span>
+<span class="nc" id="L67">                    sequenceName = lineParts[0];</span>
+                    // Non ENSEMBL fasta files may not contain this extra info in the sequence header, e.g. the Ebola
+                    // virus file: &gt;KM034562v1
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                    if (lineParts.length &gt; 1) {</span>
+<span class="nc" id="L71">                        sequenceType = lineParts[2].split(&quot;:&quot;)[0];</span>
+<span class="nc" id="L72">                        sequenceAssembly = lineParts[2].split(&quot;:&quot;)[1];</span>
+                    }
+<span class="nc" id="L74">                    sequenceStringBuilder.delete(0, sequenceStringBuilder.length());</span>
+<span class="nc" id="L75">                }</span>
+            }
+            // Last chromosome must be processed
+<span class="nc bnc" id="L78" title="All 6 branches missed.">            if (!sequenceName.contains(&quot;PATCH&quot;) &amp;&amp; !sequenceName.contains(&quot;HSCHR&quot;) &amp;&amp; !sequenceName.contains(&quot;contig&quot;)) {</span>
+<span class="nc" id="L79">                serializeGenomeSequence(sequenceName, sequenceType, sequenceAssembly, sequenceStringBuilder.toString());</span>
+            }
+
+<span class="nc" id="L82">            br.close();</span>
+<span class="nc" id="L83">        } catch (IOException e) {</span>
+<span class="nc" id="L84">            e.printStackTrace();</span>
+<span class="nc" id="L85">        }</span>
+<span class="nc" id="L86">    }</span>
+
+    private void serializeGenomeSequence(String chromosome, String sequenceType, String sequenceAssembly, String sequence)
+            throws IOException {
+<span class="nc" id="L90">        int chunk = 0;</span>
+<span class="nc" id="L91">        int start = 1;</span>
+<span class="nc" id="L92">        int end = CHUNK_SIZE - 1;</span>
+        String chunkSequence;
+
+<span class="nc" id="L95">        String chunkIdSuffix = CHUNK_SIZE / 1000 + &quot;k&quot;;</span>
+        GenomeSequenceChunk genomeSequenceChunk;
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (sequence.length() &lt; CHUNK_SIZE) { //chromosome sequence length can be less than CHUNK_SIZE</span>
+<span class="nc" id="L99">            chunkSequence = sequence;</span>
+<span class="nc" id="L100">            genomeSequenceChunk = new GenomeSequenceChunk(chromosome, chromosome + &quot;_&quot; + 0 + &quot;_&quot; + chunkIdSuffix, start,</span>
+<span class="nc" id="L101">                    sequence.length() - 1, sequenceType, sequenceAssembly, chunkSequence);</span>
+<span class="nc" id="L102">            serializer.serialize(genomeSequenceChunk);</span>
+<span class="nc" id="L103">            start += CHUNK_SIZE - 1;</span>
+        } else {
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            while (start &lt; sequence.length()) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                if (chunk % 10000 == 0) {</span>
+<span class="nc" id="L107">                    System.out.println(&quot;Chr:&quot; + chromosome + &quot; chunkId:&quot; + chunk);</span>
+                }
+                // First chunk of the chromosome
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                if (start == 1) {</span>
+                    // First chunk contains CHUNK_SIZE-1 nucleotides as index start at position 1 but must end at 1999
+<span class="nc" id="L112">                    chunkSequence = sequence.substring(start - 1, CHUNK_SIZE - 1);</span>
+<span class="nc" id="L113">                    genomeSequenceChunk = new GenomeSequenceChunk(chromosome, chromosome + &quot;_&quot; + chunk + &quot;_&quot; + chunkIdSuffix, start,</span>
+                            end, sequenceType, sequenceAssembly, chunkSequence);
+<span class="nc" id="L115">                    serializer.serialize(genomeSequenceChunk);</span>
+<span class="nc" id="L116">                    start += CHUNK_SIZE - 1;</span>
+
+                } else {
+                    // Regular chunk
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                    if ((start + CHUNK_SIZE) &lt; sequence.length()) {</span>
+<span class="nc" id="L121">                        chunkSequence = sequence.substring(start - 1, start + CHUNK_SIZE - 1);</span>
+<span class="nc" id="L122">                        genomeSequenceChunk = new GenomeSequenceChunk(chromosome, chromosome + &quot;_&quot; + chunk + &quot;_&quot; + chunkIdSuffix, start,</span>
+                                end, sequenceType, sequenceAssembly, chunkSequence);
+<span class="nc" id="L124">                        serializer.serialize(genomeSequenceChunk);</span>
+<span class="nc" id="L125">                        start += CHUNK_SIZE;</span>
+                    } else {
+                        // Last chunk of the chromosome
+<span class="nc" id="L128">                        chunkSequence = sequence.substring(start - 1, sequence.length());</span>
+<span class="nc" id="L129">                        genomeSequenceChunk = new GenomeSequenceChunk(chromosome, chromosome + &quot;_&quot; + chunk + &quot;_&quot; + chunkIdSuffix, start,</span>
+<span class="nc" id="L130">                                sequence.length(), sequenceType, sequenceAssembly, chunkSequence);</span>
+<span class="nc" id="L131">                        serializer.serialize(genomeSequenceChunk);</span>
+<span class="nc" id="L132">                        start = sequence.length();</span>
+                    }
+                }
+<span class="nc" id="L135">                end = start + CHUNK_SIZE - 1;</span>
+<span class="nc" id="L136">                chunk++;</span>
+            }
+        }
+<span class="nc" id="L139">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

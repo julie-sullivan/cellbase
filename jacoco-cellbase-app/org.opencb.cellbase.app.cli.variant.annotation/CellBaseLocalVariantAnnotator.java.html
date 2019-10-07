@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CellBaseLocalVariantAnnotator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">CellBaseLocalVariantAnnotator.java</span></div><h1>CellBaseLocalVariantAnnotator.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.app.cli.variant.annotation;
+
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.VariantAnnotation;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotationCalculator;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+
+/**
+ * Created by fjlopez on 22/09/15.
+ */
+public class CellBaseLocalVariantAnnotator implements VariantAnnotator {
+
+    private VariantAnnotationCalculator variantAnnotationCalculator;
+    private QueryOptions queryOptions;
+
+    private Logger logger;
+
+<span class="fc" id="L25">    public CellBaseLocalVariantAnnotator(VariantAnnotationCalculator variantAnnotationCalculator, QueryOptions queryOptions) {</span>
+<span class="fc" id="L26">        this.variantAnnotationCalculator = variantAnnotationCalculator;</span>
+<span class="fc" id="L27">        this.queryOptions = queryOptions;</span>
+<span class="fc" id="L28">        logger = LoggerFactory.getLogger(this.getClass());</span>
+<span class="fc" id="L29">    }</span>
+
+
+    public boolean open() {
+<span class="fc" id="L33">        return true;</span>
+    }
+
+    public void run(List&lt;Variant&gt; variantList) throws InterruptedException, ExecutionException {
+<span class="fc" id="L37">        logger.debug(&quot;Annotator sends {} new variants for annotation. Waiting for the result&quot;, variantList.size());</span>
+
+        // getAnnotationByVariantList will not create new Variant objects but modify the ones passed as parameters - no
+        // need to go through the queryResultList afterwards
+<span class="fc" id="L41">        List&lt;QueryResult&lt;VariantAnnotation&gt;&gt; queryResultList =</span>
+<span class="fc" id="L42">                variantAnnotationCalculator.getAnnotationByVariantList(variantList, queryOptions);</span>
+
+<span class="fc" id="L44">    }</span>
+
+    public boolean close() {
+<span class="fc" id="L47">        return false;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

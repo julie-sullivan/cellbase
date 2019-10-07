@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QueryGrpcCommandExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">QueryGrpcCommandExecutor.java</span></div><h1>QueryGrpcCommandExecutor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel;
+import org.opencb.biodata.models.core.protobuf.GeneModel;
+import org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel;
+import org.opencb.biodata.models.core.protobuf.TranscriptModel;
+import org.opencb.biodata.models.variant.protobuf.VariantAnnotationProto;
+import org.opencb.biodata.models.variant.protobuf.VariantProto;
+import org.opencb.cellbase.core.grpc.service.*;
+
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Created by imedina on 17/12/15.
+ */
+public class QueryGrpcCommandExecutor extends CommandExecutor {
+
+    private CliOptionsParser.QueryGrpcCommandOptions queryGrpcCommandOptions;
+
+    private ManagedChannel channel;
+    private Path outputFile;
+
+    public QueryGrpcCommandExecutor(CliOptionsParser.QueryGrpcCommandOptions queryGrpcCommandOptions) {
+<span class="nc" id="L51">        super(queryGrpcCommandOptions.commonOptions.logLevel, queryGrpcCommandOptions.commonOptions.verbose,</span>
+                queryGrpcCommandOptions.commonOptions.conf);
+
+<span class="nc" id="L54">        this.queryGrpcCommandOptions = queryGrpcCommandOptions;</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public void execute() {
+
+<span class="nc" id="L60">        channel = ManagedChannelBuilder.forAddress(queryGrpcCommandOptions.host, queryGrpcCommandOptions.port)</span>
+<span class="nc" id="L61">                .usePlaintext(true)</span>
+<span class="nc" id="L62">                .build();</span>
+
+<span class="nc" id="L64">        Map&lt;String, String&gt; query = createQueryMap();</span>
+<span class="nc" id="L65">        Map&lt;String, String&gt; queryOptions = createQueryOptionsMap();</span>
+
+<span class="nc" id="L67">        PrintStream output = System.out;</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        if (queryGrpcCommandOptions.output != null &amp;&amp; !queryGrpcCommandOptions.output.isEmpty()) {</span>
+<span class="nc" id="L69">            outputFile = Paths.get(queryGrpcCommandOptions.output);</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">            if (Files.exists(outputFile.getParent()) &amp;&amp; Files.isDirectory(outputFile.getParent())) {</span>
+                try {
+<span class="nc" id="L72">                    output = new PrintStream(outputFile.toString());</span>
+<span class="nc" id="L73">                } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L74">                    e.printStackTrace();</span>
+<span class="nc" id="L75">                }</span>
+            }
+        }
+
+<span class="nc" id="L79">        GenericServiceModel.Request request = GenericServiceModel.Request.newBuilder()</span>
+<span class="nc" id="L80">                .setSpecies(queryGrpcCommandOptions.species)</span>
+<span class="nc" id="L81">                .setAssembly(queryGrpcCommandOptions.assembly)</span>
+<span class="nc" id="L82">                .putAllQuery(query)</span>
+<span class="nc" id="L83">                .putAllOptions(queryOptions)</span>
+<span class="nc" id="L84">                .build();</span>
+
+
+        try {
+<span class="nc bnc" id="L88" title="All 26 branches missed.">            switch (queryGrpcCommandOptions.category) {</span>
+//                case &quot;genome&quot;:
+//                    executeGenomeQuery(query, queryOptions, output);
+//                    break;
+                case &quot;gene&quot;:
+<span class="nc" id="L93">                    executeGeneQuery(request, output);</span>
+<span class="nc" id="L94">                    break;</span>
+                case &quot;variation&quot;:
+<span class="nc" id="L96">                    executeVariantQuery(request, output);</span>
+<span class="nc" id="L97">                    break;</span>
+//                case &quot;protein&quot;:
+//                    executeProteinQuery(query, queryOptions, output);
+//                    break;
+                case &quot;regulatory_region&quot;:
+<span class="nc" id="L102">                    executeRegulatoryRegionQuery(request, output);</span>
+<span class="nc" id="L103">                    break;</span>
+                case &quot;transcript&quot;:
+<span class="nc" id="L105">                    executeTranscriptQuery(request, output);</span>
+<span class="nc" id="L106">                    break;</span>
+                case &quot;variant_annotation&quot;:
+<span class="nc" id="L108">                    executeVariantAnnotationQuery(request, output);</span>
+<span class="nc" id="L109">                    break;</span>
+                case &quot;genomic_region&quot;:
+<span class="nc" id="L111">                    executeGenomicRegionQuery(request, output);</span>
+<span class="nc" id="L112">                    break;</span>
+//                case &quot;conservation&quot;:
+//                    break;
+                default:
+                    break;
+            }
+
+<span class="nc" id="L119">            channel.shutdown().awaitTermination(2, TimeUnit.SECONDS);</span>
+<span class="nc" id="L120">        } catch (JsonProcessingException | InterruptedException e) {</span>
+<span class="nc" id="L121">            e.printStackTrace();</span>
+<span class="nc" id="L122">        }</span>
+
+<span class="nc" id="L124">        output.close();</span>
+<span class="nc" id="L125">    }</span>
+
+    private void executeGeneQuery(GenericServiceModel.Request request, PrintStream output)
+            throws JsonProcessingException {
+<span class="nc" id="L129">        GeneServiceGrpc.GeneServiceBlockingStub geneServiceBlockingStub = GeneServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L132" title="All 22 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L134">                    Iterator&lt;GeneModel.Gene&gt; geneIterator = geneServiceBlockingStub.get(request);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                    while (geneIterator.hasNext()) {</span>
+<span class="nc" id="L136">                        GeneModel.Gene next = geneIterator.next();</span>
+<span class="nc" id="L137">                        output.println(next.toString());</span>
+<span class="nc" id="L138">                    }</span>
+                    break;
+                case &quot;transcript&quot;:
+<span class="nc" id="L141">                    Iterator&lt;TranscriptModel.Transcript&gt; transcriptIterator = geneServiceBlockingStub.getTranscripts(request);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    while (transcriptIterator.hasNext()) {</span>
+<span class="nc" id="L143">                        TranscriptModel.Transcript next = transcriptIterator.next();</span>
+<span class="nc" id="L144">                        output.println(next.toString());</span>
+<span class="nc" id="L145">                    }</span>
+                    break;
+                case &quot;regulatory&quot;:
+<span class="nc" id="L148">                    Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; regulationIterator =</span>
+<span class="nc" id="L149">                            geneServiceBlockingStub.getRegulatoryRegions(request);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                    while (regulationIterator.hasNext()) {</span>
+<span class="nc" id="L151">                        RegulatoryRegionModel.RegulatoryRegion next = regulationIterator.next();</span>
+<span class="nc" id="L152">                        output.println(next.toString());</span>
+<span class="nc" id="L153">                    }</span>
+                    break;
+                case &quot;tfbs&quot;:
+<span class="nc" id="L156">                    Iterator&lt;TranscriptModel.TranscriptTfbs&gt; tfbsIterator = geneServiceBlockingStub.getTranscriptTfbs(request);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    while (tfbsIterator.hasNext()) {</span>
+<span class="nc" id="L158">                        TranscriptModel.TranscriptTfbs next = tfbsIterator.next();</span>
+<span class="nc" id="L159">                        output.println(next.toString());</span>
+<span class="nc" id="L160">                    }</span>
+                    break;
+                case &quot;first&quot;:
+<span class="nc" id="L163">                    GeneModel.Gene first = geneServiceBlockingStub.first(request);</span>
+<span class="nc" id="L164">                    output.println(first.toString());</span>
+<span class="nc" id="L165">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (queryGrpcCommandOptions.count) {</span>
+<span class="nc" id="L171">            ServiceTypesModel.LongResponse value = geneServiceBlockingStub.count(request);</span>
+<span class="nc" id="L172">            output.println(value);</span>
+        }
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if (queryGrpcCommandOptions.distinct != null) {</span>
+<span class="nc" id="L175">            ServiceTypesModel.StringArrayResponse values = geneServiceBlockingStub.distinct(request);</span>
+<span class="nc" id="L176">            output.println(values);</span>
+        }
+<span class="nc" id="L178">    }</span>
+
+    private void executeTranscriptQuery(GenericServiceModel.Request request, PrintStream output)
+            throws JsonProcessingException {
+<span class="nc" id="L182">        TranscriptServiceGrpc.TranscriptServiceBlockingStub transcriptServiceBlockingStub = TranscriptServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L185" title="All 14 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L187">                    Iterator&lt;TranscriptModel.Transcript&gt; transcriptIterator = transcriptServiceBlockingStub.get(request);</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                    while (transcriptIterator.hasNext()) {</span>
+<span class="nc" id="L189">                        TranscriptModel.Transcript next = transcriptIterator.next();</span>
+<span class="nc" id="L190">                        output.println(next.toString());</span>
+<span class="nc" id="L191">                    }</span>
+                    break;
+                case &quot;first&quot;:
+<span class="nc" id="L194">                    TranscriptModel.Transcript first = transcriptServiceBlockingStub.first(request);</span>
+<span class="nc" id="L195">                    output.println(first.toString());</span>
+<span class="nc" id="L196">                    break;</span>
+                case &quot;sequence&quot;:
+<span class="nc" id="L198">                    ServiceTypesModel.StringResponse stringResponse = transcriptServiceBlockingStub.getCdna(request);</span>
+<span class="nc" id="L199">                    output.println(stringResponse);</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (queryGrpcCommandOptions.count) {</span>
+<span class="nc" id="L205">            ServiceTypesModel.LongResponse value = transcriptServiceBlockingStub.count(request);</span>
+<span class="nc" id="L206">            output.println(value);</span>
+        }
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (queryGrpcCommandOptions.distinct != null) {</span>
+<span class="nc" id="L209">            ServiceTypesModel.StringArrayResponse values = transcriptServiceBlockingStub.distinct(request);</span>
+<span class="nc" id="L210">            output.println(values);</span>
+        }
+<span class="nc" id="L212">    }</span>
+
+    private void executeVariantQuery(GenericServiceModel.Request request, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L215">        VariantServiceGrpc.VariantServiceBlockingStub variantServiceBlockingStub = VariantServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L218" title="All 10 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L220">                    Iterator&lt;VariantProto.Variant&gt; variantIterator = variantServiceBlockingStub.get(request);</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                    while (variantIterator.hasNext()) {</span>
+<span class="nc" id="L222">                        VariantProto.Variant next = variantIterator.next();</span>
+<span class="nc" id="L223">                        output.println(next.toString());</span>
+<span class="nc" id="L224">                    }</span>
+                    break;
+                case &quot;first&quot;:
+<span class="nc" id="L227">                    VariantProto.Variant first = variantServiceBlockingStub.first(request);</span>
+<span class="nc" id="L228">                    output.println(first.toString());</span>
+<span class="nc" id="L229">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        if (queryGrpcCommandOptions.count) {</span>
+<span class="nc" id="L235">            ServiceTypesModel.LongResponse value = variantServiceBlockingStub.count(request);</span>
+<span class="nc" id="L236">            output.println(value);</span>
+        }
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        if (queryGrpcCommandOptions.distinct != null) {</span>
+<span class="nc" id="L239">            ServiceTypesModel.StringArrayResponse values = variantServiceBlockingStub.distinct(request);</span>
+<span class="nc" id="L240">            output.println(values);</span>
+        }
+<span class="nc" id="L242">    }</span>
+
+    private void executeVariantAnnotationQuery(GenericServiceModel.Request request, PrintStream output) throws JsonProcessingException {
+<span class="nc" id="L245">        VariantAnnotationServiceGrpc.VariantAnnotationServiceBlockingStub variantAnnotationServiceBlockingStub =</span>
+<span class="nc" id="L246">                VariantAnnotationServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L249" title="All 10 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;annotate&quot;:
+<span class="nc" id="L251">                    Iterator&lt;VariantAnnotationProto.VariantAnnotation&gt; variantAnnotationIterator =</span>
+<span class="nc" id="L252">                            variantAnnotationServiceBlockingStub.get(request);</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">                    while (variantAnnotationIterator.hasNext()) {</span>
+<span class="nc" id="L254">                        VariantAnnotationProto.VariantAnnotation next = variantAnnotationIterator.next();</span>
+<span class="nc" id="L255">                        output.println(next.toString());</span>
+<span class="nc" id="L256">                    }</span>
+                    break;
+                case &quot;score&quot;:
+<span class="nc" id="L259">                    Iterator&lt;VariantAnnotationProto.Score&gt; scoreIterator = variantAnnotationServiceBlockingStub.getCadd(request);</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                    while (scoreIterator.hasNext()) {</span>
+<span class="nc" id="L261">                        VariantAnnotationProto.Score score = scoreIterator.next();</span>
+<span class="nc" id="L262">                        output.println(score.toString());</span>
+<span class="nc" id="L263">                    }</span>
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L269">    }</span>
+
+    private void executeRegulatoryRegionQuery(GenericServiceModel.Request request, PrintStream output)
+            throws JsonProcessingException {
+<span class="nc" id="L273">        RegulatoryRegionServiceGrpc.RegulatoryRegionServiceBlockingStub regulatoryServiceBlockingStub =</span>
+<span class="nc" id="L274">                RegulatoryRegionServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L276" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L277" title="All 10 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;info&quot;:
+<span class="nc" id="L279">                    Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; regulatoryIterator = regulatoryServiceBlockingStub.get(request);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">                    while (regulatoryIterator.hasNext()) {</span>
+<span class="nc" id="L281">                        RegulatoryRegionModel.RegulatoryRegion next = regulatoryIterator.next();</span>
+<span class="nc" id="L282">                        output.println(next.toString());</span>
+<span class="nc" id="L283">                    }</span>
+                    break;
+                case &quot;first&quot;:
+<span class="nc" id="L286">                    RegulatoryRegionModel.RegulatoryRegion first = regulatoryServiceBlockingStub.first(request);</span>
+<span class="nc" id="L287">                    output.println(first.toString());</span>
+<span class="nc" id="L288">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if (queryGrpcCommandOptions.count) {</span>
+<span class="nc" id="L294">            ServiceTypesModel.LongResponse value = regulatoryServiceBlockingStub.count(request);</span>
+<span class="nc" id="L295">            output.println(value);</span>
+        }
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (queryGrpcCommandOptions.distinct != null) {</span>
+<span class="nc" id="L298">            ServiceTypesModel.StringArrayResponse values = regulatoryServiceBlockingStub.distinct(request);</span>
+<span class="nc" id="L299">            output.println(values);</span>
+        }
+<span class="nc" id="L301">    }</span>
+
+    private void executeGenomicRegionQuery(GenericServiceModel.Request request, PrintStream output)
+            throws JsonProcessingException {
+<span class="nc" id="L305">        GenomicRegionServiceGrpc.GenomicRegionServiceBlockingStub genomicRegionServiceBlockingStub =</span>
+<span class="nc" id="L306">                GenomicRegionServiceGrpc.newBlockingStub(channel);</span>
+
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (queryGrpcCommandOptions.resource != null) {</span>
+<span class="nc bnc" id="L309" title="All 26 branches missed.">            switch (queryGrpcCommandOptions.resource) {</span>
+                case &quot;gene&quot;:
+<span class="nc" id="L311">                    Iterator&lt;GeneModel.Gene&gt; geneIterator = genomicRegionServiceBlockingStub.getGene(request);</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                    while (geneIterator.hasNext()) {</span>
+<span class="nc" id="L313">                        GeneModel.Gene gene = geneIterator.next();</span>
+<span class="nc" id="L314">                        output.println(gene);</span>
+<span class="nc" id="L315">                    }</span>
+                    break;
+                case &quot;transcript&quot;:
+<span class="nc" id="L318">                    Iterator&lt;TranscriptModel.Transcript&gt; transcriptIterator = genomicRegionServiceBlockingStub.getTranscript(request);</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                    while (transcriptIterator.hasNext()) {</span>
+<span class="nc" id="L320">                        TranscriptModel.Transcript next = transcriptIterator.next();</span>
+<span class="nc" id="L321">                        output.println(next);</span>
+<span class="nc" id="L322">                    }</span>
+                    break;
+                case &quot;sequence&quot;:
+<span class="nc" id="L325">                    ServiceTypesModel.StringResponse sequence = genomicRegionServiceBlockingStub.getSequence(request);</span>
+<span class="nc" id="L326">                    output.println(sequence);</span>
+<span class="nc" id="L327">                    break;</span>
+                case &quot;regulatory&quot;:
+<span class="nc" id="L329">                    Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; iterator =</span>
+<span class="nc" id="L330">                            genomicRegionServiceBlockingStub.getRegulatoryRegion(request);</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L332">                        RegulatoryRegionModel.RegulatoryRegion next = iterator.next();</span>
+<span class="nc" id="L333">                        output.println(next);</span>
+<span class="nc" id="L334">                    }</span>
+                    break;
+                case &quot;tfbs&quot;:
+<span class="nc" id="L337">                    Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; tfbsIterator =</span>
+<span class="nc" id="L338">                            genomicRegionServiceBlockingStub.getTfbs(request);</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">                    while (tfbsIterator.hasNext()) {</span>
+<span class="nc" id="L340">                        RegulatoryRegionModel.RegulatoryRegion next = tfbsIterator.next();</span>
+<span class="nc" id="L341">                        output.println(next);</span>
+<span class="nc" id="L342">                    }</span>
+                    break;
+                case &quot;variation&quot;:
+<span class="nc" id="L345">                    Iterator&lt;VariantProto.Variant&gt; variantIterator = genomicRegionServiceBlockingStub.getVariation(request);</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">                    while (variantIterator.hasNext()) {</span>
+<span class="nc" id="L347">                        VariantProto.Variant next = variantIterator.next();</span>
+<span class="nc" id="L348">                        output.println(next.toString());</span>
+<span class="nc" id="L349">                    }</span>
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L355">    }</span>
+
+    private Map&lt;String, String&gt; createQueryMap() {
+<span class="nc" id="L358">        Map&lt;String, String&gt; query = new HashMap&lt;&gt;();</span>
+
+        // we first append region CLI parameter, if specified in 'options' it will be overwritten
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        if (queryGrpcCommandOptions.region != null) {</span>
+<span class="nc" id="L362">            query.put(&quot;region&quot;, queryGrpcCommandOptions.region);</span>
+        }
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        if (queryGrpcCommandOptions.id != null) {</span>
+<span class="nc" id="L365">            query.put(&quot;id&quot;, queryGrpcCommandOptions.id);</span>
+        }
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        for (String key : queryGrpcCommandOptions.options.keySet()) {</span>
+<span class="nc" id="L369">            query.put(key, queryGrpcCommandOptions.options.get(key));</span>
+<span class="nc" id="L370">        }</span>
+<span class="nc" id="L371">        return query;</span>
+    }
+
+    private Map&lt;String, String&gt; createQueryOptionsMap() {
+<span class="nc" id="L375">        Map&lt;String, String&gt; queryOptions = new HashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L377" title="All 4 branches missed.">        if (queryGrpcCommandOptions.include != null &amp;&amp; !queryGrpcCommandOptions.include.isEmpty()) {</span>
+<span class="nc" id="L378">            queryOptions.put(&quot;include&quot;, queryGrpcCommandOptions.include);</span>
+        }
+<span class="nc bnc" id="L380" title="All 4 branches missed.">        if (queryGrpcCommandOptions.exclude != null &amp;&amp; !queryGrpcCommandOptions.exclude.isEmpty()) {</span>
+<span class="nc" id="L381">            queryOptions.put(&quot;exclude&quot;, queryGrpcCommandOptions.exclude + &quot;,_id,_chunkIds&quot;);</span>
+        } else {
+<span class="nc" id="L383">            queryOptions.put(&quot;exclude&quot;, &quot;_id,_chunkIds&quot;);</span>
+        }
+<span class="nc bnc" id="L385" title="All 2 branches missed.">        if (queryGrpcCommandOptions.skip != 0) {</span>
+<span class="nc" id="L386">            queryOptions.put(&quot;skip&quot;, String.valueOf(queryGrpcCommandOptions.skip));</span>
+        }
+<span class="nc bnc" id="L388" title="All 2 branches missed.">        if (queryGrpcCommandOptions.limit != 0) {</span>
+<span class="nc" id="L389">            queryOptions.put(&quot;limit&quot;, String.valueOf(queryGrpcCommandOptions.limit));</span>
+        }
+<span class="nc bnc" id="L391" title="All 2 branches missed.">        if (queryGrpcCommandOptions.count) {</span>
+<span class="nc" id="L392">            queryOptions.put(&quot;count&quot;, String.valueOf(queryGrpcCommandOptions.count));</span>
+        }
+<span class="nc bnc" id="L394" title="All 4 branches missed.">        if (queryGrpcCommandOptions.distinct != null &amp;&amp; !queryGrpcCommandOptions.distinct.isEmpty()) {</span>
+<span class="nc" id="L395">            queryOptions.put(&quot;distinct&quot;, queryGrpcCommandOptions.distinct);</span>
+        }
+<span class="nc" id="L397">        return queryOptions;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

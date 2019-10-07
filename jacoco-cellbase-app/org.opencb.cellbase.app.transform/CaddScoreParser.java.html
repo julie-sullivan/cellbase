@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaddScoreParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.transform</a> &gt; <span class="el_source">CaddScoreParser.java</span></div><h1>CaddScoreParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.transform;
+
+import org.opencb.biodata.models.core.GenomicScoreRegion;
+import org.opencb.cellbase.core.serializer.CellBaseSerializer;
+import org.opencb.commons.utils.FileUtils;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Created by imedina on 06/11/15.
+ */
+public class CaddScoreParser extends CellBaseParser {
+
+    private Path caddFilePath;
+
+    private static final int CHUNK_SIZE = 1000;
+    private static final int DECIMAL_RESOLUTION = 100;
+
+    public CaddScoreParser(Path caddFilePath, CellBaseSerializer serializer) {
+<span class="nc" id="L42">        super(serializer);</span>
+<span class="nc" id="L43">        this.caddFilePath = caddFilePath;</span>
+
+<span class="nc" id="L45">        logger = LoggerFactory.getLogger(ConservationParser.class);</span>
+<span class="nc" id="L46">    }</span>
+
+    /* Example:
+        ## CADD v1.3 (c) University of Washington and Hudson-Alpha Institute for Biotechnology 2013-2015. All rights reserved.
+        #Chrom  Pos     Ref     Alt     RawScore        PHRED
+        1       10001   T       A       0.337036        6.046
+        1       10001   T       C       0.143254        4.073
+        1       10001   T       G       0.202491        4.705
+        1       10002   A       C       0.192576        4.601
+        1       10002   A       G       0.178363        4.450
+        1       10002   A       T       0.347401        6.143
+    */
+    @Override
+    public void parse() throws Exception {
+<span class="nc" id="L60">        FileUtils.checkPath(caddFilePath);</span>
+
+<span class="nc" id="L62">        BufferedReader bufferedReader = FileUtils.newBufferedReader(caddFilePath);</span>
+<span class="nc" id="L63">        List&lt;Long&gt; rawValues = new ArrayList&lt;&gt;(CHUNK_SIZE);</span>
+<span class="nc" id="L64">        List&lt;Long&gt; scaledValues = new ArrayList&lt;&gt;(CHUNK_SIZE);</span>
+
+<span class="nc" id="L66">        int start = 1;</span>
+//        int end = 1999;
+<span class="nc" id="L68">        int end = CHUNK_SIZE - 1;</span>
+        String line;
+<span class="nc" id="L70">        String[] fields = new String[0];</span>
+        short v;
+<span class="nc" id="L72">        int lineCount = 0;</span>
+<span class="nc" id="L73">        int counter = 1;</span>
+<span class="nc" id="L74">        int serializedChunks = 0;</span>
+<span class="nc" id="L75">        int previousPosition = 0;</span>
+<span class="nc" id="L76">        int newPosition = 0;</span>
+<span class="nc" id="L77">        String chromosome = null;</span>
+
+<span class="nc" id="L79">        String[] nucleotides = new String[]{&quot;A&quot;, &quot;C&quot;, &quot;G&quot;, &quot;T&quot;};</span>
+<span class="nc" id="L80">        long rawLongValue = 0;</span>
+<span class="nc" id="L81">        long scaledLongValue = 0;</span>
+<span class="nc" id="L82">        Map&lt;String, Float&gt; rawScoreValuesMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L83">        Map&lt;String, Float&gt; scaledScoreValuesMap = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        while ((line = bufferedReader.readLine()) != null) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (!line.startsWith(&quot;#&quot;)) {</span>
+<span class="nc" id="L86">                fields = line.split(&quot;\t&quot;);</span>
+<span class="nc" id="L87">                newPosition = Integer.parseInt(fields[1]);</span>
+//                if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;249240621&quot;)) {
+//                if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;69100&quot;)) {
+//                if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;144854598&quot;)) {
+//                    logger.debug(&quot;line {} reached&quot;, line);
+//                    logger.debug(&quot;Associated chunk count {}&quot;, serializedChunks);
+//                    logger.debug(&quot;start {}&quot;, start);
+//                    logger.debug(&quot;end {}&quot;, end);
+//                    logger.debug(&quot;chunk size {}&quot;, CHUNK_SIZE);
+//                }
+                // this only happens the first time, when we start reading the file
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                if (chromosome == null) {</span>
+<span class="nc" id="L99">                    logger.info(&quot;Parsing chr {} &quot;, fields[0]);</span>
+<span class="nc" id="L100">                    chromosome = fields[0];</span>
+
+<span class="nc" id="L102">                    start = newPosition;</span>
+<span class="nc" id="L103">                    previousPosition = newPosition;</span>
+<span class="nc" id="L104">                    end = start + CHUNK_SIZE - 2;</span>
+                }
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                if (!chromosome.equals(fields[0])) {</span>
+<span class="nc" id="L108">                    logger.info(&quot;Parsing chr {} &quot;, fields[0]);</span>
+                    // both raw and scaled are serialized
+<span class="nc" id="L110">                    GenomicScoreRegion&lt;Long&gt; genomicScoreRegion =</span>
+                            new GenomicScoreRegion&lt;&gt;(chromosome, start, previousPosition, &quot;cadd_raw&quot;, rawValues);
+<span class="nc" id="L112">                    serializer.serialize(genomicScoreRegion);</span>
+
+<span class="nc" id="L114">                    genomicScoreRegion = new GenomicScoreRegion&lt;&gt;(chromosome, start, previousPosition, &quot;cadd_scaled&quot;, scaledValues);</span>
+<span class="nc" id="L115">                    serializer.serialize(genomicScoreRegion);</span>
+
+<span class="nc" id="L117">                    serializedChunks++;</span>
+<span class="nc" id="L118">                    chromosome = fields[0];</span>
+<span class="nc" id="L119">                    start = newPosition;</span>
+//                    end = CHUNK_SIZE - 1;
+<span class="nc" id="L121">                    end = start + CHUNK_SIZE - 2;</span>
+
+<span class="nc" id="L123">                    counter = 0;</span>
+<span class="nc" id="L124">                    rawValues.clear();</span>
+<span class="nc" id="L125">                    scaledValues.clear();</span>
+//                    rawLongValue = 0;
+//                    lineCount = 0;
+//                    rawScoreValuesMap.clear();
+//                    scaledScoreValuesMap.clear();
+                // The series of cadd scores is not continuous through the whole chromosome
+<span class="nc bnc" id="L131" title="All 4 branches missed.">                } else if (end &lt; newPosition || (newPosition - previousPosition) &gt; 1) {</span>
+                    // both raw and scaled are serialized
+<span class="nc" id="L133">                    GenomicScoreRegion genomicScoreRegion</span>
+                            = new GenomicScoreRegion&lt;&gt;(fields[0], start, previousPosition, &quot;cadd_raw&quot;, rawValues);
+<span class="nc" id="L135">                    serializer.serialize(genomicScoreRegion);</span>
+
+<span class="nc" id="L137">                    genomicScoreRegion</span>
+                            = new GenomicScoreRegion&lt;&gt;(fields[0], start, previousPosition, &quot;cadd_scaled&quot;, scaledValues);
+<span class="nc" id="L139">                    serializer.serialize(genomicScoreRegion);</span>
+
+<span class="nc" id="L141">                    serializedChunks++;</span>
+<span class="nc" id="L142">                    start = newPosition;</span>
+//                    start = end + 1;
+//                    end += CHUNK_SIZE;
+<span class="nc" id="L145">                    end = (start / CHUNK_SIZE) * CHUNK_SIZE + CHUNK_SIZE - 1;</span>
+
+<span class="nc" id="L147">                    counter = 0;</span>
+<span class="nc" id="L148">                    rawValues.clear();</span>
+<span class="nc" id="L149">                    scaledValues.clear();</span>
+                }
+
+<span class="nc" id="L152">                rawScoreValuesMap.put(fields[3], Float.valueOf(fields[4]));</span>
+<span class="nc" id="L153">                scaledScoreValuesMap.put(fields[3], Float.valueOf(fields[5]));</span>
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                if (++lineCount == 3) {</span>
+//                    if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;249240621&quot;)) {
+//                    if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;69100&quot;)) {
+//                    if (fields[0].equals(&quot;1&quot;) &amp;&amp; fields[1].equals(&quot;144854598&quot;)) {
+//                        logger.info(&quot;offset: {}&quot;, rawValues.size());
+//                    }
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                    for (String nucleotide : nucleotides) {</span>
+                        // raw CADD score values can be negative, we add 10 to make positive
+<span class="nc" id="L164">                        float a = rawScoreValuesMap.getOrDefault(nucleotide, 10f) + 10.0f;</span>
+<span class="nc" id="L165">                        v = (short) (a * DECIMAL_RESOLUTION);</span>
+<span class="nc" id="L166">                        rawLongValue = (rawLongValue &lt;&lt; 16) | v;</span>
+
+                        // scaled CADD scores are always positive
+<span class="nc" id="L169">                        a = scaledScoreValuesMap.getOrDefault(nucleotide, 0f);</span>
+<span class="nc" id="L170">                        v = (short) (a * DECIMAL_RESOLUTION);</span>
+<span class="nc" id="L171">                        scaledLongValue = (scaledLongValue &lt;&lt; 16) | v;</span>
+                    }
+
+//                    if (rawLongValue &lt; 0 || scaledLongValue &lt; 0) {
+//                        logger.error(&quot;raw/scaled Long Values cannot be 0&quot;);
+//                        logger.error(&quot;Last read line {}&quot;, line);
+//                        System.exit(1);
+//                    }
+<span class="nc" id="L179">                    rawValues.add(rawLongValue);</span>
+<span class="nc" id="L180">                    scaledValues.add(scaledLongValue);</span>
+
+<span class="nc" id="L182">                    counter++;</span>
+<span class="nc" id="L183">                    rawLongValue = 0;</span>
+<span class="nc" id="L184">                    lineCount = 0;</span>
+<span class="nc" id="L185">                    rawScoreValuesMap.clear();</span>
+<span class="nc" id="L186">                    scaledScoreValuesMap.clear();</span>
+                }
+<span class="nc" id="L188">                previousPosition = newPosition;</span>
+            }
+        }
+
+        // Last chunks can be incomplete for both raw and scaled are serialized
+//        GenomicScoreRegion&lt;Long&gt; genomicScoreRegion =
+//                new GenomicScoreRegion&lt;&gt;(fields[0], start, start + rawValues.size() - 1, &quot;cadd_raw&quot;, rawValues);
+<span class="nc" id="L195">        GenomicScoreRegion&lt;Long&gt; genomicScoreRegion =</span>
+                new GenomicScoreRegion&lt;&gt;(fields[0], start, newPosition, &quot;cadd_raw&quot;, rawValues);
+<span class="nc" id="L197">        serializer.serialize(genomicScoreRegion);</span>
+
+//        genomicScoreRegion = new GenomicScoreRegion&lt;&gt;(fields[0], start, start + scaledValues.size() - 1, &quot;cadd_scaled&quot;, scaledValues);
+<span class="nc" id="L200">        genomicScoreRegion = new GenomicScoreRegion&lt;&gt;(fields[0], start, newPosition, &quot;cadd_scaled&quot;, scaledValues);</span>
+<span class="nc" id="L201">        serializer.serialize(genomicScoreRegion);</span>
+
+<span class="nc" id="L203">        serializer.close();</span>
+<span class="nc" id="L204">        bufferedReader.close();</span>
+<span class="nc" id="L205">        logger.info(&quot;Parsing finished.&quot;);</span>
+<span class="nc" id="L206">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

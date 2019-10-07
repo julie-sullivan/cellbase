@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CdnaCoord.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.variant.annotation.hgvs</a> &gt; <span class="el_source">CdnaCoord.java</span></div><h1>CdnaCoord.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.core.variant.annotation.hgvs;
+
+/**
+ * Created by fjlopez on 27/01/17.
+ */
+
+public class CdnaCoord {
+
+<span class="nc" id="L9">    public enum Landmark {</span>
+<span class="nc" id="L10">        CDNA_START_CODON, TRANSCRIPT_START, CDNA_STOP_CODON</span>
+    }
+
+<span class="nc" id="L13">    private int referencePosition = 0;</span>
+<span class="nc" id="L14">    private int offset = 0;</span>
+    private Landmark landmark;
+
+<span class="nc" id="L17">    public CdnaCoord() {</span>
+<span class="nc" id="L18">    }</span>
+
+    public int getReferencePosition() {
+<span class="nc" id="L21">        return referencePosition;</span>
+    }
+
+    public void setReferencePosition(int referencePosition) {
+<span class="nc" id="L25">        this.referencePosition = referencePosition;</span>
+<span class="nc" id="L26">    }</span>
+
+    public int getOffset() {
+<span class="nc" id="L29">        return offset;</span>
+    }
+
+    public void setOffset(int offset) {
+<span class="nc" id="L33">        this.offset = offset;</span>
+<span class="nc" id="L34">    }</span>
+
+    public Landmark getLandmark() {
+<span class="nc" id="L37">        return landmark;</span>
+    }
+
+    public void setLandmark(Landmark landmark) {
+<span class="nc" id="L41">        this.landmark = landmark;</span>
+<span class="nc" id="L42">    }</span>
+
+
+    @Override
+    public String toString() {
+<span class="nc" id="L47">        StringBuilder stringBuilder = new StringBuilder();</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (landmark.equals(Landmark.CDNA_STOP_CODON)) {</span>
+<span class="nc" id="L49">            stringBuilder.append(&quot;*&quot;);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (referencePosition != 0) {</span>
+                // Remove sign
+<span class="nc" id="L52">                stringBuilder.append(Math.abs(referencePosition));</span>
+            }
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        } else if (referencePosition != 0) {</span>
+<span class="nc" id="L55">            stringBuilder.append(referencePosition);</span>
+        }
+
+//        if (referencePosition != 0) {
+//            stringBuilder.append(referencePosition);
+//            if (offset != 0) {
+//                if (offset &gt; 0) {
+//                    stringBuilder.append(&quot;+&quot;);
+//                }
+//                stringBuilder.append(offset);
+//            }
+//        } else if (offset != 0) {
+//            // Remove sign
+//            stringBuilder.append(Math.abs(offset));
+//        }
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (offset &lt; 0) {</span>
+<span class="nc" id="L72">            stringBuilder.append(offset);</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        } else if (offset &gt; 0) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (referencePosition != 0) {</span>
+<span class="nc" id="L75">                stringBuilder.append(&quot;+&quot;);</span>
+            }
+<span class="nc" id="L77">            stringBuilder.append(offset);</span>
+        }
+
+<span class="nc" id="L80">        return stringBuilder.toString();</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (this == o) {</span>
+<span class="nc" id="L86">            return true;</span>
+        }
+<span class="nc bnc" id="L88" title="All 4 branches missed.">        if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L89">            return false;</span>
+        }
+
+<span class="nc" id="L92">        CdnaCoord cdnaCoord = (CdnaCoord) o;</span>
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (referencePosition != cdnaCoord.referencePosition) {</span>
+<span class="nc" id="L95">            return false;</span>
+        }
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (offset != cdnaCoord.offset) {</span>
+<span class="nc" id="L98">            return false;</span>
+        }
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        return landmark == cdnaCoord.landmark;</span>
+
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L106">        int result = referencePosition;</span>
+<span class="nc" id="L107">        result = 31 * result + offset;</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        result = 31 * result + (landmark != null ? landmark.hashCode() : 0);</span>
+<span class="nc" id="L109">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

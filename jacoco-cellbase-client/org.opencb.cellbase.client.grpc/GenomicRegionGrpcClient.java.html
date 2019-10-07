@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenomicRegionGrpcClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.grpc</a> &gt; <span class="el_source">GenomicRegionGrpcClient.java</span></div><h1>GenomicRegionGrpcClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.grpc;
+
+import io.grpc.ManagedChannel;
+import org.opencb.biodata.models.common.protobuf.service.ServiceTypesModel;
+import org.opencb.biodata.models.core.protobuf.GeneModel;
+import org.opencb.biodata.models.core.protobuf.RegulatoryRegionModel;
+import org.opencb.biodata.models.core.protobuf.TranscriptModel;
+import org.opencb.cellbase.core.grpc.service.GenericServiceModel;
+import org.opencb.cellbase.core.grpc.service.GenomicRegionServiceGrpc;
+
+import java.util.Iterator;
+import java.util.Map;
+
+/**
+ * Created by swaathi on 19/08/16.
+ */
+
+public class GenomicRegionGrpcClient extends ParentGrpcClient {
+
+    private GenomicRegionServiceGrpc.GenomicRegionServiceBlockingStub genomicRegionServiceBlockingStub;
+
+    public GenomicRegionGrpcClient(ManagedChannel channel) {
+<span class="nc" id="L23">        super(channel);</span>
+<span class="nc" id="L24">    }</span>
+
+    public Iterator&lt;GeneModel.Gene&gt; getGene(Map&lt;String, String&gt; query, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L27">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L28">        return genomicRegionServiceBlockingStub.getGene(request);</span>
+    }
+
+    public Iterator&lt;TranscriptModel.Transcript&gt; getTranscript(Map&lt;String, String&gt; query, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L32">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L33">        return genomicRegionServiceBlockingStub.getTranscript(request);</span>
+    }
+
+    public ServiceTypesModel.StringResponse getSequence(Map&lt;String, String&gt; query, Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L37">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L38">        return genomicRegionServiceBlockingStub.getSequence(request);</span>
+    }
+
+    public Iterator&lt;RegulatoryRegionModel.RegulatoryRegion&gt; getRegulatoryRegion(Map&lt;String, String&gt; query,
+                                                                                Map&lt;String, String&gt; queryOptions) {
+<span class="nc" id="L43">        GenericServiceModel.Request request = buildRequest(query, queryOptions);</span>
+<span class="nc" id="L44">        return genomicRegionServiceBlockingStub.getRegulatoryRegion(request);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

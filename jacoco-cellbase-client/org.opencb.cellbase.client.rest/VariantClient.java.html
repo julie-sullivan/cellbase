@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-client</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.client.rest</a> &gt; <span class="el_source">VariantClient.java</span></div><h1>VariantClient.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.client.rest;
+
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.avro.*;
+import org.opencb.cellbase.client.config.ClientConfiguration;
+import org.opencb.cellbase.core.variant.AnnotationBasedPhasedQueryManager;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResponse;
+import org.opencb.commons.datastore.core.QueryResult;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.opencb.cellbase.core.variant.AnnotationBasedPhasedQueryManager.GENOTYPE_TAG;
+import static org.opencb.cellbase.core.variant.AnnotationBasedPhasedQueryManager.PHASE_SET_TAG;
+
+
+public final class VariantClient extends FeatureClient&lt;Variant&gt; {
+
+    private static final String IGNORE_PHASE = &quot;ignorePhase&quot;;
+    private static final char PHASE_DATA_URL_SEPARATOR = '+';
+    private static final char ABSENT_ALLELE = '0';
+    private static final String REFERENCE_HOMOZYGOUS_GENOTYPE = &quot;0|0&quot;;
+
+    public VariantClient(String species, String assembly, ClientConfiguration configuration) {
+<span class="fc" id="L30">        super(species, assembly, configuration);</span>
+<span class="fc" id="L31">        this.clazz = Variant.class;</span>
+
+<span class="fc" id="L33">        this.category = &quot;genomic&quot;;</span>
+<span class="fc" id="L34">        this.subcategory = &quot;variant&quot;;</span>
+<span class="fc" id="L35">    }</span>
+
+    @Deprecated
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotationByVariantIds(String id, QueryOptions options) throws IOException {
+<span class="fc" id="L39">        return this.getAnnotationByVariantIds(Arrays.asList(id.split(&quot;,&quot;)), options, false);</span>
+    }
+
+    @Deprecated
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotationByVariantIds(String id, QueryOptions options, boolean post) throws IOException {
+<span class="fc" id="L44">        return this.getAnnotationByVariantIds(Arrays.asList(id.split(&quot;,&quot;)), options, post);</span>
+    }
+
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotationByVariantIds(List&lt;String&gt; ids, QueryOptions options) throws IOException {
+<span class="nc" id="L48">        return this.getAnnotationByVariantIds(ids, options, false);</span>
+    }
+
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotationByVariantIds(List&lt;String&gt; ids, QueryOptions options, boolean post)
+            throws IOException {
+<span class="fc" id="L53">        QueryResponse&lt;VariantAnnotation&gt; result = execute(ids, &quot;annotation&quot;, options, VariantAnnotation.class, post);</span>
+<span class="fc" id="L54">        return initRequiredAnnotation(result);</span>
+    }
+
+
+    public QueryResponse&lt;Variant&gt; annotate(List&lt;Variant&gt; variants, QueryOptions options) throws IOException {
+<span class="nc" id="L59">        return annotate(variants, options, false);</span>
+    }
+
+    public QueryResponse&lt;Variant&gt; annotate(List&lt;Variant&gt; variants, QueryOptions options, boolean post) throws IOException {
+<span class="nc" id="L63">        List&lt;String&gt; variantIds = getVariantAnnotationIds(variants, options.getBoolean(IGNORE_PHASE));</span>
+<span class="nc" id="L64">        QueryResponse&lt;VariantAnnotation&gt; annotations = this.getAnnotationByVariantIds(variantIds, options, post);</span>
+
+<span class="nc" id="L66">        int timePerId = annotations.getTime() / variants.size();</span>
+<span class="nc" id="L67">        List&lt;QueryResult&lt;Variant&gt;&gt; annotatedVariants = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        for (int i = 0; i &lt; variants.size(); i++) {</span>
+<span class="nc" id="L69">            variants.get(i).setAnnotation(annotations.getResponse().get(i).first());</span>
+<span class="nc" id="L70">            annotatedVariants.add(new QueryResult&lt;&gt;(variantIds.get(i), timePerId, 1, 1, &quot;&quot;, &quot;&quot;,</span>
+<span class="nc" id="L71">                    Collections.singletonList(variants.get(i))));</span>
+        }
+
+<span class="nc" id="L74">        return new QueryResponse&lt;&gt;(configuration.getVersion(), annotations.getTime(), options, annotatedVariants);</span>
+    }
+
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotation(List&lt;Variant&gt; variants, QueryOptions options) throws IOException {
+<span class="nc" id="L78">        return getAnnotation(variants, options, false);</span>
+    }
+
+    public QueryResponse&lt;VariantAnnotation&gt; getAnnotation(List&lt;Variant&gt; variants, QueryOptions options, boolean post) throws IOException {
+<span class="nc" id="L82">        QueryResponse&lt;VariantAnnotation&gt; result = execute(getVariantAnnotationIds(variants,</span>
+<span class="nc" id="L83">                options.getBoolean(IGNORE_PHASE)),</span>
+                &quot;annotation&quot;,
+                options,
+                VariantAnnotation.class, post);
+<span class="nc" id="L87">        return initRequiredAnnotation(result);</span>
+    }
+
+
+    // FIXME Next two methods should be moved near the Variant Annotation tool
+    public String getVariantAnnotationId(Variant variant, Boolean ignorePhase) {
+<span class="nc" id="L93">        StringBuilder stringBuilder = new StringBuilder(variant.toString());</span>
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (!ignorePhase) {</span>
+<span class="nc" id="L96">            String phaseSet = AnnotationBasedPhasedQueryManager.getSampleAttribute(variant, PHASE_SET_TAG);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (StringUtils.isNotBlank(phaseSet)) {</span>
+<span class="nc" id="L98">                stringBuilder.append(PHASE_DATA_URL_SEPARATOR)</span>
+<span class="nc" id="L99">                        .append(getGenotypeString(variant))</span>
+<span class="nc" id="L100">                        .append(PHASE_DATA_URL_SEPARATOR)</span>
+<span class="nc" id="L101">                        .append(phaseSet);</span>
+            }
+        }
+<span class="nc" id="L104">        return stringBuilder.toString();</span>
+    }
+
+    private String getGenotypeString(Variant variant) {
+<span class="nc" id="L108">        String genotypeString = AnnotationBasedPhasedQueryManager.getSampleAttribute(variant, GENOTYPE_TAG);</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (genotypeString == null) {</span>
+<span class="nc" id="L110">            return EMPTY_STRING;</span>
+        }
+
+        // Unphased genotype - we don't really care about it then since here we're just interested in the genotype
+        // for being able to determine wheter two variants are potentially in cis in the server
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (StringUtils.countMatches(genotypeString, AnnotationBasedPhasedQueryManager.UNPHASED_GENOTYPE_SEPARATOR) &gt; 0) {</span>
+            // However, if genotype is homozygous for the reference, must make this explicit so that server knows
+            // this variant is not present when deciding to return or not MNVs
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (StringUtils.countMatches(genotypeString, ABSENT_ALLELE) == 2) {</span>
+<span class="nc" id="L119">                return REFERENCE_HOMOZYGOUS_GENOTYPE;</span>
+            } else {
+<span class="nc" id="L121">                return EMPTY_STRING;</span>
+            }
+        }
+
+<span class="nc" id="L125">        return genotypeString;</span>
+
+    }
+
+    public List&lt;String&gt; getVariantAnnotationIds(List&lt;Variant&gt; variants, Boolean ignorePhase) {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (variants == null) {</span>
+<span class="nc" id="L131">            return null;</span>
+        }
+
+<span class="nc" id="L134">        List&lt;String&gt; variantIds = new ArrayList&lt;&gt;(variants.size());</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        for (Variant variant: variants) {</span>
+<span class="nc" id="L136">            variantIds.add(getVariantAnnotationId(variant, ignorePhase));</span>
+<span class="nc" id="L137">        }</span>
+<span class="nc" id="L138">        return variantIds;</span>
+    }
+
+    private QueryResponse&lt;VariantAnnotation&gt; initRequiredAnnotation(QueryResponse&lt;VariantAnnotation&gt; queryResponse) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        for (int i = 0; i &lt; queryResponse.getResponse().size(); i++) {</span>
+<span class="fc" id="L143">            VariantAnnotation annotation = queryResponse.getResponse().get(i).first();</span>
+            // It can happen that no annotation is returned for variants that could not be parsed and raised problems
+            // e.g. 1:645710:A:&lt;INS:ME:ALU&gt;
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">            if (annotation != null) {</span>
+                // Patch to remove by updating the Evidence avdl model
+<span class="fc bfc" id="L148" title="All 2 branches covered.">                if (annotation.getTraitAssociation() != null) {</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">                    for (EvidenceEntry evidenceEntry : annotation.getTraitAssociation()) {</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                        if (evidenceEntry.getSubmissions() == null) {</span>
+<span class="nc" id="L151">                            evidenceEntry.setSubmissions(Collections.emptyList());</span>
+                        }
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">                        if (evidenceEntry.getHeritableTraits() == null) {</span>
+<span class="nc" id="L154">                            evidenceEntry.setHeritableTraits(Collections.emptyList());</span>
+                        } else {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">                            for (HeritableTrait heritableTrait : evidenceEntry.getHeritableTraits()) {</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">                                if (heritableTrait.getInheritanceMode() == null) {</span>
+<span class="fc" id="L158">                                    heritableTrait.setInheritanceMode(ModeOfInheritance.unknown);</span>
+                                }
+<span class="fc" id="L160">                            }</span>
+                        }
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">                        if (evidenceEntry.getGenomicFeatures() == null) {</span>
+<span class="nc" id="L163">                            evidenceEntry.setGenomicFeatures(Collections.emptyList());</span>
+                        }
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">                        if (evidenceEntry.getAdditionalProperties() == null) {</span>
+<span class="nc" id="L166">                            evidenceEntry.setAdditionalProperties(Collections.emptyList());</span>
+                        }
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">                        if (evidenceEntry.getEthnicity() == null) {</span>
+<span class="nc" id="L169">                            evidenceEntry.setEthnicity(EthnicCategory.Z);</span>
+                        }
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">                        if (evidenceEntry.getBibliography() == null) {</span>
+<span class="nc" id="L172">                            evidenceEntry.setBibliography(Collections.emptyList());</span>
+                        }
+<span class="fc bfc" id="L174" title="All 2 branches covered.">                        if (evidenceEntry.getSomaticInformation() != null) {</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                            if (evidenceEntry.getSomaticInformation().getSampleSource() == null) {</span>
+<span class="fc" id="L176">                                evidenceEntry.getSomaticInformation().setSampleSource(&quot;&quot;);</span>
+                            }
+<span class="fc bfc" id="L178" title="All 2 branches covered.">                            if (evidenceEntry.getSomaticInformation().getTumourOrigin() == null) {</span>
+<span class="fc" id="L179">                                evidenceEntry.getSomaticInformation().setTumourOrigin(&quot;&quot;);</span>
+                            }
+                        }
+<span class="fc" id="L182">                    }</span>
+                }
+                // TODO This data model is obsolete, this code must be removed
+<span class="fc bfc" id="L185" title="All 2 branches covered.">                if (annotation.getVariantTraitAssociation() != null) {</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">                    if (annotation.getVariantTraitAssociation().getCosmic() != null) {</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">                        for (Cosmic cosmic : annotation.getVariantTraitAssociation().getCosmic()) {</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">                            if (cosmic.getSiteSubtype() == null) {</span>
+<span class="fc" id="L189">                                cosmic.setSiteSubtype(&quot;&quot;);</span>
+                            }
+<span class="fc bfc" id="L191" title="All 2 branches covered.">                            if (cosmic.getSampleSource() == null) {</span>
+<span class="fc" id="L192">                                cosmic.setSampleSource(&quot;&quot;);</span>
+                            }
+<span class="fc bfc" id="L194" title="All 2 branches covered.">                            if (cosmic.getTumourOrigin() == null) {</span>
+<span class="fc" id="L195">                                cosmic.setTumourOrigin(&quot;&quot;);</span>
+                            }
+<span class="fc bfc" id="L197" title="All 2 branches covered.">                            if (cosmic.getHistologySubtype() == null) {</span>
+<span class="fc" id="L198">                                cosmic.setHistologySubtype(&quot;&quot;);</span>
+                            }
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">                            if (cosmic.getPrimarySite() == null) {</span>
+<span class="nc" id="L201">                                cosmic.setPrimarySite(&quot;&quot;);</span>
+                            }
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">                            if (cosmic.getPrimaryHistology() == null) {</span>
+<span class="nc" id="L204">                                cosmic.setPrimaryHistology(&quot;&quot;);</span>
+                            }
+<span class="fc" id="L206">                        }</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L211">        return queryResponse;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

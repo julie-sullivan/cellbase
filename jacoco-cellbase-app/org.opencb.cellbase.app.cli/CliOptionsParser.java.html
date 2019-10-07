@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CliOptionsParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli</a> &gt; <span class="el_source">CliOptionsParser.java</span></div><h1>CliOptionsParser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli;
+
+import com.beust.jcommander.*;
+import org.opencb.cellbase.core.common.GitRepositoryState;
+import org.opencb.cellbase.core.config.CellBaseConfiguration;
+import org.opencb.commons.utils.CommandLineUtils;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Created by imedina on 03/02/15.
+ */
+public class CliOptionsParser {
+
+    private final JCommander jCommander;
+
+    private final GeneralOptions generalOptions;
+    private final CommonCommandOptions commonCommandOptions;
+
+    private DownloadCommandOptions downloadCommandOptions;
+    private BuildCommandOptions buildCommandOptions;
+    private LoadCommandOptions loadCommandOptions;
+    private QueryCommandOptions queryCommandOptions;
+    private QueryGrpcCommandOptions queryGrpcCommandOptions;
+    private VariantAnnotationCommandOptions variantAnnotationCommandOptions;
+    private PostLoadCommandOptions postLoadCommandOptions;
+
+
+<span class="fc" id="L48">    public CliOptionsParser() {</span>
+<span class="fc" id="L49">        generalOptions = new GeneralOptions();</span>
+
+<span class="fc" id="L51">        jCommander = new JCommander(generalOptions);</span>
+<span class="fc" id="L52">        jCommander.setProgramName(&quot;cellbase.sh&quot;);</span>
+
+<span class="fc" id="L54">        commonCommandOptions = new CommonCommandOptions();</span>
+
+<span class="fc" id="L56">        downloadCommandOptions = new DownloadCommandOptions();</span>
+<span class="fc" id="L57">        buildCommandOptions = new BuildCommandOptions();</span>
+<span class="fc" id="L58">        loadCommandOptions = new LoadCommandOptions();</span>
+<span class="fc" id="L59">        queryCommandOptions = new QueryCommandOptions();</span>
+<span class="fc" id="L60">        queryGrpcCommandOptions = new QueryGrpcCommandOptions();</span>
+<span class="fc" id="L61">        variantAnnotationCommandOptions = new VariantAnnotationCommandOptions();</span>
+<span class="fc" id="L62">        postLoadCommandOptions = new PostLoadCommandOptions();</span>
+
+<span class="fc" id="L64">        jCommander.addCommand(&quot;download&quot;, downloadCommandOptions);</span>
+<span class="fc" id="L65">        jCommander.addCommand(&quot;build&quot;, buildCommandOptions);</span>
+<span class="fc" id="L66">        jCommander.addCommand(&quot;load&quot;, loadCommandOptions);</span>
+<span class="fc" id="L67">        jCommander.addCommand(&quot;query&quot;, queryCommandOptions);</span>
+<span class="fc" id="L68">        jCommander.addCommand(&quot;query-grpc&quot;, queryGrpcCommandOptions);</span>
+<span class="fc" id="L69">        jCommander.addCommand(&quot;variant-annotation&quot;, variantAnnotationCommandOptions);</span>
+<span class="fc" id="L70">        jCommander.addCommand(&quot;post-load&quot;, postLoadCommandOptions);</span>
+<span class="fc" id="L71">    }</span>
+
+    public void parse(String[] args) throws ParameterException {
+<span class="nc" id="L74">        jCommander.parse(args);</span>
+<span class="nc" id="L75">    }</span>
+
+    public String getCommand() {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        return (jCommander.getParsedCommand() != null) ? jCommander.getParsedCommand(): &quot;&quot;;</span>
+    }
+
+    public boolean isHelp() {
+<span class="nc" id="L82">        String parsedCommand = jCommander.getParsedCommand();</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (parsedCommand != null) {</span>
+<span class="nc" id="L84">            JCommander jCommander = this.jCommander.getCommands().get(parsedCommand);</span>
+<span class="nc" id="L85">            List&lt;Object&gt; objects = jCommander.getObjects();</span>
+<span class="nc bnc" id="L86" title="All 4 branches missed.">            if (!objects.isEmpty() &amp;&amp; objects.get(0) instanceof CommonCommandOptions) {</span>
+<span class="nc" id="L87">                return ((CommonCommandOptions) objects.get(0)).help;</span>
+            }
+        }
+<span class="nc" id="L90">        return getCommonCommandOptions().help;</span>
+    }
+
+<span class="fc" id="L93">    public class GeneralOptions {</span>
+
+        @Parameter(names = {&quot;-h&quot;, &quot;--help&quot;}, description = &quot;Display this help and exit&quot;, help = true)
+        public boolean help;
+
+        @Parameter(names = {&quot;--version&quot;}, description = &quot;Display the version and exit&quot;)
+        public boolean version;
+
+    }
+
+<span class="fc" id="L103">    public class CommonCommandOptions {</span>
+
+        @Parameter(names = {&quot;-h&quot;, &quot;--help&quot;}, description = &quot;Display this help and exit&quot;, help = true)
+        public boolean help;
+
+<span class="fc" id="L108">        @Parameter(names = {&quot;-L&quot;, &quot;--log-level&quot;}, description = &quot;Set the logging level, accepted values are: debug, info, warn, error and fatal&quot;, required = false, arity = 1)</span>
+        public String logLevel = &quot;info&quot;;
+
+        @Deprecated
+        @Parameter(names = {&quot;-v&quot;, &quot;--verbose&quot;}, description = &quot;[Deprecated] Set the level of the logging&quot;, required = false, arity = 1)
+        public boolean verbose;
+
+        @Parameter(names = {&quot;-C&quot;, &quot;--config&quot;}, description = &quot;CellBase configuration.json file. Have a look at cellbase/cellbase-core/src/main/resources/configuration.json for an example&quot;, required = false, arity = 1)
+        public String conf;
+
+    }
+
+
+    @Parameters(commandNames = {&quot;download&quot;}, commandDescription = &quot;Download all different data sources provided in the configuration.json file&quot;)
+<span class="fc" id="L122">    public class DownloadCommandOptions {</span>
+
+<span class="fc" id="L124">        @ParametersDelegate</span>
+<span class="fc" id="L125">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+        @Parameter(names = {&quot;-d&quot;, &quot;--data&quot;}, description = &quot;Comma separated list of data to download: genome, gene, &quot;
+                + &quot;variation, variation_functional_score, regulation, protein, conservation, &quot;
+                + &quot;clinical_variants, repeats, svs and 'all' to download everything&quot;, required = true, arity = 1)
+        public String data;
+
+<span class="fc" id="L132">        @Parameter(names = {&quot;-s&quot;, &quot;--species&quot;}, description = &quot;Name of the species to be downloaded, valid format include 'Homo sapiens' or 'hsapiens'&quot;, required = false, arity = 1)</span>
+        public String species = &quot;Homo sapiens&quot;;
+
+<span class="fc" id="L135">        @Parameter(names = {&quot;-a&quot;, &quot;--assembly&quot;}, description = &quot;Name of the assembly, if empty the first assembly in configuration.json will be used&quot;, required = false, arity = 1)</span>
+        public String assembly = null;
+
+<span class="fc" id="L138">        @Parameter(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;The output directory, species folder will be created&quot;, required = false, arity = 1)</span>
+        public String output = &quot;/tmp&quot;;
+
+        @Parameter(names = {&quot;--common&quot;}, description = &quot;Directory where common multi-species data will be downloaded, this is mainly protein and expression data [&lt;OUTPUT&gt;/common]&quot;, required = false, arity = 1)
+        public String common;
+
+    }
+
+
+    @Parameters(commandNames = {&quot;build&quot;}, commandDescription = &quot;Build CellBase data models from all data sources downloaded&quot;)
+<span class="fc" id="L148">    public class BuildCommandOptions {</span>
+
+<span class="fc" id="L150">        @ParametersDelegate</span>
+<span class="fc" id="L151">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+        @Parameter(names = {&quot;-d&quot;, &quot;--data&quot;}, description = &quot;Comma separated list of data to build: genome, genome_info, &quot;
+                + &quot;gene, variation, variation_functional_score, regulation, protein, ppi, conservation, drug, &quot;
+                + &quot;clinical_variants, repeats, svs. 'all' builds everything.&quot;, required = true, arity = 1)
+        public String data;
+
+<span class="fc" id="L158">        @Parameter(names = {&quot;-s&quot;, &quot;--species&quot;}, description = &quot;Name of the species to be built, valid format include 'Homo sapiens' or 'hsapiens'&quot;, required = false, arity = 1)</span>
+        public String species = &quot;Homo sapiens&quot;;
+
+<span class="fc" id="L161">        @Parameter(names = {&quot;-a&quot;, &quot;--assembly&quot;}, description = &quot;Name of the assembly, if empty the first assembly in configuration.json will be used&quot;, required = false, arity = 1)</span>
+        public String assembly = null;
+
+        @Parameter(names = {&quot;-i&quot;, &quot;--input&quot;}, description = &quot;Input directory with the downloaded data sources to be loaded&quot;, required = true, arity = 1)
+        public String input;
+
+<span class="fc" id="L167">        @Parameter(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;Output directory where the JSON data models are saved&quot;, required = false, arity = 1)</span>
+        public String output = &quot;/tmp&quot;;
+
+        @Parameter(names = {&quot;--common&quot;}, description = &quot;Directory where common multi-species data will be downloaded, this is mainly protein and expression data [&lt;OUTPUT&gt;/common]&quot;, required = false, arity = 1)
+        public String common;
+
+<span class="fc" id="L173">        @Parameter(names = {&quot;--skip-normalize&quot;}, description = &quot;Skip normalization of clinical variants. Normalization&quot;</span>
+                + &quot; includes allele trimming and left alignment. **NOTE** this parameter will only be used when building&quot;
+                + &quot; the clinical_variants dataset.&quot;,
+                required = false, arity = 0)
+        public boolean skipNormalize = false;
+
+
+<span class="fc" id="L180">        @Parameter(names = {&quot;--flexible-gtf-parsing&quot;}, description = &quot;By default, ENSEMBL GTF format is expected. &quot;</span>
+                + &quot; Nevertheless, GTF specification is quite loose and other GTFs may be provided in which the order &quot;
+                + &quot;of the features is not as systematic as within the ENSEMBL's GTFs. Use this option to enable a more &quot;
+                + &quot;flexible parsing of the GTF if it does not strictly follow ENSEMBL's GTFs format. Flexible GTF &quot;
+                + &quot;requires more memory and is less efficient.&quot;, required = false, arity = 0)
+        public boolean flexibleGTFParsing = false;
+
+    }
+
+
+    @Parameters(commandNames = {&quot;load&quot;}, commandDescription = &quot;Load the built data models into the database&quot;)
+<span class="fc" id="L191">    public class LoadCommandOptions {</span>
+
+<span class="fc" id="L193">        @ParametersDelegate</span>
+<span class="fc" id="L194">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+
+        @Parameter(names = {&quot;-d&quot;, &quot;--data&quot;}, description = &quot;Data model type to be loaded: genome, gene, variation, &quot;
+                + &quot;variation_functional_score, conservation, regulation, protein, ppi, protein_functional_prediction, &quot;
+                + &quot;clinical_variants, repeats, svs. 'all' loads everything&quot;, required = true, arity = 1)
+        public String data;
+
+        @Parameter(names = {&quot;-i&quot;, &quot;--input&quot;}, description = &quot;Input directory with the JSON data models to be loaded. Can also be used to specify a&quot; +
+                &quot;custom json file to be loaded (look at the --field parameter).&quot;, required = true, arity = 1)
+        public String input;
+
+        @Parameter(names = {&quot;--database&quot;}, description = &quot;Data model type to be loaded, i.e. genome, gene, ...&quot;, required = true, arity = 1)
+        public String database;
+
+        @Parameter(names = {&quot;--fields&quot;}, description = &quot;Use this parameter when an custom update of the database documents is required. Indicate here&quot; +
+                &quot; the full path to the document field that must be updated, e.g. annotation.populationFrequencies. This parameter must be used together&quot; +
+                &quot;with a custom file provided at --input and the data to update indicated at --data.&quot;, required = false, arity = 1)
+        public String field;
+
+        @Parameter(names = {&quot;--overwrite-inner-fields&quot;}, description = &quot;Use this parameter together with --fields to specify&quot;
+                + &quot; which inner attributes shall be overwritten for updated objects, &quot;
+                + &quot; e.g. --fields annotation --overwrite-inner-fields consequenceTypes,displayConsequenceType,conservation&quot;
+                + &quot; List of inner fields must be specified as a comma-separated list (no spaces in between).&quot;,
+                required = false, arity = 1)
+        public String innerFields;
+
+<span class="fc" id="L221">        @Parameter(names = {&quot;-l&quot;, &quot;--loader&quot;}, description = &quot;Database specific data loader to be used&quot;, required = false, arity = 1)</span>
+        public String loader = &quot;org.opencb.cellbase.lib.loader.MongoDBCellBaseLoader&quot;;
+
+<span class="fc" id="L224">        @Parameter(names = {&quot;--num-threads&quot;}, description = &quot;Number of threads used for loading data into the database&quot;, required = false, arity = 1)</span>
+        public int numThreads = 2;
+
+<span class="fc" id="L227">        @DynamicParameter(names = &quot;-D&quot;, description = &quot;Dynamic parameters go here&quot;, hidden = true)</span>
+        public Map&lt;String, String&gt; loaderParams = new HashMap&lt;&gt;();
+
+    }
+
+
+    @Parameters(commandNames = {&quot;query&quot;}, commandDescription = &quot;Query and fetch data from CellBase database using this command line&quot;)
+<span class="fc" id="L234">    public class QueryCommandOptions {</span>
+
+<span class="fc" id="L236">        @ParametersDelegate</span>
+<span class="fc" id="L237">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+
+<span class="fc" id="L240">        @Parameter(names = {&quot;-s&quot;, &quot;--species&quot;}, description = &quot;Name of the species to be downloaded, valid format include 'Homo sapiens' or 'hsapiens'&quot;, arity = 1)</span>
+        public String species = &quot;Homo sapiens&quot;;
+
+<span class="fc" id="L243">        @Parameter(names = {&quot;-a&quot;, &quot;--assembly&quot;}, description = &quot;Name of the assembly, if empty the first assembly in configuration.json will be used&quot;, required = false, arity = 1)</span>
+        public String assembly = null;
+
+        @Parameter(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;Write result into the file path&quot;, required = false, arity = 1)
+        public String output;
+
+        @Parameter(names = {&quot;-t&quot;, &quot;--type&quot;}, description = &quot;&quot;, required = true, arity = 1)
+        public String category;
+
+        @Parameter(names = {&quot;--id&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String id;
+
+        @Parameter(names = {&quot;-r&quot;, &quot;--resource&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String resource;
+
+        @Parameter(names = {&quot;--region&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String region;
+
+        @Parameter(names = {&quot;--group-by&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String groupBy;
+
+        @Parameter(names = {&quot;--rank&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String rank;
+
+        @Parameter(names = {&quot;--distinct&quot;}, description = &quot;&quot;, required = false, arity = 1)
+        public String distinct;
+
+        @Parameter(names = {&quot;--histogram&quot;}, description = &quot;&quot;, required = false, arity = 0)
+        public boolean histogram;
+
+<span class="fc" id="L273">        @Parameter(names = {&quot;--interval&quot;}, description = &quot;&quot;, required = false, arity = 1)</span>
+        public int interval = 100000;
+
+<span class="fc" id="L276">        @DynamicParameter(names = {&quot;-O&quot;, &quot;--options&quot;}, description = &quot;Filter options in the form of -Oa=b, eg. -Obiotype=protein_coding,pseudogene -Oregion=3:44444-55555&quot;, required = false)</span>
+        public Map&lt;String, String&gt; options = new HashMap&lt;&gt;();
+
+        // QueryOptions parameters
+        @Parameter(names = {&quot;-i&quot;, &quot;--include&quot;}, description = &quot;Comma separated list of fields to be included, eg. chromsome,start,end&quot;, required = false)
+        public String include;
+
+        @Parameter(names = {&quot;-e&quot;, &quot;--exclude&quot;}, description = &quot;Comma separated list of fields to be excluded, eg. chromsome,start,end&quot;, required = false)
+        public String exclude;
+
+        @Parameter(names = {&quot;--skip&quot;}, description = &quot;Skip the number of records specified&quot;, required = false)
+        public int skip;
+
+        @Parameter(names = {&quot;--limit&quot;}, description = &quot;Return the number of records specified&quot;, required = false)
+        public int limit;
+
+        @Parameter(names = {&quot;-c&quot;, &quot;--count&quot;}, description = &quot;Comma separated list of annotators to be excluded&quot;, required = false, arity = 0)
+        public boolean count;
+
+    }
+
+    @Parameters(commandNames = {&quot;query-grpc&quot;}, commandDescription = &quot;Query and fetch data from CellBase database using gRPC server&quot;)
+<span class="fc" id="L298">    public class QueryGrpcCommandOptions extends QueryCommandOptions {</span>
+
+<span class="fc" id="L300">        @Parameter(names = {&quot;--host&quot;}, description = &quot;&quot;, required = false, arity = 1)</span>
+        public String host = &quot;localhost&quot;;
+
+<span class="fc" id="L303">        @Parameter(names = {&quot;--port&quot;}, description = &quot;&quot;, required = false, arity = 1)</span>
+        public int port = 9090;
+    }
+
+    @Parameters(commandNames = {&quot;variant-annotation&quot;}, commandDescription = &quot;Annotate variants from VCF files using CellBase and other custom files&quot;)
+    public class VariantAnnotationCommandOptions {
+
+<span class="fc" id="L310">        @ParametersDelegate</span>
+<span class="fc" id="L311">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+
+        @Parameter(names = {&quot;-i&quot;, &quot;--input-file&quot;}, description = &quot;Input file with the data file to be annotated&quot;, required = false, arity = 1)
+        public String input;
+
+        @Parameter(names = {&quot;--variant&quot;}, description = &quot;A comma separated variant list in the format chr:pos:ref:alt, ie. 1:451941:A:T,19:45411941:T:C&quot;, required = false, arity = 1)
+        public String variant;
+
+        @Parameter(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;Output file/directory where annotations will be saved. &quot;
+                + &quot;Set here a directory if flag \&quot;--input-variation-collection\&quot; is activated (see below). Set a file &quot;
+                + &quot;name otherwise.&quot;, required = true, arity = 1)
+        public String output;
+
+<span class="fc" id="L325">        @Parameter(names = {&quot;-s&quot;, &quot;--species&quot;}, description = &quot;Name of the species to be downloaded, valid format include 'Homo sapiens' or 'hsapiens'&quot;, required = true, arity = 1)</span>
+        public String species = &quot;Homo sapiens&quot;;
+
+<span class="fc" id="L328">        @Parameter(names = {&quot;-a&quot;, &quot;--assembly&quot;}, description = &quot;Name of the assembly, if empty the first assembly in configuration.json will be read&quot;, required = false, arity = 1)</span>
+        public String assembly = null;
+
+        @Parameter(names = {&quot;-l&quot;, &quot;--local&quot;}, description = &quot;Database credentials for local annotation are read from configuration.json file&quot;, required = false, arity = 0)
+        public boolean local;
+
+<span class="fc" id="L334">        @Parameter(names = {&quot;--remote-url&quot;}, description = &quot;The URL of CellBase REST web services, this has no effect if --local is present&quot;, required = false, arity = 1)</span>
+        public String url = &quot;http://bioinfo.hpc.cam.ac.uk:80/cellbase&quot;;
+
+        @Parameter(names = {&quot;--include&quot;}, description = &quot;Comma separated list of annotation types to be included. Available options are {variation, populationFrequencies, conservation, functionalScore, clinical, consequenceType, expression, geneDisease, drugInteraction, cytoband, repeats, hgvs}&quot;, required = false)
+        public String include;
+
+        @Parameter(names = {&quot;--exclude&quot;}, description = &quot;Comma separated list of annotation types to be excluded. Available options are {variation, populationFrequencies, conservation, functionalScore, clinical, consequenceType, expression, geneDisease, drugInteraction, cytoband, repeats, hgvs}&quot;, required = false)
+        public String exclude;
+
+<span class="fc" id="L343">        @Parameter(names = {&quot;-t&quot;, &quot;--num-threads&quot;}, description = &quot;Number of threads to be used for loading&quot;, required = false, arity = 1)</span>
+        public int numThreads = 4;
+
+<span class="fc" id="L346">        @Parameter(names = {&quot;--batch-size&quot;}, description = &quot;Number of variants per batch&quot;, required = false, arity = 1)</span>
+        public int batchSize = 200;
+
+        @Parameter(names = {&quot;--resume&quot;}, description = &quot;Whether we resume annotation or overwrite the annotation in the output file&quot;, required = false, arity = 0)
+        public boolean resume;
+
+        @Parameter(names = {&quot;--custom-file&quot;}, description = &quot;String with a comma separated list (no spaces in between) of files with custom annotation to be included during the annotation process. File format must be VCF. For example: file1.vcf,file2.vcf&quot;, required = false)
+        public String customFiles;
+
+        @Parameter(names = {&quot;--custom-file-id&quot;}, description = &quot;String with a comma separated list (no spaces in between) of short identifiers for each custom file. For example: fileId1,fileId2&quot;, required = false)
+        public String customFileIds;
+
+        @Parameter(names = {&quot;--custom-file-fields&quot;}, description = &quot;String containing a colon separated list (no spaces in between) of field lists which indicate the info fields to be taken from each VCF file. For example: field1File1,field2File1:field1File2,field3File2&quot;, required = false, arity = 1)
+        public String customFileFields;
+
+<span class="fc" id="L361">        @Parameter(names = {&quot;--max-open-files&quot;}, description = &quot;Integer containing the maximum number of files that can remain open at a certain time point. This option is just used when providing custom annotation files. Custom annotation indexation may create and keep hundreds of files open at the same time for efficiency purposes. This parameter limits that number of open files: -1 indicates no limit and may be OK in most cases.&quot;, required = false, arity = 1)</span>
+        public int maxOpenFiles = -1;
+
+<span class="fc" id="L364">        @Parameter(names = {&quot;--output-format&quot;}, description = &quot;Variant annotation output format. Values: JSON, Avro, VEP&quot;, required = false, arity = 1)</span>
+        public String outputFormat = &quot;JSON&quot;;
+
+        @Parameter(names = {&quot;--gzip&quot;}, description = &quot;Whether the output file is gzipped&quot;, required = false, arity = 0)
+        public boolean gzip;
+
+        @Parameter(names = {&quot;--input-variation-collection&quot;}, description = &quot;Input will be a local installation of the&quot;
+                + &quot;CellBase variation collection. Connection details must be properly specified at a configuration.json file&quot;,
+                required = false, arity = 0)
+        public boolean cellBaseAnnotation;
+
+        @Parameter(names = {&quot;--chromosomes&quot;}, description = &quot;Comma separated list (no empty spaces in between) of&quot;
+                + &quot; chromosomes to annotate. One may use this parameter only when the --input-variation-collection&quot;
+                + &quot; flag is activated. Variants from all chromosomes will be annotated by default. E.g.: 1,22,X,Y&quot;,
+                required = false, arity = 1)
+        public String chromosomeList;
+
+        @Parameter(names = {&quot;--benchmark&quot;}, description = &quot;Run variant annotation benchmark. If this flag is enabled,&quot;
+                + &quot;a directory containing a list of Variant Effect Predictor (VEP) files is expected at the -i parameter.&quot;
+                + &quot; All .vep files within the directory will be processed - the directory must contain only .vep files that &quot;
+                + &quot;should be tested&quot;,
+                required = false, arity = 0)
+        public boolean benchmark;
+
+        @Parameter(names = {&quot;--reference-fasta&quot;}, description = &quot;Required for left aligning when annotating in remote&quot;
+                + &quot; mode, i.e. --local NOT present. It's strongly discouraged to use --reference-fasta together with &quot;
+                + &quot; the --local flag. IF however --reference-fasta is set together with --local, then the genome sequence &quot;
+                + &quot; in the fasta file will override CellBase database reference genome sequence. This --reference-fasta&quot;
+                + &quot; parameter will be ignored if --skip-normalize is present. Finally, this parameter is required when&quot;
+                + &quot; the --benchmark flag is enabled.&quot;,
+                required = false, arity = 1)
+        public String referenceFasta;
+
+<span class="fc" id="L397">        @Parameter(names = {&quot;--skip-normalize&quot;}, description = &quot;Skip normalization of input variants. Should not be used&quot;</span>
+                + &quot; when the input (-i, --input-file) is a VCF file. Normalization includes splitting multi-allele positions &quot;
+                + &quot;read from a VCF, allele trimming and decomposing MNVs. Has&quot;
+                + &quot; no effect if reading variants from a CellBase variation collection &quot;
+                + &quot;(\&quot;--input-variation-collection\&quot;) or running a variant annotation benchmark (\&quot;--benchmark\&quot;): in&quot;
+                + &quot; these two cases variant normalization is never carried out.&quot;,
+                required = false, arity = 0)
+        public boolean skipNormalize = false;
+
+<span class="fc" id="L406">        @Parameter(names = {&quot;--skip-decompose&quot;}, description = &quot;Use this flag to avoid decomposition of &quot;</span>
+                + &quot;multi-nucleotide-variants (MNVs) / block substitutions as part of the normalization process. If this&quot;
+                + &quot; flag is NOT activated, as a step during the normalization process reference and alternate alleles&quot;
+                + &quot; from MNVs/Block substitutions will be aligned and decomposed into their forming simple variants. &quot;
+                + &quot; This flag has no effect if --skip-normalize is present.&quot;,
+                required = false, arity = 0)
+        public boolean skipDecompose = false;
+
+<span class="fc" id="L414">        @Parameter(names = {&quot;--skip-left-align&quot;}, description = &quot;Use this flag to avoid left alignment as part of the&quot;</span>
+                + &quot; normalization process. If this&quot;
+                + &quot; flag is NOT activated, as a step during the normalization process will left align the variant with&quot;
+                + &quot; respect to the reference genome.&quot;
+                + &quot; This flag has no effect if --skip-normalize is present.&quot;,
+                required = false, arity = 0)
+        public boolean skipLeftAlign = false;
+
+        // TODO: remove &quot;phased&quot; CLI parameter in next release. Default behavior from here onwards should be
+        //  ignorePhase = false
+        @Parameter(names = {&quot;--phased&quot;}, description = &quot;This parameter is now deprecated and will be removed in next&quot; +
+                &quot; release. Please, use --ignorePhase instead. Flag to indicate whether phased annotation shall be &quot; +
+                &quot; activated.&quot;, required = false, arity = 0)
+        @Deprecated
+        public Boolean phased;
+
+        @Parameter(names = {&quot;--ignorePhase&quot;}, description = &quot;Flag to indicate whether phase should be ignored during&quot; +
+                &quot; annotation. By default phased annotation is enabled, i.e. ignorePhase=false.&quot;, required = false,
+                arity = 0)
+        public Boolean ignorePhase;
+
+        @Parameter(names = {&quot;--no-imprecision&quot;}, description = &quot;Flag to indicate whether imprecision borders (CIPOS, CIEND)&quot;
+                + &quot; should be taken into account when annotating structural variants or CNVs.&quot;
+                + &quot; By default imprecision annotation is enabled.&quot;, required = false, arity = 0)
+        public boolean noImprecision;
+
+        @DynamicParameter(names = &quot;-D&quot;, description = &quot;Dynamic parameters. Available parameters: &quot;
+                + &quot;{population-frequencies=for internal purposes mainly. Full path to a json file containing Variant &quot;
+                + &quot;documents that include lists of population frequencies objects. Will allow annotating the input file &quot;
+                + &quot;(-i) with the population frequencies present in this json file; complete-input-population=for internal &quot;
+                + &quot;purposes only. To be used together with population-frequencies. Boolean to indicate whether variants &quot;
+                + &quot;in the population-frequencies file but not in the input file (-i) should be included in the output. &quot;
+                + &quot;sv-extra-padding=Integer to optionally &quot;
+                + &quot;provide the size of the extra padding to be used when annotating noImprecision (or not) &quot;
+                + &quot;structural variants}; cnv-extra-padding=Integer to optionally provide the size of the extra padding &quot;
+                + &quot;to be used when annotating noImprecision (or not) structural variants}&quot;)
+        public Map&lt;String, String&gt; buildParams;
+
+<span class="fc" id="L452">        public VariantAnnotationCommandOptions() {</span>
+<span class="fc" id="L453">            buildParams = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L454">            buildParams.put(&quot;population-frequencies&quot;, null);</span>
+<span class="fc" id="L455">            buildParams.put(&quot;complete-input-population&quot;, &quot;true&quot;);</span>
+<span class="fc" id="L456">            buildParams.put(&quot;sv-extra-padding&quot;, &quot;0&quot;);</span>
+<span class="fc" id="L457">            buildParams.put(&quot;cnv-extra-padding&quot;, &quot;0&quot;);</span>
+<span class="fc" id="L458">        }</span>
+
+    }
+
+    @Parameters(commandNames = {&quot;post-load&quot;}, commandDescription = &quot;Complements data already loaded in CellBase&quot;)
+<span class="fc" id="L463">    public class PostLoadCommandOptions {</span>
+
+<span class="fc" id="L465">        @ParametersDelegate</span>
+<span class="fc" id="L466">        public CommonCommandOptions commonOptions = commonCommandOptions;</span>
+
+<span class="fc" id="L468">        @Parameter(names = {&quot;-a&quot;, &quot;--assembly&quot;}, description = &quot;The name of the assembly&quot;, required = false, arity = 1)</span>
+        public String assembly = null;
+
+<span class="fc" id="L471">        @Parameter(names = {&quot;--clinical-annotation-file&quot;}, description = &quot;Specify a file containing variant annotations for CellBase clinical data. Accepted file formats: VEP's file format&quot;, required = false)</span>
+        public String clinicalAnnotationFilename = null;
+
+    }
+
+    public static final String ANSI_RESET = &quot;\u001B[0m&quot;;
+    public static final String ANSI_BLACK = &quot;\u001B[30m&quot;;
+    public static final String ANSI_RED = &quot;\u001B[31m&quot;;
+    public static final String ANSI_GREEN = &quot;\u001B[32m&quot;;
+    public static final String ANSI_YELLOW = &quot;\u001B[33m&quot;;
+    public static final String ANSI_BLUE = &quot;\u001B[34m&quot;;
+    public static final String ANSI_PURPLE = &quot;\u001B[35m&quot;;
+    public static final String ANSI_CYAN = &quot;\u001B[36m&quot;;
+    public static final String ANSI_WHITE = &quot;\u001B[37m&quot;;
+
+    public void printUsage(){
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        if(getCommand().isEmpty()) {</span>
+<span class="nc" id="L488">            System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L489">            System.err.println(&quot;Program:     &quot; + ANSI_WHITE + &quot;CellBase (OpenCB)&quot; + ANSI_RESET);</span>
+//            System.err.println(&quot;Version:     &quot; + getAPIVersion());
+<span class="nc" id="L491">            System.err.println(&quot;Version:     &quot; + GitRepositoryState.get().getBuildVersion());</span>
+<span class="nc" id="L492">            System.out.println(&quot;Git version: &quot; + GitRepositoryState.get().getBranch() + &quot; &quot; + GitRepositoryState.get().getCommitId());</span>
+<span class="nc" id="L493">            System.err.println(&quot;Description: High-Performance NoSQL database and RESTful web services to access the most relevant biological data&quot;);</span>
+<span class="nc" id="L494">            System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L495">            System.err.println(&quot;Usage:       cellbase.sh [-h|--help] [--version] &lt;command&gt; [options]&quot;);</span>
+<span class="nc" id="L496">            System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L497">            System.err.println(&quot;Commands:&quot;);</span>
+<span class="nc" id="L498">            printMainUsage();</span>
+<span class="nc" id="L499">            System.err.println(&quot;&quot;);</span>
+        } else {
+<span class="nc" id="L501">            String parsedCommand = getCommand();</span>
+<span class="nc" id="L502">            System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L503">            System.err.println(&quot;Usage:   cellbase.sh &quot; + parsedCommand + &quot; [options]&quot;);</span>
+<span class="nc" id="L504">            System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L505">            System.err.println(&quot;Options:&quot;);</span>
+<span class="nc" id="L506">            CommandLineUtils.printCommandUsage(jCommander.getCommands().get(parsedCommand));</span>
+<span class="nc" id="L507">            System.err.println(&quot;&quot;);</span>
+        }
+<span class="nc" id="L509">    }</span>
+
+    public void printVersion() {
+<span class="nc" id="L512">        System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L513">        System.err.println(&quot;Program:     &quot; + ANSI_WHITE + &quot;CellBase (OpenCB)&quot; + ANSI_RESET);</span>
+<span class="nc" id="L514">        System.err.println(&quot;Version:     &quot; + getAPIVersion());</span>
+<span class="nc" id="L515">        System.err.println(&quot;&quot;);</span>
+<span class="nc" id="L516">    }</span>
+
+    @Deprecated
+    private String getAPIVersion() {
+<span class="nc" id="L520">        CellBaseConfiguration cellBaseConfiguration = new CellBaseConfiguration();</span>
+        try {
+<span class="nc" id="L522">            cellBaseConfiguration = CellBaseConfiguration</span>
+<span class="nc" id="L523">                    .load(CellBaseConfiguration.class.getClassLoader().getResourceAsStream(&quot;configuration.json&quot;));</span>
+<span class="nc" id="L524">        } catch (IOException e) {</span>
+<span class="nc" id="L525">            e.printStackTrace();</span>
+<span class="nc" id="L526">        }</span>
+<span class="nc" id="L527">        return cellBaseConfiguration.getApiVersion();</span>
+    }
+
+    private void printMainUsage() {
+<span class="nc bnc" id="L531" title="All 2 branches missed.">        for (String s : jCommander.getCommands().keySet()) {</span>
+<span class="nc" id="L532">            System.err.printf(&quot;%20s  %s\n&quot;, s, jCommander.getCommandDescription(s));</span>
+<span class="nc" id="L533">        }</span>
+<span class="nc" id="L534">    }</span>
+
+    public GeneralOptions getGeneralOptions() {
+<span class="nc" id="L537">        return generalOptions;</span>
+    }
+
+    public CommonCommandOptions getCommonCommandOptions() {
+<span class="nc" id="L541">        return commonCommandOptions;</span>
+    }
+
+    public DownloadCommandOptions getDownloadCommandOptions() {
+<span class="nc" id="L545">        return downloadCommandOptions;</span>
+    }
+
+    public BuildCommandOptions getBuildCommandOptions() {
+<span class="nc" id="L549">        return buildCommandOptions;</span>
+    }
+
+    public LoadCommandOptions getLoadCommandOptions() {
+<span class="nc" id="L553">        return loadCommandOptions;</span>
+    }
+
+    public QueryCommandOptions getQueryCommandOptions() {
+<span class="nc" id="L557">        return queryCommandOptions;</span>
+    }
+
+    public QueryGrpcCommandOptions getQueryGrpcCommandOptions() {
+<span class="nc" id="L561">        return queryGrpcCommandOptions;</span>
+    }
+
+<span class="fc" id="L564">    public VariantAnnotationCommandOptions getVariantAnnotationCommandOptions() { return variantAnnotationCommandOptions; }</span>
+
+<span class="nc" id="L566">    public PostLoadCommandOptions getPostLoadCommandOptions() { return postLoadCommandOptions; }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

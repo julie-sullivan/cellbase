@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VcfStringAnnotatorTask.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-app</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.app.cli.variant.annotation</a> &gt; <span class="el_source">VcfStringAnnotatorTask.java</span></div><h1>VcfStringAnnotatorTask.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.app.cli.variant.annotation;
+
+import htsjdk.tribble.TribbleException;
+import htsjdk.variant.variantcontext.Allele;
+import htsjdk.variant.variantcontext.VariantContext;
+import htsjdk.variant.vcf.VCFConstants;
+import htsjdk.variant.vcf.VCFHeader;
+import htsjdk.variant.vcf.VCFHeaderVersion;
+import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.formats.variant.vcf4.FullVcfCodec;
+import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
+import org.opencb.biodata.tools.variant.converters.avro.VariantContextToVariantConverter;
+import org.opencb.cellbase.core.variant.annotation.VariantAnnotator;
+import org.opencb.commons.run.ParallelTaskRunner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Created by fjlopez on 02/03/15.
+ */
+@Deprecated
+public class VcfStringAnnotatorTask implements ParallelTaskRunner.TaskWithException&lt;String, Variant, Exception&gt; {
+
+    private static final String MATEID = &quot;MATEID&quot;;
+    private static final String MATE_CIPOS = &quot;MATE_CIPOS&quot;;
+    private static final String CIPOS = &quot;CIPOS&quot;;
+<span class="nc" id="L48">    private final Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+    private final SharedContext sharedContext;
+    private List&lt;VariantAnnotator&gt; variantAnnotatorList;
+    private FullVcfCodec vcfCodec;
+    private VariantContextToVariantConverter converter;
+//    private static VariantNormalizer normalizer = new VariantNormalizer(true, false, true);
+    private VariantNormalizer normalizer;
+    private boolean normalize;
+
+    public VcfStringAnnotatorTask(VCFHeader header, VCFHeaderVersion version,
+                                  List&lt;VariantAnnotator&gt; variantAnnotatorList, SharedContext sharedContext) {
+<span class="nc" id="L59">        this(header, version, variantAnnotatorList, sharedContext, true,</span>
+                new VariantNormalizer.VariantNormalizerConfig());
+<span class="nc" id="L61">    }</span>
+
+    public VcfStringAnnotatorTask(VCFHeader header, VCFHeaderVersion version,
+                                  List&lt;VariantAnnotator&gt; variantAnnotatorList, SharedContext sharedContext,
+<span class="nc" id="L65">                                  boolean normalize, VariantNormalizer.VariantNormalizerConfig variantNormalizerConfig) {</span>
+<span class="nc" id="L66">        this.vcfCodec = new FullVcfCodec();</span>
+<span class="nc" id="L67">        this.vcfCodec.setVCFHeader(header, version);</span>
+<span class="nc" id="L68">        this.converter = new VariantContextToVariantConverter(&quot;&quot;, &quot;&quot;, header.getSampleNamesInOrder());</span>
+<span class="nc" id="L69">        this.variantAnnotatorList = variantAnnotatorList;</span>
+<span class="nc" id="L70">        this.sharedContext = sharedContext;</span>
+<span class="nc" id="L71">        this.normalize = normalize;</span>
+<span class="nc" id="L72">        normalizer = new VariantNormalizer(variantNormalizerConfig);</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void pre() {
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        for (VariantAnnotator variantAnnotator : variantAnnotatorList) {</span>
+<span class="nc" id="L78">            variantAnnotator.open();</span>
+<span class="nc" id="L79">        }</span>
+<span class="nc" id="L80">    }</span>
+
+    @Override
+    public List&lt;Variant&gt; apply(List&lt;String&gt; batch) throws Exception {
+<span class="nc" id="L84">        List&lt;Variant&gt; variantList = parseVariantList(batch);</span>
+<span class="nc" id="L85">        return normalizeAndAnnotate(variantList);</span>
+    }
+
+    private List&lt;Variant&gt; normalizeAndAnnotate(List&lt;Variant&gt; variantList) throws InterruptedException, ExecutionException {
+        List&lt;Variant&gt; normalizedVariantList;
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (normalize) {</span>
+<span class="nc" id="L91">            normalizedVariantList = new ArrayList&lt;&gt;(variantList.size());</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (Variant variant : variantList) {</span>
+                try {
+<span class="nc" id="L94">                    normalizedVariantList.addAll(normalizer.apply(Collections.singletonList(variant)));</span>
+<span class="nc" id="L95">                } catch (RuntimeException e) {</span>
+<span class="nc" id="L96">                    logger.warn(&quot;Error found during variant normalization. Variant: {}&quot;, variant.toString());</span>
+<span class="nc" id="L97">                    logger.warn(&quot;This variant will be skipped and annotation will continue&quot;);</span>
+<span class="nc" id="L98">                    logger.warn(&quot;Full stack trace&quot;, e);</span>
+<span class="nc" id="L99">                }</span>
+<span class="nc" id="L100">            }</span>
+        } else {
+<span class="nc" id="L102">            normalizedVariantList = variantList;</span>
+        }
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        for (VariantAnnotator variantAnnotator : variantAnnotatorList) {</span>
+<span class="nc" id="L105">            variantAnnotator.run(normalizedVariantList);</span>
+<span class="nc" id="L106">        }</span>
+<span class="nc" id="L107">        return normalizedVariantList;</span>
+    }
+
+    @Override
+    public List&lt;Variant&gt; drain() throws Exception {
+        // Annotate singleton BNDs - BNDs that contain a MATEID in the info field, however, no BND was found in the
+        // VCF with that MATEID
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (sharedContext.getNumTasks().decrementAndGet() == 0) {</span>
+<span class="nc" id="L115">            List&lt;Variant&gt; variantList = converter.apply(new ArrayList&lt;&gt;(sharedContext.getBreakendMates().values()));</span>
+<span class="nc" id="L116">            return normalizeAndAnnotate(variantList);</span>
+        }
+<span class="nc" id="L118">        return Collections.emptyList();</span>
+    }
+
+    private List&lt;Variant&gt; parseVariantList(List&lt;String&gt; batch) {
+//        List&lt;VariantContext&gt; variantContexts = new ArrayList&lt;&gt;(batch.size());
+<span class="nc" id="L123">        List&lt;Variant&gt; variantList = new ArrayList&lt;&gt;(batch.size());</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        for (String line : batch) {</span>
+            // It's not a header line
+<span class="nc bnc" id="L126" title="All 4 branches missed.">            if (!line.startsWith(&quot;#&quot;) &amp;&amp; !line.trim().isEmpty()) {</span>
+                VariantContext variantContext;
+                try {
+<span class="nc" id="L129">                    variantContext = vcfCodec.decode(line);</span>
+<span class="nc" id="L130">                } catch (TribbleException e) {</span>
+<span class="nc" id="L131">                    logger.warn(&quot;Error found while parsing VCF line {} &quot;, line);</span>
+<span class="nc" id="L132">                    logger.warn(&quot;This line will be skipped and process will continue&quot;);</span>
+<span class="nc" id="L133">                    logger.warn(&quot;Full stack trace&quot;, e);</span>
+<span class="nc" id="L134">                    continue;</span>
+<span class="nc" id="L135">                }</span>
+<span class="nc bnc" id="L136" title="All 4 branches missed.">                if (variantContext.getAlternateAlleles() != null &amp;&amp; !variantContext.getAlternateAlleles().isEmpty()) {</span>
+<span class="nc" id="L137">                    byte[] alternateBytes = variantContext.getAlternateAllele(0).toString().getBytes();</span>
+                    // Symbolic allele: CNV, DEL, DUP, INS, INV, BND
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                    if (Allele.wouldBeSymbolicAllele(alternateBytes)) {</span>
+                        // BND
+<span class="nc bnc" id="L141" title="All 4 branches missed.">                        if (alternateBytes[0] == '.' || alternateBytes[alternateBytes.length - 1] == '.'  // single breakend</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                                || variantContext.getAlternateAllele(0).toString().contains(&quot;[&quot;)       // mated breakend</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                                || variantContext.getAlternateAllele(0).toString().contains(&quot;]&quot;)) {</span>
+                            // If there's no mate specified, add BND
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                            if (variantContext.getCommonInfo() != null</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                                    &amp;&amp; variantContext.getCommonInfo().getAttributes() != null</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                                    &amp;&amp; variantContext.getCommonInfo().getAttributes().get(MATEID) != null) {</span>
+<span class="nc" id="L148">                                String breakendPairId = getBreakendPairId(variantContext);</span>
+                                // Mate was previously seen and stored, create Variant with the pair info, remove
+                                // variantContext from sharedContext and continue
+                                // WARNING: assuming BND positions cannot be multiallelic positions - there will always
+                                // be just one alternate allele!
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                                if (sharedContext.getBreakendMates().putIfAbsent(breakendPairId, variantContext) != null) {</span>
+<span class="nc" id="L154">                                    variantList.add(parseBreakendPair(sharedContext.getBreakendMates().get(breakendPairId),</span>
+                                            variantContext));
+<span class="nc" id="L156">                                    sharedContext.getBreakendMates().remove(breakendPairId);</span>
+                                // Mate not seen yet, variantContext has been saved in sharedContext, continue
+                                }
+                            // Singleton BND, no mate specified within the INFO field
+<span class="nc" id="L160">                            } else {</span>
+<span class="nc" id="L161">                                variantList.add(converter.convert(variantContext));</span>
+//                            variantContexts.add(variantContext);
+                            }
+                        // Symbolic allele other than BND: CNV, DEL, DUP, INS, INV BND; add it
+                        } else {
+<span class="nc" id="L166">                            variantList.add(converter.convert(variantContext));</span>
+//                        variantContexts.add(variantContext);
+                        }
+                    // Simple variant: SNV, short insertion, short deletion; add it
+                    } else {
+<span class="nc" id="L171">                        variantList.add(converter.convert(variantContext));</span>
+//                    variantContexts.add(variantContext);
+                    }
+                }
+            }
+<span class="nc" id="L176">        }</span>
+
+<span class="nc" id="L178">        return variantList;</span>
+//        return converter.apply(variantContexts);
+    }
+
+    private Variant parseBreakendPair(VariantContext variantContext, VariantContext variantContext1) {
+        // Get Variant object for the first BND
+<span class="nc" id="L184">        Variant variant = converter.convert(variantContext);</span>
+
+        // Set mate position
+<span class="nc" id="L187">        variant.getSv().getBreakend().getMate().setChromosome(variantContext1.getContig());</span>
+<span class="nc" id="L188">        variant.getSv().getBreakend().getMate().setPosition(variantContext1.getStart());</span>
+
+        // Check the second BND does have CIPOS
+<span class="nc" id="L191">        List ciposValue = variantContext1.getAttributeAsList(CIPOS);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        if (!ciposValue.isEmpty()) {</span>
+            // Get CIPOS from second BND
+<span class="nc" id="L194">            String ciposString = StringUtils.join(ciposValue, VCFConstants.INFO_FIELD_ARRAY_SEPARATOR);</span>
+
+            // Set CIPOS string of the sencond BND as part of the file INFO field in the first BND
+<span class="nc" id="L197">            Map&lt;String, String&gt; attributesMap = variant.getStudies().get(0).getFiles().get(0).getAttributes();</span>
+<span class="nc" id="L198">            attributesMap.put(MATE_CIPOS, ciposString);</span>
+
+            // CIPOS of the second breakend
+<span class="nc" id="L201">            List ciposParts = variantContext1.getAttributeAsList(CIPOS);</span>
+<span class="nc" id="L202">            variant.getSv()</span>
+<span class="nc" id="L203">                    .getBreakend()</span>
+<span class="nc" id="L204">                    .getMate()</span>
+<span class="nc" id="L205">                    .setCiPositionLeft(variantContext1.getStart() + Integer.valueOf((String) ciposParts.get(0)));</span>
+<span class="nc" id="L206">            variant.getSv()</span>
+<span class="nc" id="L207">                    .getBreakend()</span>
+<span class="nc" id="L208">                    .getMate()</span>
+<span class="nc" id="L209">                    .setCiPositionRight(variantContext1.getStart() + Integer.valueOf((String) ciposParts.get(1)));</span>
+        // If not, it's a precise call, just position is stored (above)
+        }
+
+<span class="nc" id="L213">        return variant;</span>
+    }
+
+    private String getBreakendPairId(VariantContext variantContext) {
+        // The id for the breakend pair will be the two BND Ids alphabetically sorted and concatenated by a '_'
+<span class="nc" id="L218">        List&lt;String&gt; ids = Arrays.asList(variantContext.getID(),</span>
+<span class="nc" id="L219">                (String) variantContext.getCommonInfo().getAttributes().get(MATEID));</span>
+<span class="nc" id="L220">        Collections.sort(ids);</span>
+
+<span class="nc" id="L222">        return StringUtils.join(ids, &quot;_&quot;);</span>
+    }
+
+    @Override
+    public void post() {
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        for (VariantAnnotator variantAnnotator : variantAnnotatorList) {</span>
+<span class="nc" id="L228">            variantAnnotator.close();</span>
+<span class="nc" id="L229">        }</span>
+<span class="nc" id="L230">    }</span>
+
+    public static class SharedContext {
+        private final AtomicInteger numTasks;
+        private final Map&lt;String, VariantContext&gt; breakendMates;
+
+<span class="nc" id="L236">        public SharedContext(int numTasks) {</span>
+<span class="nc" id="L237">            this.numTasks = new AtomicInteger(numTasks);</span>
+<span class="nc" id="L238">            this.breakendMates = Collections.synchronizedMap(new HashMap&lt;&gt;());</span>
+<span class="nc" id="L239">        }</span>
+
+        private AtomicInteger getNumTasks() {
+<span class="nc" id="L242">            return numTasks;</span>
+        }
+
+        private Map&lt;String, VariantContext&gt; getBreakendMates() {
+<span class="nc" id="L246">            return breakendMates;</span>
+        }
+    }
+}
+
+//    private Path inputFile;
+//    private Path outputFile;
+//    protected BlockingQueue&lt;List&lt;GenomicVariant&gt;&gt; variantQueue;
+//    protected BlockingQueue&lt;List&lt;VariantAnnotation&gt;&gt; variantAnnotationQueue;
+//    public static List&lt;GenomicVariant&gt; VARIANT_POISON_PILL = new ArrayList&lt;&gt;();
+//    public static List&lt;VariantAnnotation&gt; ANNOTATION_POISON_PILL = new ArrayList&lt;&gt;();
+//    private int numThreads;
+//    private int batchSize;
+//    private CellBaseClient cellBaseClient;
+//
+//    private static int NUM_THREADS = 4;
+//    private static int BATCH_SIZE = 200;
+//    private final int QUEUE_CAPACITY = 10;
+//
+//    private Logger logger;
+//
+//    public VariantAnnotatorRunner(Path inputFile, Path outputFile, CellBaseClient cellBaseClient) {
+//        this(inputFile, outputFile, cellBaseClient, NUM_THREADS, BATCH_SIZE);
+//    }
+//
+//    public VariantAnnotatorRunner(Path inputFile, Path outputFile, CellBaseClient cellBaseClient, int numThreads, int batchSize) {
+//        this.inputFile = inputFile;
+//        this.outputFile = outputFile;
+//        this.variantQueue = new ArrayBlockingQueue&lt;&gt;(QUEUE_CAPACITY);
+//        this.variantAnnotationQueue = new ArrayBlockingQueue&lt;&gt;(QUEUE_CAPACITY);
+//        this.cellBaseClient = cellBaseClient;
+//        this.numThreads = numThreads;
+//        this.batchSize = batchSize;
+//
+//        logger = LoggerFactory.getLogger(this.getClass());
+//    }
+//
+//    public void run() throws ExecutionException, InterruptedException {
+//
+//        /*
+//         * ExecutorServices and Futures are created, all VariantAnnotators are initialized and submitted to them.
+//         * After this the different variant annotators are blocked waiting for the blockingQueue to be populated.
+//         */
+//        ExecutorService annotatorExecutorService = Executors.newFixedThreadPool(numThreads);
+//        List&lt;CellbaseWSVariantAnnotator&gt; variantAnnotatorList = createVariantAnnotators();
+//        List&lt;Future&lt;Integer&gt;&gt; futureAnnotatedVariants = startAnnotators(annotatorExecutorService, variantAnnotatorList);
+//
+//        ExecutorService writerExecutorService = Executors.newSingleThreadExecutor();
+//        VariantAnnotationWriterThread variantAnnotationWriterThread =
+// new VariantAnnotationWriterThread(outputFile, variantAnnotationQueue);
+//        Future&lt;Integer&gt; futureWrittenVariants = writerExecutorService.submit(variantAnnotationWriterThread);
+//
+//        /*
+//         * Execution starts by reading the file and loading batches to the blockingQueue. This makes the loaders
+//         * to start fetching and loading batches into the database. The number of records processed is returned.
+//         */
+//        int inputRecords = readInputFile();
+//
+//        // Check everything has been precessed correctly
+//        int annotatedRecords = 0;
+//        for (Future&lt;Integer&gt; future : futureAnnotatedVariants) {
+//            annotatedRecords += future.get();
+//        }
+//        int writtenRecords = futureWrittenVariants.get();
+//        this.checkNumberProcessedRecords(inputRecords, annotatedRecords, writtenRecords);
+//
+//        // Shutdown all services
+//        annotatorExecutorService.shutdown();
+//        writerExecutorService.shutdown();
+//    }
+//
+//    protected List&lt;CellbaseWSVariantAnnotator&gt; createVariantAnnotators() {
+//        List&lt;CellbaseWSVariantAnnotator&gt; variantAnnotatorList = new ArrayList&lt;&gt;();
+//        for (int i=0; i &lt; numThreads; i++) {
+//            variantAnnotatorList.add(new CellbaseWSVariantAnnotator(variantQueue, variantAnnotationQueue, cellBaseClient));
+//            logger.debug(&quot;Variant annotator thread '{}' created&quot;, i);
+//        }
+//        return variantAnnotatorList;
+//    }
+//
+//    private List&lt;Future&lt;Integer&gt;&gt; startAnnotators(ExecutorService executorService,
+// List&lt;CellbaseWSVariantAnnotator&gt; variantAnnotatorList) {
+//        List&lt;Future&lt;Integer&gt;&gt; futures = new ArrayList&lt;&gt;(numThreads);
+//        for (int i = 0; i &lt; variantAnnotatorList.size(); i++) {
+//            futures.add(executorService.submit(variantAnnotatorList.get(i)));
+//            logger.debug(&quot;Variant annotator '{}' initialized and submitted to the ExecutorService&quot;, i);
+//        }
+//        logger.info(&quot;{} threads created and running&quot;, numThreads);
+//        return futures;
+//    }
+//
+//    private int readInputFile() {
+////    private int readInputFile() {
+//        int inputFileRecords = 0;
+//        VariantVcfReader vcfReader = new VariantVcfReader(new VariantSource(inputFile.toString(), &quot;&quot;, &quot;&quot;, &quot;&quot;),
+//                inputFile.toString());
+//        if (vcfReader.open()) {
+//            vcfReader.pre();
+//            List&lt;Variant&gt; vcfBatch = vcfReader.read(batchSize);
+//            List&lt;GenomicVariant&gt; variantBatch;
+//            try {
+//                while (!vcfBatch.isEmpty()) {
+//                    variantBatch = convertVcfRecordsToGenomicVariants(vcfBatch);
+//                    variantQueue.put(variantBatch);
+//                    inputFileRecords += variantBatch.size();
+//                    vcfBatch = vcfReader.read(batchSize);
+//
+//                    if(inputFileRecords % 2000 == 0) {
+//                        logger.info(&quot;{} variants annotated&quot;, inputFileRecords);
+//                    }
+//                    logger.debug(&quot;{} variants queued for annotation&quot;, inputFileRecords);
+//                }
+//                logger.info(&quot;{} variants read and processed from {}&quot;, inputFileRecords, inputFile);
+//
+//                // Poison Pill to consumers so they know that there are no more batchs to consume
+//                for (int i=0; i &lt; numThreads; i++) {
+//                    variantQueue.put(VARIANT_POISON_PILL);
+//                }
+//            } catch (InterruptedException e) {
+//                logger.error(e.getMessage());
+//            }
+//            vcfReader.post();
+//            vcfReader.close();
+//        }
+//        return inputFileRecords;
+//    }
+//
+//
+//    protected void checkNumberProcessedRecords(int inputRecords, int annotatedRecords, int writtenRecords) {
+////        if (inputRecords == annotatedRecords) {
+////            logger.info(&quot;All {} variants have been annotated&quot;, inputRecords);
+////        } else {
+////            logger.warn(&quot;Just &quot; + annotatedRecords + &quot; of &quot; + inputRecords + &quot; have been annotated&quot;);
+////        }
+//        if (inputRecords == writtenRecords) {
+//            logger.info(&quot;All {} variants have been annotated and their annotations written&quot;, inputRecords);
+//        } else {
+//            logger.warn(&quot;Annotations for just &quot; + writtenRecords + &quot; of &quot; + inputRecords + &quot; have been written&quot;);
+//        }
+//    }
+//
+//    private class VariantAnnotationWriterThread implements Callable&lt;Integer&gt;{
+//        private final BlockingQueue&lt;List&lt;VariantAnnotation&gt;&gt; queue;
+//        private Path outputFile;
+//        private DataWriter&lt;VariantAnnotation&gt; writer;
+//
+//        public VariantAnnotationWriterThread(Path outputFile, BlockingQueue&lt;List&lt;VariantAnnotation&gt;&gt; queue) {
+//            this.outputFile = outputFile;
+//            this.queue = queue;
+//        }
+//
+//        private void pre() {
+//            logger.info(&quot;Opening file {} for writing&quot;, outputFile.toString());
+//            if(outputFile.toString().endsWith(&quot;.json&quot;)) {
+//                this.writer = new JsonAnnotationWriter(outputFile.toString());
+//            } else {
+//                this.writer = new VepFormatWriter(outputFile.toString());
+//            }
+//            if(!this.writer.open()) {
+//                logger.error(&quot;Error opening output file: &quot;+outputFile.toString());
+//            }
+//            this.writer.pre();
+//        }
+//
+//        private  void post() {
+//            this.writer.post();
+//            this.writer.close();
+//        }
+//
+//        @Override
+//        public Integer call() {
+//            this.pre();
+//            int writtenObjects = 0;
+//            int finishedAnnotators = 0;
+//            boolean finished = false;
+//            while (!finished) {
+//                try {
+////                    logger.info(&quot;Writer waits for new variants/annotations&quot;);
+//                    List&lt;VariantAnnotation&gt; batch = queue.take();
+//                    logger.debug(&quot;Writer receives {} variants/annotations&quot;, batch.size());
+//                    if (batch == VariantAnnotatorRunner.ANNOTATION_POISON_PILL) {
+//                        finishedAnnotators++;
+//                        if(finishedAnnotators == numThreads) {
+//                            finished = true;
+//                            logger.debug(&quot;Writer receives last POISON PILL. Finishes&quot;);
+//                        }
+//                    } else {
+////                        logger.info(&quot;Writer calls writer for &quot; + batch.size() + &quot; variants/annotations&quot;);
+//                        writer.write(batch);
+//                        writtenObjects += batch.size();
+//                        logger.debug(&quot;Annotation written for {} variants&quot;, writtenObjects);
+//                    }
+//                } catch (InterruptedException e) {
+//                    logger.error(&quot;Writer thread interrupted: &quot; + e.getMessage());
+//                } catch (Exception e) {
+//                    logger.error(&quot;Error Loading batch: &quot; + e.getMessage());
+//                }
+//            }
+//            logger.info(&quot;{} variants annotated and written into {}&quot;, writtenObjects, outputFile);
+//            this.post();
+//            return writtenObjects;
+//        }
+//    }
+//
+//}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DownloadProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.config</a> &gt; <span class="el_source">DownloadProperties.java</span></div><h1>DownloadProperties.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.config;
+
+/**
+ * Created by imedina on 19/08/16.
+ */
+<span class="fc" id="L22">public class DownloadProperties {</span>
+
+    private EnsemblProperties ensembl;
+    private EnsemblProperties ensemblGenomes;
+
+    private URLProperties geneUniprotXref;
+    private URLProperties geneExpressionAtlas;
+    private URLProperties mirbase;
+    private URLProperties mirbaseReadme;
+    private URLProperties targetScan;
+    private URLProperties miRTarBase;
+    private URLProperties uniprot;
+    private URLProperties uniprotRelNotes;
+    private URLProperties intact;
+    private URLProperties interpro;
+    private URLProperties interproRelNotes;
+    private URLProperties conservation;
+    private URLProperties gerp;
+    private URLProperties clinvar;
+    private URLProperties clinvarSummary;
+    private URLProperties clinvarVariationAllele;
+    private URLProperties clinvarEfoTerms;
+    private URLProperties iarctp53;
+    private URLProperties docm;
+    private URLProperties docmVersion;
+    private URLProperties dgv;
+    private URLProperties simpleRepeats;
+    private URLProperties windowMasker;
+    private URLProperties genomicSuperDups;
+    private URLProperties hpo;
+    private URLProperties disgenet;
+    private URLProperties disgenetReadme;
+    private URLProperties dgidb;
+    private URLProperties gwasCatalog;
+    private URLProperties dbsnp;
+    private URLProperties cadd;
+    private URLProperties reactome;
+
+
+    public EnsemblProperties getEnsembl() {
+<span class="fc" id="L62">        return ensembl;</span>
+    }
+
+    public DownloadProperties setEnsembl(EnsemblProperties ensembl) {
+<span class="fc" id="L66">        this.ensembl = ensembl;</span>
+<span class="fc" id="L67">        return this;</span>
+    }
+
+    public EnsemblProperties getEnsemblGenomes() {
+<span class="fc" id="L71">        return ensemblGenomes;</span>
+    }
+
+    public DownloadProperties setEnsemblGenomes(EnsemblProperties ensemblGenomes) {
+<span class="fc" id="L75">        this.ensemblGenomes = ensemblGenomes;</span>
+<span class="fc" id="L76">        return this;</span>
+    }
+
+    public URLProperties getGeneUniprotXref() {
+<span class="fc" id="L80">        return geneUniprotXref;</span>
+    }
+
+    public DownloadProperties setGeneUniprotXref(URLProperties geneUniprotXref) {
+<span class="nc" id="L84">        this.geneUniprotXref = geneUniprotXref;</span>
+<span class="nc" id="L85">        return this;</span>
+    }
+
+    public URLProperties getGeneExpressionAtlas() {
+<span class="fc" id="L89">        return geneExpressionAtlas;</span>
+    }
+
+    public DownloadProperties setGeneExpressionAtlas(URLProperties geneExpressionAtlas) {
+<span class="nc" id="L93">        this.geneExpressionAtlas = geneExpressionAtlas;</span>
+<span class="nc" id="L94">        return this;</span>
+    }
+
+    public URLProperties getMirbase() {
+<span class="fc" id="L98">        return mirbase;</span>
+    }
+
+    public DownloadProperties setMirbase(URLProperties mirbase) {
+<span class="nc" id="L102">        this.mirbase = mirbase;</span>
+<span class="nc" id="L103">        return this;</span>
+    }
+
+    public URLProperties getMirbaseReadme() {
+<span class="fc" id="L107">        return mirbaseReadme;</span>
+    }
+
+    public DownloadProperties setMirbaseReadme(URLProperties mirbaseReadme) {
+<span class="nc" id="L111">        this.mirbaseReadme = mirbaseReadme;</span>
+<span class="nc" id="L112">        return this;</span>
+    }
+
+    public URLProperties getTargetScan() {
+<span class="fc" id="L116">        return targetScan;</span>
+    }
+
+    public DownloadProperties setTargetScan(URLProperties targetScan) {
+<span class="nc" id="L120">        this.targetScan = targetScan;</span>
+<span class="nc" id="L121">        return this;</span>
+    }
+
+    public URLProperties getMiRTarBase() {
+<span class="fc" id="L125">        return miRTarBase;</span>
+    }
+
+    public DownloadProperties setMiRTarBase(URLProperties miRTarBase) {
+<span class="nc" id="L129">        this.miRTarBase = miRTarBase;</span>
+<span class="nc" id="L130">        return this;</span>
+    }
+
+    public URLProperties getUniprot() {
+<span class="fc" id="L134">        return uniprot;</span>
+    }
+
+    public DownloadProperties setUniprot(URLProperties uniprot) {
+<span class="nc" id="L138">        this.uniprot = uniprot;</span>
+<span class="nc" id="L139">        return this;</span>
+    }
+
+    public URLProperties getUniprotRelNotes() {
+<span class="fc" id="L143">        return uniprotRelNotes;</span>
+    }
+
+    public DownloadProperties setUniprotRelNotes(URLProperties uniprotRelNotes) {
+<span class="nc" id="L147">        this.uniprotRelNotes = uniprotRelNotes;</span>
+<span class="nc" id="L148">        return this;</span>
+    }
+
+    public URLProperties getIntact() {
+<span class="fc" id="L152">        return intact;</span>
+    }
+
+    public DownloadProperties setIntact(URLProperties intact) {
+<span class="nc" id="L156">        this.intact = intact;</span>
+<span class="nc" id="L157">        return this;</span>
+    }
+
+    public URLProperties getInterpro() {
+<span class="fc" id="L161">        return interpro;</span>
+    }
+
+    public DownloadProperties setInterpro(URLProperties interpro) {
+<span class="nc" id="L165">        this.interpro = interpro;</span>
+<span class="nc" id="L166">        return this;</span>
+    }
+
+    public URLProperties getInterproRelNotes() {
+<span class="fc" id="L170">        return interproRelNotes;</span>
+    }
+
+    public DownloadProperties setInterproRelNotes(URLProperties interproRelNotes) {
+<span class="nc" id="L174">        this.interproRelNotes = interproRelNotes;</span>
+<span class="nc" id="L175">        return this;</span>
+    }
+
+    public URLProperties getConservation() {
+<span class="fc" id="L179">        return conservation;</span>
+    }
+
+    public DownloadProperties setConservation(URLProperties conservation) {
+<span class="nc" id="L183">        this.conservation = conservation;</span>
+<span class="nc" id="L184">        return this;</span>
+    }
+
+    public URLProperties getGerp() {
+<span class="fc" id="L188">        return gerp;</span>
+    }
+
+    public DownloadProperties setGerp(URLProperties gerp) {
+<span class="nc" id="L192">        this.gerp = gerp;</span>
+<span class="nc" id="L193">        return this;</span>
+    }
+
+    public URLProperties getClinvar() {
+<span class="fc" id="L197">        return clinvar;</span>
+    }
+
+    public DownloadProperties setClinvar(URLProperties clinvar) {
+<span class="nc" id="L201">        this.clinvar = clinvar;</span>
+<span class="nc" id="L202">        return this;</span>
+    }
+
+    public URLProperties getClinvarSummary() {
+<span class="fc" id="L206">        return clinvarSummary;</span>
+    }
+
+    public DownloadProperties setClinvarSummary(URLProperties clinvarSummary) {
+<span class="nc" id="L210">        this.clinvarSummary = clinvarSummary;</span>
+<span class="nc" id="L211">        return this;</span>
+    }
+
+    public URLProperties getClinvarVariationAllele() {
+<span class="fc" id="L215">        return clinvarVariationAllele;</span>
+    }
+
+    public void setClinvarVariationAllele(URLProperties clinvarVariationAllele) {
+<span class="nc" id="L219">        this.clinvarVariationAllele = clinvarVariationAllele;</span>
+<span class="nc" id="L220">    }</span>
+
+    public URLProperties getClinvarEfoTerms() {
+<span class="fc" id="L223">        return clinvarEfoTerms;</span>
+    }
+
+    public DownloadProperties setClinvarEfoTerms(URLProperties clinvarEfoTerms) {
+<span class="nc" id="L227">        this.clinvarEfoTerms = clinvarEfoTerms;</span>
+<span class="nc" id="L228">        return this;</span>
+    }
+
+    public URLProperties getIarctp53() {
+<span class="fc" id="L232">        return iarctp53;</span>
+    }
+
+    public void setIarctp53(URLProperties iarctp53) {
+<span class="nc" id="L236">        this.iarctp53 = iarctp53;</span>
+<span class="nc" id="L237">    }</span>
+
+    public URLProperties getDocm() {
+<span class="fc" id="L240">        return docm;</span>
+    }
+
+    public void setDocm(URLProperties docm) {
+<span class="nc" id="L244">        this.docm = docm;</span>
+<span class="nc" id="L245">    }</span>
+
+    public URLProperties getDocmVersion() {
+<span class="fc" id="L248">        return docmVersion;</span>
+    }
+
+    public void setDocmVersion(URLProperties docmVersion) {
+<span class="nc" id="L252">        this.docmVersion = docmVersion;</span>
+<span class="nc" id="L253">    }</span>
+
+    public URLProperties getDgv() {
+<span class="fc" id="L256">        return dgv;</span>
+    }
+
+    public void setDgv(URLProperties dgv) {
+<span class="nc" id="L260">        this.dgv = dgv;</span>
+<span class="nc" id="L261">    }</span>
+
+    public URLProperties getSimpleRepeats() {
+<span class="fc" id="L264">        return simpleRepeats;</span>
+    }
+
+    public void setSimpleRepeats(URLProperties simpleRepeats) {
+<span class="nc" id="L268">        this.simpleRepeats = simpleRepeats;</span>
+<span class="nc" id="L269">    }</span>
+
+    public URLProperties getGenomicSuperDups() {
+<span class="fc" id="L272">        return genomicSuperDups;</span>
+    }
+
+    public void setGenomicSuperDups(URLProperties genomicSuperDups) {
+<span class="nc" id="L276">        this.genomicSuperDups = genomicSuperDups;</span>
+<span class="nc" id="L277">    }</span>
+
+    public URLProperties getWindowMasker() {
+<span class="fc" id="L280">        return windowMasker;</span>
+    }
+
+    public void setWindowMasker(URLProperties windowMasker) {
+<span class="nc" id="L284">        this.windowMasker = windowMasker;</span>
+<span class="nc" id="L285">    }</span>
+
+    public URLProperties getHpo() {
+<span class="fc" id="L288">        return hpo;</span>
+    }
+
+    public DownloadProperties setHpo(URLProperties hpo) {
+<span class="nc" id="L292">        this.hpo = hpo;</span>
+<span class="nc" id="L293">        return this;</span>
+    }
+
+    public URLProperties getDisgenet() {
+<span class="fc" id="L297">        return disgenet;</span>
+    }
+
+    public DownloadProperties setDisgenet(URLProperties disgenet) {
+<span class="nc" id="L301">        this.disgenet = disgenet;</span>
+<span class="nc" id="L302">        return this;</span>
+    }
+
+    public URLProperties getDisgenetReadme() {
+<span class="fc" id="L306">        return disgenetReadme;</span>
+    }
+
+    public DownloadProperties setDisgenetReadme(URLProperties disgenetReadme) {
+<span class="nc" id="L310">        this.disgenetReadme = disgenetReadme;</span>
+<span class="nc" id="L311">        return this;</span>
+    }
+
+    public URLProperties getDgidb() {
+<span class="fc" id="L315">        return dgidb;</span>
+    }
+
+    public DownloadProperties setDgidb(URLProperties dgidb) {
+<span class="nc" id="L319">        this.dgidb = dgidb;</span>
+<span class="nc" id="L320">        return this;</span>
+    }
+
+    public URLProperties getGwasCatalog() {
+<span class="fc" id="L324">        return gwasCatalog;</span>
+    }
+
+    public DownloadProperties setGwasCatalog(URLProperties gwasCatalog) {
+<span class="nc" id="L328">        this.gwasCatalog = gwasCatalog;</span>
+<span class="nc" id="L329">        return this;</span>
+    }
+
+    public URLProperties getDbsnp() {
+<span class="fc" id="L333">        return dbsnp;</span>
+    }
+
+    public DownloadProperties setDbsnp(URLProperties dbsnp) {
+<span class="nc" id="L337">        this.dbsnp = dbsnp;</span>
+<span class="nc" id="L338">        return this;</span>
+    }
+
+    public URLProperties getCadd() {
+<span class="fc" id="L342">        return cadd;</span>
+    }
+
+    public DownloadProperties setCadd(URLProperties cadd) {
+<span class="nc" id="L346">        this.cadd = cadd;</span>
+<span class="nc" id="L347">        return this;</span>
+    }
+
+    public URLProperties getReactome() {
+<span class="fc" id="L351">        return reactome;</span>
+    }
+
+    public DownloadProperties setReactome(URLProperties reactome) {
+<span class="nc" id="L355">        this.reactome = reactome;</span>
+<span class="nc" id="L356">        return this;</span>
+    }
+
+<span class="fc" id="L359">    public static class EnsemblProperties {</span>
+
+        private DatabaseCredentials database;
+        private String libs;
+        private URLProperties url;
+
+        public DatabaseCredentials getDatabase() {
+<span class="fc" id="L366">            return database;</span>
+        }
+
+        public void setDatabase(DatabaseCredentials database) {
+<span class="fc" id="L370">            this.database = database;</span>
+<span class="fc" id="L371">        }</span>
+
+        public String getLibs() {
+<span class="fc" id="L374">            return libs;</span>
+        }
+
+        public void setLibs(String libs) {
+<span class="nc" id="L378">            this.libs = libs;</span>
+<span class="nc" id="L379">        }</span>
+
+        public URLProperties getUrl() {
+<span class="fc" id="L382">            return url;</span>
+        }
+
+        public void setUrl(URLProperties url) {
+<span class="fc" id="L386">            this.url = url;</span>
+<span class="fc" id="L387">        }</span>
+    }
+
+<span class="fc" id="L390">    public static class URLProperties {</span>
+
+        private String host;
+
+        public String getHost() {
+<span class="fc" id="L395">            return host;</span>
+        }
+
+        public void setHost(String host) {
+<span class="fc" id="L399">            this.host = host;</span>
+<span class="fc" id="L400">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

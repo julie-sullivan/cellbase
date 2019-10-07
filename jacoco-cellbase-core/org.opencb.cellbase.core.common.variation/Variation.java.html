@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Variation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-core</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.core.common.variation</a> &gt; <span class="el_source">Variation.java</span></div><h1>Variation.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 OpenCB
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencb.cellbase.core.common.variation;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Deprecated
+public class Variation {
+
+    // private String _id;
+    private String id;            //0
+    private String chromosome;        //1
+    private int start;                //2
+    private int end;                //3
+    private String strand;            //4
+    private String type;            // Allowed type values: SNV, MUT, INDEL, SV
+    private String reference;
+    private String alternate;
+    private String alleleString;
+    private String ancestralAllele;
+    private String displayConsequenceType;
+    private List&lt;String&gt; consequenceTypes;
+
+// private String species;
+// private String assembly;
+// private String source;
+// private String version;
+
+<span class="nc" id="L44">    private List&lt;TranscriptVariation&gt; transcriptVariations = new ArrayList&lt;&gt;();</span>
+    private Phenotype phenotype;
+<span class="nc" id="L46">    private List&lt;SampleGenotype&gt; samples = new ArrayList&lt;&gt;();</span>
+    private List&lt;PopulationFrequency&gt; populationFrequencies;
+<span class="nc" id="L48">    private List&lt;Xref&gt; xrefs = new ArrayList&lt;&gt;();</span>
+
+    // Required
+    // private String featureId;
+
+    // Optional
+    private String minorAllele;
+    private String minorAlleleFreq;
+    private String validationStatus;
+    private String evidence;
+    // private String variantSeSeq;
+    // private String variantReads;
+
+    // private List&lt;String&gt; variantEffect
+
+<span class="nc" id="L63">    public Variation() {</span>
+<span class="nc" id="L64">        consequenceTypes = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L65">        transcriptVariations = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L66">        samples = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L67">        populationFrequencies = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L68">        xrefs = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L69">    }</span>
+
+    public Variation(String id, String chromosome, String type, int start, int end, String strand, String reference,
+                     String alternate, String alleleString, String ancestralAllele, String displayConsequenceType,
+                     /*String species, String assembly, String source, String version,*/
+                     List&lt;String&gt; consequencesTypes, List&lt;TranscriptVariation&gt; transcriptVariations, Phenotype phenotype,
+                     List&lt;SampleGenotype&gt; samples, List&lt;PopulationFrequency&gt; populationFrequencies, List&lt;Xref&gt; xrefs,
+<span class="nc" id="L76">                     /*String featureId,*/ String minorAllele, String minorAlleleFreq, String validationStatus, String evidence) {</span>
+<span class="nc" id="L77">        this.id = id;</span>
+<span class="nc" id="L78">        this.chromosome = chromosome;</span>
+<span class="nc" id="L79">        this.type = type;</span>
+<span class="nc" id="L80">        this.start = start;</span>
+<span class="nc" id="L81">        this.end = end;</span>
+<span class="nc" id="L82">        this.strand = strand;</span>
+<span class="nc" id="L83">        this.reference = reference;</span>
+<span class="nc" id="L84">        this.alternate = alternate;</span>
+<span class="nc" id="L85">        this.alleleString = alleleString;</span>
+<span class="nc" id="L86">        this.ancestralAllele = ancestralAllele;</span>
+<span class="nc" id="L87">        this.displayConsequenceType = displayConsequenceType;</span>
+
+// this.species = species;
+// this.assembly = assembly;
+// this.source = source;
+// this.version = version;
+
+<span class="nc" id="L94">        this.consequenceTypes = consequencesTypes;</span>
+<span class="nc" id="L95">        this.transcriptVariations = transcriptVariations;</span>
+<span class="nc" id="L96">        this.phenotype = phenotype;</span>
+<span class="nc" id="L97">        this.samples = samples;</span>
+<span class="nc" id="L98">        this.populationFrequencies = populationFrequencies;</span>
+<span class="nc" id="L99">        this.xrefs = xrefs;</span>
+
+// this.featureId = featureId;
+<span class="nc" id="L102">        this.minorAllele = minorAllele;</span>
+<span class="nc" id="L103">        this.minorAlleleFreq = minorAlleleFreq;</span>
+<span class="nc" id="L104">        this.validationStatus = validationStatus;</span>
+<span class="nc" id="L105">        this.evidence = evidence;</span>
+<span class="nc" id="L106">    }</span>
+
+
+    public List&lt;SampleGenotype&gt; getSamples() {
+<span class="nc" id="L110">        return samples;</span>
+    }
+
+    public void setSamples(List&lt;SampleGenotype&gt; samples) {
+<span class="nc" id="L114">        this.samples = samples;</span>
+<span class="nc" id="L115">    }</span>
+
+    public void setXrefs(List&lt;Xref&gt; xrefs) {
+<span class="nc" id="L118">        this.xrefs = xrefs;</span>
+<span class="nc" id="L119">    }</span>
+
+    public String getChromosome() {
+<span class="nc" id="L122">        return chromosome;</span>
+    }
+
+    public void setChromosome(String chromosome) {
+<span class="nc" id="L126">        this.chromosome = chromosome;</span>
+<span class="nc" id="L127">    }</span>
+
+    public int getStart() {
+<span class="nc" id="L130">        return start;</span>
+    }
+
+    public void setStart(int start) {
+<span class="nc" id="L134">        this.start = start;</span>
+<span class="nc" id="L135">    }</span>
+
+    public int getEnd() {
+<span class="nc" id="L138">        return end;</span>
+    }
+
+    public void setEnd(int end) {
+<span class="nc" id="L142">        this.end = end;</span>
+<span class="nc" id="L143">    }</span>
+
+    public String getStrand() {
+<span class="nc" id="L146">        return strand;</span>
+    }
+
+    public void setStrand(String strand) {
+<span class="nc" id="L150">        this.strand = strand;</span>
+<span class="nc" id="L151">    }</span>
+
+    public List&lt;PopulationFrequency&gt; getPopulationFrequencies() {
+<span class="nc" id="L154">        return populationFrequencies;</span>
+    }
+
+    public void setPopulationFrequencies(List&lt;PopulationFrequency&gt; populationFrequencies) {
+<span class="nc" id="L158">        this.populationFrequencies = populationFrequencies;</span>
+<span class="nc" id="L159">    }</span>
+
+
+    public String getMinorAllele() {
+<span class="nc" id="L163">        return minorAllele;</span>
+    }
+
+    public void setMinorAllele(String minorAllele) {
+<span class="nc" id="L167">        this.minorAllele = minorAllele;</span>
+<span class="nc" id="L168">    }</span>
+
+    public String getMinorAlleleFreq() {
+<span class="nc" id="L171">        return minorAlleleFreq;</span>
+    }
+
+    public void setMinorAlleleFreq(String variantFreq) {
+<span class="nc" id="L175">        this.minorAlleleFreq = variantFreq;</span>
+<span class="nc" id="L176">    }</span>
+
+    public String getValidationStatus() {
+<span class="nc" id="L179">        return validationStatus;</span>
+    }
+
+    public void setValidationStatus(String validationStatus) {
+<span class="nc" id="L183">        this.validationStatus = validationStatus;</span>
+<span class="nc" id="L184">    }</span>
+
+    public String getReference() {
+<span class="nc" id="L187">        return reference;</span>
+    }
+
+    public String getType() {
+<span class="nc" id="L191">        return type;</span>
+    }
+
+    public void setType(String type) {
+<span class="nc" id="L195">        this.type = type;</span>
+<span class="nc" id="L196">    }</span>
+
+    public void setReference(String reference) {
+<span class="nc" id="L199">        this.reference = reference;</span>
+<span class="nc" id="L200">    }</span>
+
+    public String getAlternate() {
+<span class="nc" id="L203">        return alternate;</span>
+    }
+
+    public void setAlternate(String alternate) {
+<span class="nc" id="L207">        this.alternate = alternate;</span>
+<span class="nc" id="L208">    }</span>
+
+    public List&lt;Xref&gt; getXrefs() {
+<span class="nc" id="L211">        return xrefs;</span>
+    }
+
+    public void setXrefs(Xref xrefs) {
+<span class="nc" id="L215">        this.xrefs.add(xrefs);</span>
+<span class="nc" id="L216">    }</span>
+
+    public String getAlleleString() {
+<span class="nc" id="L219">        return alleleString;</span>
+    }
+
+    public void setAlleleString(String alleleString) {
+<span class="nc" id="L223">        this.alleleString = alleleString;</span>
+<span class="nc" id="L224">    }</span>
+
+    public List&lt;TranscriptVariation&gt; getTranscriptVariations() {
+<span class="nc" id="L227">        return transcriptVariations;</span>
+    }
+
+    public void setTranscriptVariations(List&lt;TranscriptVariation&gt; transcriptVariations) {
+<span class="nc" id="L231">        this.transcriptVariations = transcriptVariations;</span>
+<span class="nc" id="L232">    }</span>
+
+    public List&lt;String&gt; getConsequenceTypes() {
+<span class="nc" id="L235">        return consequenceTypes;</span>
+    }
+
+    public void setConsequenceTypes(List&lt;String&gt; consequenceTypes) {
+<span class="nc" id="L239">        this.consequenceTypes = consequenceTypes;</span>
+<span class="nc" id="L240">    }</span>
+
+    public String getDisplayConsequenceType() {
+<span class="nc" id="L243">        return displayConsequenceType;</span>
+    }
+
+    public void setDisplayConsequenceType(String displayConsequenceType) {
+<span class="nc" id="L247">        this.displayConsequenceType = displayConsequenceType;</span>
+<span class="nc" id="L248">    }</span>
+
+    public String getEvidence() {
+<span class="nc" id="L251">        return evidence;</span>
+    }
+
+    public void setEvidence(String evidence) {
+<span class="nc" id="L255">        this.evidence = evidence;</span>
+<span class="nc" id="L256">    }</span>
+
+    public String getAncestralAllele() {
+<span class="nc" id="L259">        return ancestralAllele;</span>
+    }
+
+    public void setAncestralAllele(String ancestralAllele) {
+<span class="nc" id="L263">        this.ancestralAllele = ancestralAllele;</span>
+<span class="nc" id="L264">    }</span>
+
+    public Phenotype getPhenotype() {
+<span class="nc" id="L267">        return phenotype;</span>
+    }
+
+    public void setPhenotype(Phenotype phenotype) {
+<span class="nc" id="L271">        this.phenotype = phenotype;</span>
+<span class="nc" id="L272">    }</span>
+
+    public String getId() {
+<span class="nc" id="L275">        return id;</span>
+    }
+
+    public void setId(String id) {
+<span class="nc" id="L279">        this.id = id;</span>
+<span class="nc" id="L280">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

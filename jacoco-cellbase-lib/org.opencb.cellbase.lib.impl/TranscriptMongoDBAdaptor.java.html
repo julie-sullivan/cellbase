@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TranscriptMongoDBAdaptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cellbase-lib</a> &gt; <a href="index.source.html" class="el_package">org.opencb.cellbase.lib.impl</a> &gt; <span class="el_source">TranscriptMongoDBAdaptor.java</span></div><h1>TranscriptMongoDBAdaptor.java</h1><pre class="source lang-java linenums">package org.opencb.cellbase.lib.impl;
+
+import com.mongodb.client.model.Accumulators;
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.opencb.biodata.models.core.Region;
+import org.opencb.biodata.models.core.Transcript;
+import org.opencb.cellbase.core.api.TranscriptDBAdaptor;
+import org.opencb.cellbase.lib.MongoDBCollectionConfiguration;
+import org.opencb.commons.datastore.core.Query;
+import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDataStore;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+/**
+ * Created by swaathi on 27/11/15.
+ */
+public class TranscriptMongoDBAdaptor extends MongoDBAdaptor implements TranscriptDBAdaptor&lt;Transcript&gt; {
+
+    public TranscriptMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
+<span class="fc" id="L28">        super(species, assembly, mongoDataStore);</span>
+<span class="fc" id="L29">        mongoDBCollection = mongoDataStore.getCollection(&quot;gene&quot;);</span>
+
+<span class="fc" id="L31">        logger.debug(&quot;TranscriptMongoDBAdaptor: in 'constructor'&quot;);</span>
+<span class="fc" id="L32">    }</span>
+
+
+    @Override
+    public QueryResult&lt;String&gt; getCdna(String id) {
+<span class="nc" id="L37">        Bson bson = Filters.eq(&quot;transcripts.xrefs.id&quot;, id);</span>
+<span class="nc" id="L38">        Bson elemMatch = Projections.elemMatch(&quot;transcripts&quot;, Filters.eq(&quot;xrefs.id&quot;, id));</span>
+<span class="nc" id="L39">        Bson include = Projections.include(&quot;transcripts.cDnaSequence&quot;);</span>
+        // elemMatch and include are combined to reduce the data sent from the server
+<span class="nc" id="L41">        Bson projection = Projections.fields(elemMatch, include);</span>
+<span class="nc" id="L42">        QueryResult&lt;Document&gt; result = mongoDBCollection.find(bson, projection, new QueryOptions());</span>
+
+<span class="nc" id="L44">        String sequence = null;</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">        if (result != null &amp;&amp; !result.getResult().isEmpty()) {</span>
+<span class="nc" id="L46">            List&lt;Document&gt; transcripts = (List&lt;Document&gt;) result.getResult().get(0).get(&quot;transcripts&quot;);</span>
+<span class="nc" id="L47">            sequence = transcripts.get(0).getString(&quot;cDnaSequence&quot;);</span>
+        }
+<span class="nc" id="L49">        return new QueryResult&lt;&gt;(id, result.getDbTime(), result.getNumResults(), result.getNumTotalResults(),</span>
+<span class="nc" id="L50">                result.getWarningMsg(), result.getErrorMsg(), Collections.singletonList(sequence));</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; update(List objectList, String field, String[] innerFields) {
+<span class="nc" id="L55">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Long&gt; count(Query query) {
+<span class="nc" id="L60">        Bson document = parseQuery(query);</span>
+<span class="nc" id="L61">        Bson match = Aggregates.match(document);</span>
+
+<span class="nc" id="L63">        List&lt;String&gt; includeFields = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        for (String s : query.keySet()) {</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            if (StringUtils.isNotEmpty(query.getString(s))) {</span>
+<span class="nc" id="L66">                includeFields.add(s);</span>
+            }
+<span class="nc" id="L68">        }</span>
+
+        Bson include;
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (includeFields.size() &gt; 0) {</span>
+<span class="nc" id="L72">            include = Aggregates.project(Projections.include(includeFields));</span>
+        } else {
+<span class="nc" id="L74">            include = Aggregates.project(Projections.include(&quot;transcripts.id&quot;));</span>
+        }
+
+<span class="nc" id="L77">        Bson unwind = Aggregates.unwind(&quot;$transcripts&quot;);</span>
+<span class="nc" id="L78">        Bson match2 = Aggregates.match(document);</span>
+<span class="nc" id="L79">        Bson project = Aggregates.project(new Document(&quot;transcripts&quot;, &quot;$transcripts.id&quot;));</span>
+<span class="nc" id="L80">        Bson group = Aggregates.group(&quot;transcripts&quot;, Accumulators.sum(&quot;count&quot;, 1));</span>
+
+<span class="nc" id="L82">        QueryResult&lt;Document&gt; queryResult =</span>
+<span class="nc" id="L83">                mongoDBCollection.aggregate(Arrays.asList(match, include, unwind, match2, project, group), null);</span>
+<span class="nc" id="L84">        Number number = (Number) queryResult.first().get(&quot;count&quot;);</span>
+<span class="nc" id="L85">        Long count = number.longValue();</span>
+<span class="nc" id="L86">        return new QueryResult&lt;&gt;(null, queryResult.getDbTime(), queryResult.getNumResults(),</span>
+<span class="nc" id="L87">                queryResult.getNumTotalResults(), queryResult.getWarningMsg(), queryResult.getErrorMsg(),</span>
+<span class="nc" id="L88">                Collections.singletonList(count));</span>
+    }
+
+    @Override
+    public QueryResult distinct(Query query, String field) {
+<span class="nc" id="L93">        Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L94">        return mongoDBCollection.distinct(field, bsonDocument);</span>
+
+    }
+
+    @Override
+    public QueryResult stats(Query query) {
+<span class="nc" id="L100">        return null;</span>
+    }
+
+    @Override
+    public QueryResult&lt;Transcript&gt; get(Query query, QueryOptions options) {
+<span class="nc" id="L105">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeGet(Query query, QueryOptions options) {
+<span class="fc" id="L110">        List&lt;Bson&gt; aggregateList = unwindAndMatchTranscripts(query, options);</span>
+<span class="fc" id="L111">        return mongoDBCollection.aggregate(aggregateList, options);</span>
+    }
+
+    @Override
+    public Iterator&lt;Transcript&gt; iterator(Query query, QueryOptions options) {
+<span class="nc" id="L116">        return null;</span>
+    }
+
+    @Override
+    public Iterator nativeIterator(Query query, QueryOptions options) {
+<span class="nc" id="L121">        List&lt;Bson&gt; aggregateList = unwindAndMatchTranscripts(query, options);</span>
+<span class="nc" id="L122">        return mongoDBCollection.nativeQuery().aggregate(aggregateList, options).iterator();</span>
+//        return mongoDBCollection.nativeQuery().find(bson, options).iterator();
+    }
+
+    @Override
+    public void forEach(Query query, Consumer action, QueryOptions options) {
+
+<span class="nc" id="L129">    }</span>
+
+    @Override
+    public QueryResult rank(Query query, String field, int numResults, boolean asc) {
+<span class="nc" id="L133">        return null;</span>
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, String field, QueryOptions options) {
+<span class="nc" id="L138">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L139">        return groupBy(bsonQuery, field, &quot;name&quot;, options);</span>
+
+    }
+
+    @Override
+    public QueryResult groupBy(Query query, List fields, QueryOptions options) {
+<span class="nc" id="L145">        Bson bsonQuery = parseQuery(query);</span>
+<span class="nc" id="L146">        return groupBy(bsonQuery, fields, &quot;name&quot;, options);</span>
+    }
+
+    @Override
+    public QueryResult next(Query query, QueryOptions options) {
+<span class="nc" id="L151">        return null;</span>
+    }
+
+    @Override
+    public QueryResult nativeNext(Query query, QueryOptions options) {
+<span class="nc" id="L156">        return null;</span>
+    }
+
+    @Override
+    public QueryResult getIntervalFrequencies(Query query, int intervalSize, QueryOptions options) {
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (query.getString(&quot;region&quot;) != null) {</span>
+<span class="nc" id="L162">            Region region = Region.parseRegion(query.getString(&quot;region&quot;));</span>
+<span class="nc" id="L163">            Bson bsonDocument = parseQuery(query);</span>
+<span class="nc" id="L164">            return getIntervalFrequencies(bsonDocument, region, intervalSize, options);</span>
+        }
+<span class="nc" id="L166">        return null;</span>
+    }
+
+    private Bson parseQuery(Query query) {
+<span class="fc" id="L170">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L172">        createRegionQuery(query, QueryParams.REGION.key(), MongoDBCollectionConfiguration.GENE_CHUNK_SIZE, andBsonList);</span>
+<span class="fc" id="L173">        createOrQuery(query, QueryParams.ID.key(), &quot;transcripts.id&quot;, andBsonList);</span>
+<span class="fc" id="L174">        createOrQuery(query, QueryParams.NAME.key(), &quot;transcripts.name&quot;, andBsonList);</span>
+<span class="fc" id="L175">        createOrQuery(query, QueryParams.BIOTYPE.key(), &quot;transcripts.biotype&quot;, andBsonList);</span>
+<span class="fc" id="L176">        createOrQuery(query, QueryParams.XREFS.key(), &quot;transcripts.xrefs.id&quot;, andBsonList);</span>
+<span class="fc" id="L177">        createOrQuery(query, QueryParams.TFBS_NAME.key(), &quot;transcripts.tfbs.name&quot;, andBsonList);</span>
+<span class="fc" id="L178">        createOrQuery(query, QueryParams.ANNOTATION_FLAGS.key(), &quot;transcripts.annotationFlags&quot;, andBsonList);</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="fc" id="L180">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L182">            return new Document();</span>
+        }
+    }
+
+    private Bson parseQueryUnwindTranscripts(Query query) {
+<span class="nc" id="L187">        List&lt;Bson&gt; andBsonList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L189">        createRegionQuery(query, QueryParams.REGION.key(), andBsonList);</span>
+<span class="nc" id="L190">        createOrQuery(query, QueryParams.ID.key(), &quot;id&quot;, andBsonList);</span>
+<span class="nc" id="L191">        createOrQuery(query, QueryParams.NAME.key(), &quot;name&quot;, andBsonList);</span>
+<span class="nc" id="L192">        createOrQuery(query, QueryParams.BIOTYPE.key(), &quot;biotype&quot;, andBsonList);</span>
+<span class="nc" id="L193">        createOrQuery(query, QueryParams.XREFS.key(), &quot;xrefs.id&quot;, andBsonList);</span>
+<span class="nc" id="L194">        createOrQuery(query, QueryParams.TFBS_NAME.key(), &quot;tfbs.name&quot;, andBsonList);</span>
+<span class="nc" id="L195">        createOrQuery(query, QueryParams.ANNOTATION_FLAGS.key(), &quot;annotationFlags&quot;, andBsonList);</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (andBsonList.size() &gt; 0) {</span>
+<span class="nc" id="L198">            return Filters.and(andBsonList);</span>
+        } else {
+<span class="nc" id="L200">            return new Document();</span>
+        }
+    }
+
+    private List&lt;Bson&gt; unwindAndMatchTranscripts(Query query, QueryOptions options) {
+<span class="fc" id="L205">        List&lt;Bson&gt; aggregateList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L207">        Bson bson = parseQuery(query);</span>
+<span class="fc" id="L208">        Bson match = Aggregates.match(bson);</span>
+
+<span class="fc" id="L210">        Bson include = null;</span>
+<span class="pc bpc" id="L211" title="1 of 4 branches missed.">        if (options != null &amp;&amp; options.containsKey(&quot;include&quot;)) {</span>
+<span class="fc" id="L212">            List&lt;String&gt; includeList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L213">            List&lt;String&gt; optionsAsStringList = options.getAsStringList(&quot;include&quot;);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">            for (String s : optionsAsStringList) {</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">                if (s.startsWith(&quot;transcripts&quot;)) {</span>
+<span class="fc" id="L216">                    includeList.add(s);</span>
+                }
+<span class="fc" id="L218">            }</span>
+
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            if (includeList.size() &gt; 0) {</span>
+<span class="fc" id="L221">                include = Projections.include(includeList);</span>
+            }
+        }
+
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        if (include == null) {</span>
+<span class="fc" id="L226">            include = Projections.include(&quot;transcripts&quot;);</span>
+        }
+<span class="fc" id="L228">        Bson excludeAndInclude = Aggregates.project(Projections.fields(Projections.excludeId(), include));</span>
+<span class="fc" id="L229">        Bson unwind = Aggregates.unwind(&quot;$transcripts&quot;);</span>
+
+        // This project the three fields of Xref to the top of the object
+<span class="fc" id="L232">        Document document = new Document(&quot;id&quot;, &quot;$transcripts.id&quot;);</span>
+<span class="fc" id="L233">        document.put(&quot;name&quot;, &quot;$transcripts.name&quot;);</span>
+<span class="fc" id="L234">        document.put(&quot;biotype&quot;, &quot;$transcripts.biotype&quot;);</span>
+<span class="fc" id="L235">        document.put(&quot;status&quot;, &quot;$transcripts.status&quot;);</span>
+<span class="fc" id="L236">        document.put(&quot;chromosome&quot;, &quot;$transcripts.chromosome&quot;);</span>
+<span class="fc" id="L237">        document.put(&quot;start&quot;, &quot;$transcripts.start&quot;);</span>
+<span class="fc" id="L238">        document.put(&quot;end&quot;, &quot;$transcripts.end&quot;);</span>
+<span class="fc" id="L239">        document.put(&quot;strand&quot;, &quot;$transcripts.strand&quot;);</span>
+<span class="fc" id="L240">        document.put(&quot;genomicCodingStart&quot;, &quot;$transcripts.genomicCodingStart&quot;);</span>
+<span class="fc" id="L241">        document.put(&quot;genomicCodingEnd&quot;, &quot;$transcripts.genomicCodingEnd&quot;);</span>
+<span class="fc" id="L242">        document.put(&quot;cdnaCodingStart&quot;, &quot;$transcripts.cdnaCodingStart&quot;);</span>
+<span class="fc" id="L243">        document.put(&quot;cdnaCodingEnd&quot;, &quot;$transcripts.cdnaCodingEnd&quot;);</span>
+<span class="fc" id="L244">        document.put(&quot;cdsLength&quot;, &quot;$transcripts.cdsLength&quot;);</span>
+<span class="fc" id="L245">        document.put(&quot;proteinID&quot;, &quot;$transcripts.proteinID&quot;);</span>
+<span class="fc" id="L246">        document.put(&quot;proteinSequence&quot;, &quot;$transcripts.proteinSequence&quot;);</span>
+<span class="fc" id="L247">        document.put(&quot;cDnaSequence&quot;, &quot;$transcripts.cDnaSequence&quot;);</span>
+<span class="fc" id="L248">        document.put(&quot;xrefs&quot;, &quot;$transcripts.xrefs&quot;);</span>
+<span class="fc" id="L249">        document.put(&quot;exons&quot;, &quot;$transcripts.exons&quot;);</span>
+<span class="fc" id="L250">        document.put(&quot;annotationFlags&quot;, &quot;$transcripts.annotationFlags&quot;);</span>
+<span class="fc" id="L251">        Bson project = Aggregates.project(document);</span>
+
+<span class="fc" id="L253">        Bson match2 = Aggregates.match(bson);</span>
+
+<span class="fc" id="L255">        aggregateList.add(match);</span>
+<span class="fc" id="L256">        aggregateList.add(unwind);</span>
+<span class="fc" id="L257">        aggregateList.add(match2);</span>
+<span class="fc" id="L258">        aggregateList.add(excludeAndInclude);</span>
+<span class="fc" id="L259">        aggregateList.add(project);</span>
+
+<span class="fc" id="L261">        return aggregateList;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>
