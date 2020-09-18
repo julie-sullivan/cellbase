@@ -43,6 +43,7 @@ public class CliOptionsParser {
     private QueryGrpcCommandOptions queryGrpcCommandOptions;
     private VariantAnnotationCommandOptions variantAnnotationCommandOptions;
     private PostLoadCommandOptions postLoadCommandOptions;
+    private RebuildVariantCommandOptions rebuildVariantCommandOptions;
 
 
     public CliOptionsParser() {
@@ -60,6 +61,7 @@ public class CliOptionsParser {
         queryGrpcCommandOptions = new QueryGrpcCommandOptions();
         variantAnnotationCommandOptions = new VariantAnnotationCommandOptions();
         postLoadCommandOptions = new PostLoadCommandOptions();
+        rebuildVariantCommandOptions = new RebuildVariantCommandOptions();
 
         jCommander.addCommand("download", downloadCommandOptions);
         jCommander.addCommand("build", buildCommandOptions);
@@ -68,6 +70,7 @@ public class CliOptionsParser {
         jCommander.addCommand("query-grpc", queryGrpcCommandOptions);
         jCommander.addCommand("variant-annotation", variantAnnotationCommandOptions);
         jCommander.addCommand("post-load", postLoadCommandOptions);
+        jCommander.addCommand("rebuild-variant", rebuildVariantCommandOptions);
     }
 
     public void parse(String[] args) throws ParameterException {
@@ -294,6 +297,8 @@ public class CliOptionsParser {
 
     }
 
+
+
     @Parameters(commandNames = {"query-grpc"}, commandDescription = "Query and fetch data from CellBase database using gRPC server")
     public class QueryGrpcCommandOptions extends QueryCommandOptions {
 
@@ -479,6 +484,12 @@ public class CliOptionsParser {
 
     }
 
+
+    @Parameters(commandNames = {"rebuild-variant"}, commandDescription = "Rewrite JSON variant file")
+    public class RebuildVariantCommandOptions {
+
+    }
+
     public static final String ANSI_RESET = "\u001B[0m";
     public static final String ANSI_BLACK = "\u001B[30m";
     public static final String ANSI_RED = "\u001B[31m";
@@ -570,5 +581,7 @@ public class CliOptionsParser {
     public VariantAnnotationCommandOptions getVariantAnnotationCommandOptions() { return variantAnnotationCommandOptions; }
 
     public PostLoadCommandOptions getPostLoadCommandOptions() { return postLoadCommandOptions; }
+
+    public RebuildVariantCommandOptions getRebuildVariantCommandOptions() { return rebuildVariantCommandOptions; }
 
 }

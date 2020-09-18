@@ -80,6 +80,9 @@ public class CellBaseMain {
                     case "post-load":
                         commandExecutor = new PostLoadCommandExecutor(cliOptionsParser.getPostLoadCommandOptions());
                         break;
+                    case "rebuild-variant":
+                        commandExecutor = new RebuildVariantCommandExecutor(cliOptionsParser.getRebuildVariantCommandOptions());
+                        break;
                     default:
                         break;
                 }

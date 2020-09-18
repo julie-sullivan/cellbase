@@ -121,11 +121,11 @@ public abstract class CommandExecutor {
             if (Files.exists(Paths.get(this.appHome + "/configuration.json"))) {
                 logger.debug("Loading configuration from '{}'", this.appHome + "/configuration.json");
                 this.configuration = CellBaseConfiguration.load(new FileInputStream(new File(this.appHome + "/configuration.json")));
-            } else {
-                logger.debug("Loading configuration from '{}'",
-                        CellBaseConfiguration.class.getClassLoader().getResourceAsStream("configuration.json").toString());
-                this.configuration = CellBaseConfiguration
-                        .load(CellBaseConfiguration.class.getClassLoader().getResourceAsStream("configuration.json"));
+//            } else {
+//                logger.debug("Loading configuration from '{}'",
+//                        CellBaseConfiguration.class.getClassLoader().getResourceAsStream("configuration.json").toString());
+//                this.configuration = CellBaseConfiguration
+//                        .load(CellBaseConfiguration.class.getClassLoader().getResourceAsStream("configuration.json"));
             }
         }
     }
